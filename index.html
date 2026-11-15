@@ -528,6 +528,7 @@ function surfaceAt(x,z){ for(let y=H-1;y>=0;y--){ const id=world[idx(x,y,z)]; if
 // ================= PLAYER STATE =================
 const pl={p:[CX+0.5,SPAWN_H,CZ+2.5],v:[0,0,0],kb:[0,0,0],hw:0.3,h:1.8,onGround:false,wall:false};
 let yaw=0, pitch=-0.2, fly=false, camMode=1, sel=ID.granite;
+const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamond'];
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
 let invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
@@ -546,7 +547,8 @@ function load(){
     pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4];
     if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; fly=!!s.fly; camMode=s.cam===3?3:1;
     hp=Math.max(1,Math.min(MAXHP,s.hp|0)); coins=s.coins|0; owned=Array.isArray(s.owned)?s.owned:['fists'];
-    weapon=owned.includes(s.weapon)?s.weapon:'fists'; mobsOn=s.mobsOn!==false;
+    owned=[...new Set(owned.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!owned.includes('fists'))owned.unshift('fists');
+    const sw=s.weapon==='flint'||s.weapon==='slingshot'?'boomerang':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
     for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
     return true;
   }catch(e){ return false; }
@@ -581,9 +583,10 @@ let walkPhase=0;
 // --- weapons
 const WEAPONS=[
  {id:'fists',name:'Fists',icon:'✊',dmg:1,cd:0.45,price:0,fact:'Better than nothing!'},
- {id:'flint',name:'Flint Knife',icon:'🔪',dmg:2,cd:0.4,price:5,fact:'Flint is a hard sedimentary form of quartz (chert). Early humans chipped it into blades because it breaks into sharp, curved edges.'},
+ {id:'boomerang',name:'Boomerang',icon:'🪃',dmg:2,cd:0.3,price:5,ranged:true,boomer:true,range:12,fact:'Throw it and it flies out, curves around and comes back! It can hit a monster going out AND coming back. Aboriginal Australians carved returning boomerangs from naturally curved tree roots.'},
  {id:'obsidian',name:'Obsidian Dagger',icon:'🗡️',dmg:3,cd:0.32,price:15,fact:'A fresh obsidian edge can be sharper than a steel scalpel. Some surgeons have used obsidian blades.'},
  {id:'granite',name:'Granite Hammer',icon:'🔨',dmg:6,cd:0.85,price:30,fact:'Granite is dense (about 2.7 g/cm³) and tough, which is why it is used for monuments and countertops. Slow but heavy!'},
+ {id:'bow',name:'Bow & Arrow',icon:'🏹',dmg:5,cd:0.7,price:45,ranged:true,spd:42,grav:7,fact:'Ancient arrowheads were knapped from flint and obsidian. The glassy rock breaks in smooth, curved flakes that leave a razor edge.'},
  {id:'quartz',name:'Quartz Sword',icon:'⚔️',dmg:6,cd:0.45,price:60,fact:'Quartz is 7 on the Mohs scale, which makes it harder than steel (about 5.5).'},
  {id:'diamond',name:'Diamond Sword',icon:'💎',dmg:10,cd:0.42,price:120,fact:'Diamond is pure carbon squeezed about 150 km deep in the mantle. At 10 on the Mohs scale, it is the hardest natural mineral.'},
 ];
@@ -593,13 +596,22 @@ function weaponMesh(id,fp){
   const M=c=>{ const m=new THREE.MeshLambertMaterial({color:c}); if(fp){m.depthTest=false;} return m; };
   const add=(w,h,d,c,y,x)=>{ const m=box(w,h,d,M(c)); m.position.set(x||0,y,0); if(fp)m.renderOrder=999; g.add(m); return m; };
   add(0.06,0.3,0.06,0x6b4a2a,0.05);
-  if(id==='flint'){ add(0.04,0.2,0.1,0x6b6258,0.3); }
+  if(id==='boomerang'){ g.children[0].visible=false; boomerangShape(g,M,fp); }
+  if(id==='bow'){ g.children[0].visible=false; const W=0x8a5a2a;
+    for(let i=-4;i<=4;i++){ const a=add(0.05,0.1,0.05,W,0.2+i*0.09); a.position.z=-0.12+(i*i)*0.008; }
+    add(0.012,0.8,0.012,0xeeeeee,0.2).position.z=0.02; add(0.03,0.03,0.6,0xc9a46a,0.2).position.z=-0.12;
+    const tip=add(0.05,0.05,0.07,0x221a33,0.2); tip.position.z=-0.44; }
   if(id==='obsidian'){ add(0.04,0.3,0.09,0x221a33,0.35); add(0.16,0.04,0.06,0x553a77,0.2); }
   if(id==='granite'){ add(0.06,0.25,0.06,0x6b4a2a,0.3); add(0.3,0.18,0.18,0xc4a8a0,0.48); }
   if(id==='quartz'){ add(0.04,0.55,0.1,0xf2eef8,0.48); add(0.22,0.04,0.07,0xb9b4c8,0.2); }
   if(id==='diamond'){ add(0.04,0.6,0.1,0x6fe8f0,0.5); add(0.24,0.05,0.07,0xe6c04a,0.2); }
   return g;
 }
+function boomerangShape(g,M,fp){
+  const c=[0xb5763a,0x8a5226]; const a=box(0.08,0.42,0.04,M(c[0])); a.position.set(0,0.24,0); a.rotation.z=0.5;
+  const b=box(0.08,0.42,0.04,M(c[0])); b.position.set(0.17,0.08,0); b.rotation.z=0.5+1.75;
+  const st=box(0.085,0.05,0.045,M(c[1])); st.position.set(-0.05,0.33,0); st.rotation.z=0.5;
+  for(const m of [a,b,st]){ if(fp)m.renderOrder=999; g.add(m); } return g; }
 const tpWeapon=new THREE.Group(); armR.add(tpWeapon); tpWeapon.position.set(0,-0.62,-0.08); tpWeapon.rotation.x=-Math.PI/2;
 const fpHolder=new THREE.Group(); camera.add(fpHolder); fpHolder.position.set(0.38,-0.36,-0.6);
 const fpHandMat=new THREE.MeshLambertMaterial({color:0xe0b08a,depthTest:false});
@@ -608,7 +620,7 @@ const fpWeapon=new THREE.Group(); fpHolder.add(fpWeapon); fpWeapon.rotation.set(
 function refreshWeapon(){
   tpWeapon.clear(); tpWeapon.add(weaponMesh(weapon,false));
   fpWeapon.clear(); fpWeapon.add(weaponMesh(weapon,true));
-  const w=WP[weapon]; $('bWeapon').textContent=w.icon+' '+w.name.split(' ')[0];
+  const w=WP[weapon]; $('bWeapon').textContent=w.icon+' '+w.name.split(' ')[0]; refreshHeld();
 }
 let swingT=0;
 
@@ -638,6 +650,8 @@ const MOBT={
   slime:{name:'Mud Slime',hp:4,dmg:1,spd:2.4,coins:[1,3],hw:0.4,h:0.8,hop:true},
   golem:{name:'Rock Golem',hp:12,dmg:2,spd:1.7,coins:[5,9],hw:0.45,h:1.9},
   magma:{name:'Magma Cube',hp:7,dmg:2,spd:2.8,coins:[3,6],hw:0.4,h:0.8,hop:true,fireproof:true},
+  skeleton:{name:'Skeleton',hp:8,dmg:1,spd:2.2,coins:[4,7],hw:0.3,h:1.85,archer:true},
+  spider:{name:'Cave Spider',hp:6,dmg:1,spd:4.2,coins:[2,5],hw:0.55,h:0.6,climb:true,legs:true},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
 function mobModel(type){
@@ -651,6 +665,25 @@ function mobModel(type){
   } else if(type==='magma'){
     const o=box(0.8,0.8,0.8,L({map:lavaTex,emissive:0x331100})); o.position.y=0.4; body.add(o);
     eye(-0.17,0.52,-0.41,0xffee44,0.14,0.08); eye(0.17,0.52,-0.41,0xffee44,0.14,0.08);
+  } else if(type==='skeleton'){
+    const bn=L({color:0xe8e4d6}), dk=L({color:0xb8b2a0});
+    r.legL=limbOn(body,-0.12,0.78,0.12,0.78,bn); r.legR=limbOn(body,0.12,0.78,0.12,0.78,bn);
+    const pel=box(0.36,0.12,0.18,dk); pel.position.y=0.84; body.add(pel);
+    const sp=box(0.08,0.5,0.08,bn); sp.position.y=1.1; body.add(sp);
+    for(let i=0;i<3;i++){ const rb=box(0.42,0.05,0.2,bn); rb.position.y=1.12+i*0.12; body.add(rb); }
+    const hd=box(0.44,0.42,0.42,bn); hd.position.y=1.62; body.add(hd);
+    eye(-0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0,1.5,-0.215,0x222222,0.2,0.04);
+    r.armL=limbOn(body,-0.28,1.42,0.1,0.68,bn); r.armR=limbOn(body,0.28,1.42,0.1,0.68,bn);
+    const bw=box(0.05,0.7,0.05,L({color:0x6b4a2a})); bw.position.set(0,-0.62,-0.1); r.armL.add(bw);
+  } else if(type==='spider'){
+    const dk=L({color:0x2a2420}), hr=L({color:0x3d332c});
+    const ab=box(0.7,0.5,0.75,hr); ab.position.set(0,0.42,0.3); body.add(ab);
+    const th=box(0.5,0.38,0.45,dk); th.position.set(0,0.36,-0.25); body.add(th);
+    for(const ex of [-0.14,-0.05,0.05,0.14]) eye(ex,0.45,-0.48,0xff2222,0.06,0.06);
+    eye(-0.18,0.36,-0.48,0xff2222,0.06,0.06); eye(0.18,0.36,-0.48,0xff2222,0.06,0.06);
+    r.legs=[];
+    for(let i=0;i<4;i++) for(const sd of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sd*0.22,0.4,-0.35+i*0.17); body.add(piv);
+      const lg=box(0.7,0.07,0.07,dk); lg.position.x=sd*0.33; lg.rotation.z=sd*-0.55; piv.add(lg); piv.userData.sd=sd; piv.userData.i=i; r.legs.push(piv); }
   } else {
     const gm=L({map:graniteTex}), dk=L({color:0x5a5250});
     r.legL=limbOn(body,-0.22,0.7,0.3,0.7,dk); r.legR=limbOn(body,0.22,0.7,0.3,0.7,dk);
@@ -704,6 +737,11 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='place')tone('square',220,90,0.09,0.1);
   else if(k==='hit'){ noise(400,0.1,0.6,'lowpass'); tone('square',160,70,0.08,0.12); }
   else if(k==='swing')noise(2500,0.08,0.15,'highpass');
+  else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
+  else if(k==='whoosh')noise(1400,0.12,0.08,'bandpass');
+  else if(k==='catch')tone('square',330,520,0.07,0.08);
+  else if(k==='bow'){ tone('triangle',220,110,0.15,0.18); noise(3500,0.12,0.12,'highpass'); }
+  else if(k==='thunk')tone('square',140,60,0.05,0.06);
   else if(k==='hurt')tone('sawtooth',300,120,0.2,0.15);
   else if(k==='coin'){ tone('square',988,988,0.06,0.07); tone('square',1319,1319,0.12,0.07,0.06); }
   else if(k==='die')tone('triangle',400,60,0.35,0.2);
@@ -734,9 +772,10 @@ function rayBox(o,d,e){ let tmin=0,tmax=Infinity; const mn=[e.p[0]-e.hw,e.p[1],e
 let target=null, aimMob=null, aimNPC=false, camDist=0;
 function updateTarget(){
   const o=camera.position.clone(), d=lookDir();
-  const reach = camMode===1 ? 6 : 6+camDist, mreach = camMode===1 ? 3.6 : 3.6+camDist;
+  const reach = camMode===1 ? 6 : 6+camDist, mreach = (WP[weapon].ranged?(WP[weapon].range||40):3.6)+(camMode===1?0:camDist);
   target=raycast(o,d,reach);
-  const bt=target?target.t:Infinity;
+  let bt=target?target.t:Infinity;
+  if(WP[weapon].ranged&&!target){ const far=raycast(o,d,mreach); if(far)bt=far.t; }
   aimMob=null; let best=Math.min(bt,mreach);
   for(const m of mobs){ const t=rayBox(o,d,m); if(t!==null&&t<best){best=t;aimMob=m;} }
   const nt=rayBox(o,d,merchant); aimNPC = !aimMob && nt!==null && nt<Math.min(bt,mreach+1.5);
@@ -753,12 +792,80 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
-  if(aimMob){ if(atkCd<=0) attackMob(aimMob); return; }
+  const w=WP[weapon];
+  if(w.ranged){ if((aimMob||!target)){ if(atkCd<=0&&!(w.boomer&&boom))shoot(w); return; } }
+  else if(aimMob){ if(atkCd<=0) attackMob(aimMob); return; }
   sfx('swing'); doBreak();
 }
+// --- projectiles (player arrows and skeleton arrows)
+const shots=[];
+const arrowMatW=new THREE.MeshLambertMaterial({color:0xc9a46a}), arrowMatT=new THREE.MeshLambertMaterial({color:0x221a33}), boneMat=new THREE.MeshLambertMaterial({color:0xe8e4d6});
+function arrowMesh(mob){ const g=new THREE.Group(); const s=box(0.04,0.04,0.6,mob?boneMat:arrowMatW); g.add(s);
+  const t=box(0.07,0.07,0.1,arrowMatT); t.position.z=-0.32; g.add(t); const f=box(0.12,0.02,0.1,lm(0xdddddd)); f.position.z=0.27; g.add(f);
+  g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
+function addShot(o,d,spd,grav,dmg,kind,fromMob){
+  const mesh=arrowMesh(fromMob); scene.add(mesh);
+  shots.push({p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}); }
+function shoot(w){
+  atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
+  if(camMode===3){ o.set(pl.p[0],pl.p[1]+EYE-0.1,pl.p[2]).addScaledVector(d,0.5);
+    // aim toward what the camera crosshair points at
+    const aim=aimMob?new THREE.Vector3(aimMob.p[0],aimMob.p[1]+aimMob.h*0.5,aimMob.p[2]):camera.position.clone().addScaledVector(d,30);
+    d.copy(aim.sub(o).normalize()); }
+  if(w.boomer){ throwBoomerang(o,d,w); return; }
+  addShot(o,d,w.spd,w.grav,w.dmg,'arrow',false);
+  sfx('bow');
+}
+// --- boomerang: flies out, curves, comes back to the player's hand
+let boom=null;
+function throwBoomerang(o,d,w){
+  const mesh=boomerangShape(new THREE.Group(),c=>lm(c),false); mesh.scale.setScalar(1.3); scene.add(mesh);
+  const side=new THREE.Vector3(-d.z,0,d.x).normalize();
+  boom={p:o.clone(),d:d.clone(),side,t:0,out:true,dmg:w.dmg,hit:new Set(),mesh,spin:0,wT:0}; sfx('throw'); refreshHeld();
+}
+function boomHome(){ return new THREE.Vector3(pl.p[0],pl.p[1]+1.2,pl.p[2]); }
+function updateBoomerang(dt){
+  if(!boom)return; const b=boom; b.t+=dt;
+  const OUT=0.6, SPD=26;
+  if(b.out){
+    // fast at first, slowing to a stop at the far end, drifting sideways into a curve
+    const sp=SPD*Math.max(0.05,1-b.t/OUT);
+    b.p.addScaledVector(b.d,sp*dt).addScaledVector(b.side,2*Math.sin(b.t/OUT*Math.PI)*dt);
+    if(solidAt(Math.floor(b.p.x),Math.floor(b.p.y),Math.floor(b.p.z))){ burst(b.p.x-0.5,b.p.y-0.5,b.p.z-0.5,new THREE.Color(.7,.5,.3),4); sfx('thunk'); b.out=false; b.hit.clear(); }
+    if(b.t>=OUT){ b.out=false; b.hit.clear(); }
+  } else {
+    const h=boomHome(), to=h.clone().sub(b.p), dist=to.length(), sp=Math.min(24,8+(b.t-OUT)*30);
+    if(dist<0.9||b.t>6){ scene.remove(b.mesh); b.mesh.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); boom=null; sfx('catch'); refreshHeld(); return; }
+    b.p.addScaledVector(to.normalize(),Math.min(dist,sp*dt));
+  }
+  for(const m of mobs){ if(!b.hit.has(m)&&boxHit(m,b.p.x,b.p.y,b.p.z,0.45)){ b.hit.add(m); damageMob(m,b.dmg,m.p[0]-pl.p[0],m.p[2]-pl.p[2],1.5); } }
+  b.spin+=dt*22; b.mesh.position.copy(b.p); b.mesh.rotation.set(-Math.PI/2,0,b.spin);
+  b.wT-=dt; if(b.wT<=0){ b.wT=0.18; sfx('whoosh'); }
+}
+function refreshHeld(){ const away=!!boom&&weapon==='boomerang'; tpWeapon.visible=!away; fpWeapon.visible=!away; }
+function freeShot(s){ scene.remove(s.mesh); s.mesh.traverse(o=>{ if(o.userData.own)o.geometry.dispose(); }); shots.splice(shots.indexOf(s),1); }
+function boxHit(e,x,y,z,pad){ return x>e.p[0]-e.hw-pad&&x<e.p[0]+e.hw+pad&&z>e.p[2]-e.hw-pad&&z<e.p[2]+e.hw+pad&&y>e.p[1]-pad&&y<e.p[1]+e.h+pad; }
+function updateShots(dt){
+  for(const s of shots.slice()){
+    s.life-=dt; if(s.life<=0){ freeShot(s); continue; }
+    s.v[1]-=s.grav*dt; let hit=false;
+    const steps=4; for(let k=0;k<steps&&!hit;k++){
+      s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
+      const [x,y,z]=s.p;
+      if(solidAt(Math.floor(x),Math.floor(y),Math.floor(z))){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
+      if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.1)){ hit=true; const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,'A Skeleton\'s arrow'); } }
+      else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
+    }
+    if(hit){ freeShot(s); continue; }
+    s.mesh.position.set(s.p[0],s.p[1],s.p[2]);
+    if(s.kind==='arrow'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
+  }
+}
 function attackMob(m){
-  const w=WP[weapon]; atkCd=w.cd; m.hp-=w.dmg; m.flash=0.15; m.g.bar.visible=true;
-  const dx=m.p[0]-pl.p[0], dz=m.p[2]-pl.p[2], l=Math.hypot(dx,dz)||1, kb=weapon==='granite'?9:6;
+  const w=WP[weapon]; atkCd=w.cd; damageMob(m,w.dmg,m.p[0]-pl.p[0],m.p[2]-pl.p[2],weapon==='granite'?9:6);
+}
+function damageMob(m,dmg,dx,dz,kb){
+  m.hp-=dmg; m.flash=0.15; m.g.bar.visible=true; const l=Math.hypot(dx,dz)||1;
   m.kb[0]=dx/l*kb; m.kb[2]=dz/l*kb; if(m.onGround)m.v[1]=4.5;
   sfx('hit'); burst(m.p[0]-0.5,m.p[1]+m.h*0.3,m.p[2]-0.5,new THREE.Color(1,0.3,0.3),5);
   if(m.hp<=0) killMob(m);
@@ -766,7 +873,7 @@ function attackMob(m){
 function killMob(m){
   const c=m.t.coins, n=c[0]+Math.floor(rand()*(c[1]-c[0]+1));
   dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
-  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):new THREE.Color(.45,.32,.2);
+  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):new THREE.Color(.45,.32,.2);
   burst(m.p[0]-0.5,m.p[1],m.p[2]-0.5,col,14);
   if(m.type==='magma'){ const x=Math.floor(m.p[0]),y=Math.floor(m.p[1]+0.2),z=Math.floor(m.p[2]); if(get(x,y,z)===0)tryIgnite(x,y,z); }
   removeMob(m);
@@ -919,11 +1026,11 @@ const nearMerchant=()=>Math.hypot(pl.p[0]-merchant.p[0],pl.p[2]-merchant.p[2])<3
 function helpHTML(){
   return '<h2>⛏ StrataCraft</h2>Build with real rocks, minerals and soils. Pick a block to learn a fact about it. Fight monsters for coins and spend them at <b>Flint\'s Shop</b> (right in front of you).'+
   '<h3>iPhone controls</h3><ul><li><b>Left side:</b> drag to walk (you hop up single blocks on your own)</li><li><b>Right side:</b> drag to look around</li>'+
-  '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
+  '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
-  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
+  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls (2–5 coins) · 💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
   '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button><button class="mbtn red" id="mNew">New World…</button></div>'+
   '<div style="margin-top:8px;font-size:12px;opacity:.7">Your world saves automatically on this device.</div>';
 }
@@ -950,6 +1057,8 @@ const LINES=[
   'Magma Cubes leave fire behind. Keep some water handy, partner.',
   'Mohs scale tip: a harder mineral scratches a softer one. Diamond beats \'em all.',
   'Them Mud Slimes are mostly clay and silt. Squishy, but they bite.',
+  'Skeletons shoot from afar. Duck behind a rock wall, or get yourself a bow.',
+  'Cave Spiders climb right up cliffs. Can\'t wall \'em out, partner!',
 ];
 function openShop(){
   if(document.pointerLockElement)document.exitPointerLock();
@@ -958,7 +1067,7 @@ function openShop(){
   for(const w of WEAPONS){ if(w.id==='fists')continue; const has=owned.includes(w.id), eq=weapon===w.id;
     const btn=eq?'<button class="ibtn eq" disabled>Equipped</button>':has?'<button class="ibtn eq" data-eq="'+w.id+'">Equip</button>':
       '<button class="ibtn'+(coins<w.price?' dis':'')+'" data-buy="'+w.id+'">🪙 '+w.price+'</button>';
-    h+='<div class="item"><div class="ic">'+w.icon+'</div><div class="tx"><b>'+w.name+'</b> <span class="st">⚔ '+w.dmg+' dmg · '+(w.cd<0.4?'fast':w.cd>0.7?'slow':'normal')+'</span><div class="fx">'+w.fact+'</div></div>'+btn+'</div>'; }
+    h+='<div class="item"><div class="ic">'+w.icon+'</div><div class="tx"><b>'+w.name+'</b> <span class="st">⚔ '+w.dmg+' dmg · '+(w.ranged?'ranged':w.cd<0.4?'fast':w.cd>0.7?'slow':'normal')+'</span><div class="fx">'+w.fact+'</div></div>'+btn+'</div>'; }
   h+='<div class="item"><div class="ic">🌿</div><div class="tx"><b>Healing Herbs</b> <span class="st">refills all hearts</span><div class="fx">Aloe and other plants have been used on wounds for thousands of years.</div></div><button class="ibtn'+(coins<6||hp>=MAXHP?' dis':'')+'" data-heal="1">🪙 6</button></div>';
   h+='<div class="row"><button class="mbtn" id="mBye">Thanks, Flint!</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
@@ -1015,7 +1124,14 @@ function updateMobs(dt){
     if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
     let mx=0,mz=0; const chase=dist<22&&!dead&&Math.abs(dy)<8;
     const reach=m.hw+pl.hw+0.45;
-    if(chase){ if(dist>reach*0.85){ mx=dx/dist; mz=dz/dist; } }
+    if(chase&&t.archer){ m.shootT=(m.shootT===undefined?1.5:m.shootT)-dt;
+      if(dist>11){ mx=dx/dist; mz=dz/dist; } else if(dist<5){ mx=-dx/dist; mz=-dz/dist; } else { mx=-dz/dist*0.5; mz=dx/dist*0.5; }
+      if(m.shootT<=0&&dist<16&&!paused){ m.shootT=2+rand()*1.2;
+        const o=new THREE.Vector3(m.p[0],m.p[1]+1.5,m.p[2]), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1.1,pl.p[2]);
+        const fl=o.distanceTo(tg)/22; tg.y+=0.5*7*fl*fl; tg.x+=(rand()-.5)*0.8; tg.z+=(rand()-.5)*0.8;
+        const d=tg.sub(o).normalize(); o.addScaledVector(d,0.5);
+        if(!raycast(o,d,Math.max(0.1,dist-0.6))){ addShot(o,d,22,7,t.dmg,'arrow',true); m.atk=0.3; sfx('bow'); } else m.shootT=0.6; } }
+    else if(chase){ if(dist>reach*0.85){ mx=dx/dist; mz=dz/dist; } }
     else { m.wT-=dt; if(m.wT<=0){ m.wT=2+rand()*3; if(rand()<0.4)m.wander=[0,0]; else { const a=rand()*6.28; m.wander=[Math.sin(a)*0.5,Math.cos(a)*0.5]; } } mx=m.wander[0]; mz=m.wander[1]; }
     if(t.hop){
       if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=env.water?4:7; m.mv=[mx*t.spd*1.4,mz*t.spd*1.4]; m.hopT=0.5+rand()*0.6; } }
@@ -1026,15 +1142,21 @@ function updateMobs(dt){
     if(m.v[1]<-30)m.v[1]=-30;
     physStep(m,dt);
     if(!t.hop && m.wall && m.onGround && (mx||mz)) m.v[1]=7.5;
+    if(t.climb && m.wall && (mx||mz)) m.v[1]=4;
     if(t.hop && m.wall && !m.onGround) {}
     m.cd-=dt;
-    if(chase && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
+    if(chase && !t.archer && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
     // visuals
     if(chase) m.yaw=Math.atan2(-dx,-dz); else if(mx||mz) m.yaw=Math.atan2(-mx,-mz);
     const g=m.g; g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
     if(t.hop){ const sq=m.onGround?1:1+Math.max(-0.2,Math.min(0.25,m.v[1]*0.04)); g.body.scale.set(1/Math.sqrt(sq),sq,1/Math.sqrt(sq)); }
+    else if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3; m.atk=Math.max(0,m.atk-dt);
+      for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; }
+      g.body.rotation.x=m.atk>0?-0.35:0; }
     else { m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
-      m.atk=Math.max(0,m.atk-dt); const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; }
+      m.atk=Math.max(0,m.atk-dt);
+      if(t.archer&&chase){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
+      else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } }
     m.flash=Math.max(0,m.flash-dt); for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
     if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); }
   }
@@ -1048,7 +1170,7 @@ function updateMobs(dt){
         const s=surfaceAt(x,z); if(s.y<0||!B[s.id].solid||s.id===ID.leaves)continue;
         if(get(x,s.y+1,z)||get(x,s.y+2,z))continue;
         let lavaNear=false; for(const i of lavaSet){ const lx2=ix_(i),lz2=iz_(i); if(Math.abs(lx2-x)<10&&Math.abs(lz2-z)<10){lavaNear=true;break;} }
-        const q=rand(); const type=lavaNear&&q<0.6?'magma':q<0.5?'slime':q<0.75?'golem':'magma';
+        const q=rand(); const type=lavaNear&&q<0.5?'magma':q<0.3?'slime':q<0.48?'golem':q<0.68?'spider':q<0.86?'skeleton':'magma';
         spawnMob(type,x+0.5,s.y+1,z+0.5); break;
       }
     }
@@ -1097,7 +1219,7 @@ function update(dt){
   const near=nearMerchant(); $('bTalk').style.display=near&&IS_TOUCH?'flex':'none';
   const pr=$('prompt'); if(near&&!IS_TOUCH){ pr.textContent='Press E to talk to Flint'; pr.style.display='block'; } else pr.style.display='none';
 
-  updateMobs(dt); updateDrops(dt); updateTarget();
+  updateMobs(dt); updateShots(dt); updateBoomerang(dt); updateDrops(dt); updateTarget();
 
   // world sim
   sizzleCD-=dt;
