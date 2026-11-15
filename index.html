@@ -493,7 +493,8 @@ function generate(s){
 }
 
 // ================= PHYSICS =================
-function solidAt(x,y,z){ if(x<0||z<0||x>=W||z>=D||y<0)return true; if(y>=H)return false; const b=world[idx(x,y,z)]; return b!==0&&B[b].solid; }
+let edgeOpen=false; // true while the player moves: they may leave the world to see it from the side
+function solidAt(x,y,z){ if(x<0||z<0||x>=W||z>=D)return !edgeOpen; if(y<0)return true; if(y>=H)return false; const b=world[idx(x,y,z)]; return b!==0&&B[b].solid; }
 function boxHits(x,y,z,hw,h){
   const x0=Math.floor(x-hw),x1=Math.floor(x+hw-1e-6),y0=Math.floor(y),y1=Math.floor(y+h-1e-6),z0=Math.floor(z-hw),z1=Math.floor(z+hw-1e-6);
   for(let yy=y0;yy<=y1;yy++)for(let zz=z0;zz<=z1;zz++)for(let xx=x0;xx<=x1;xx++) if(solidAt(xx,yy,zz))return true;
@@ -1027,7 +1028,15 @@ function showCard(id,stay){ const b=B[id], c=$('card');
 let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
-function toggleFly(){ fly=!fly; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
+function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
+function toggleFly(){ if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
+const OUT_MAX=70;
+function outsideDist(){ const ox=Math.max(0,-pl.p[0],pl.p[0]-W), oz=Math.max(0,-pl.p[2],pl.p[2]-D); return Math.hypot(ox,oz); }
+let viewF=-1;
+function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
+  const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
+  if(Math.abs(f-viewF)<0.001)return; viewF=f;
+  scene.fog.near=40+f*130; scene.fog.far=90+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
 function cycleWeapon(){ const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
@@ -1042,6 +1051,7 @@ function helpHTML(){
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
+  '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
   '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls (2–5 coins) · 💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
   '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button><button class="mbtn red" id="mNew">New World…</button></div>'+
@@ -1101,17 +1111,23 @@ function updatePlayer(dt){
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   const fwd=-iz, str=ix, s=Math.sin(yaw), c=Math.cos(yaw);
   const env=envAt(pl);
-  const speed=(fly?9:4.6)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
+  const speed=(fly?(outsideDist()>0?13:9):4.6)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
   pl.v[0]=(-s*fwd+c*str)*speed; pl.v[2]=(-c*fwd-s*str)*speed;
   const up=upHeld||keys.Space, down=downHeld||keys.ShiftLeft||keys.ShiftRight;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
   else { pl.v[1]-=28*dt; if(up&&pl.onGround)pl.v[1]=8.6; if(pl.v[1]<-30)pl.v[1]=-30; }
-  physStep(pl,dt);
+  edgeOpen=true; physStep(pl,dt);
   if(!fly && pl.wall && pl.onGround && m>0.2){
     const dx=(-s*fwd+c*str), dz=(-c*fwd-s*str), l=Math.hypot(dx,dz)||1;
     if(!boxHits(pl.p[0]+dx/l*0.35,pl.p[1]+1.05,pl.p[2]+dz/l*0.35,pl.hw,pl.h)) pl.v[1]=8.6;
   }
+  edgeOpen=false;
+  // side view: outside the world edge the player flies so they can look at the rock layers
+  pl.p[0]=Math.max(-OUT_MAX,Math.min(W+OUT_MAX,pl.p[0])); pl.p[2]=Math.max(-OUT_MAX,Math.min(D+OUT_MAX,pl.p[2]));
+  const out=outsideDist();
+  if(out>0){ if(!fly){ setFly(true,false); toast('🔭 Side view! You\'re outside the world, so you fly. Look at the layers under the topsoil.'); }
+    if(pl.p[1]<-30)pl.p[1]=-30; }
   if(pl.p[1]>H+20)pl.p[1]=H+20;
   // environment damage
   if(env.water) burning=0;
@@ -1203,7 +1219,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
 
@@ -1263,7 +1279,7 @@ graniteTex=tileTex('granite'); lavaTex=tileTex('lava');
   for(let yy=0;yy<16;yy++)for(let xx=0;xx<16;xx++){ const v=0.8+r()*0.35; x.fillStyle='rgb('+cl(120*v)+','+cl(88*v)+','+cl(55*v)+')'; x.fillRect(xx,yy,1,1); }
   mudTex=new THREE.CanvasTexture(c); mudTex.magFilter=mudTex.minFilter=THREE.NearestFilter; mudTex.generateMipmaps=false; }
 if(!load()) generate((Math.random()*1e9)|0);
-unstick(pl); rebuildAll();
+edgeOpen=true; unstick(pl); edgeOpen=false; rebuildAll();
 select(sel,false); refreshWeapon(); updateHUD();
 $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
