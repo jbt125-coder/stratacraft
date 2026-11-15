@@ -528,7 +528,7 @@ function surfaceAt(x,z){ for(let y=H-1;y>=0;y--){ const id=world[idx(x,y,z)]; if
 // ================= PLAYER STATE =================
 const pl={p:[CX+0.5,SPAWN_H,CZ+2.5],v:[0,0,0],kb:[0,0,0],hw:0.3,h:1.8,onGround:false,wall:false};
 let yaw=0, pitch=-0.2, fly=false, camMode=1, sel=ID.granite;
-const WEAPON_IDS=['fists','slingshot','obsidian','bow','granite','quartz','diamond'];
+const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamond'];
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
 let invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
@@ -547,8 +547,8 @@ function load(){
     pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4];
     if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; fly=!!s.fly; camMode=s.cam===3?3:1;
     hp=Math.max(1,Math.min(MAXHP,s.hp|0)); coins=s.coins|0; owned=Array.isArray(s.owned)?s.owned:['fists'];
-    owned=[...new Set(owned.map(w=>w==='flint'?'slingshot':w))].filter(w=>WEAPON_IDS.includes(w)); if(!owned.includes('fists'))owned.unshift('fists');
-    const sw=s.weapon==='flint'?'slingshot':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
+    owned=[...new Set(owned.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!owned.includes('fists'))owned.unshift('fists');
+    const sw=s.weapon==='flint'||s.weapon==='slingshot'?'boomerang':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
     for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
     return true;
   }catch(e){ return false; }
@@ -583,7 +583,7 @@ let walkPhase=0;
 // --- weapons
 const WEAPONS=[
  {id:'fists',name:'Fists',icon:'✊',dmg:1,cd:0.45,price:0,fact:'Better than nothing!'},
- {id:'slingshot',name:'Slingshot',icon:'🪃',dmg:2,cd:0.5,price:5,ranged:true,spd:30,grav:9,fact:'Shoots river pebbles. Stream water tumbles rocks against each other until the sharp corners wear off, leaving them smooth and round.'},
+ {id:'boomerang',name:'Boomerang',icon:'🪃',dmg:2,cd:0.3,price:5,ranged:true,boomer:true,range:12,fact:'Throw it and it flies out, curves around and comes back! It can hit a monster going out AND coming back. Aboriginal Australians carved returning boomerangs from naturally curved tree roots.'},
  {id:'obsidian',name:'Obsidian Dagger',icon:'🗡️',dmg:3,cd:0.32,price:15,fact:'A fresh obsidian edge can be sharper than a steel scalpel. Some surgeons have used obsidian blades.'},
  {id:'granite',name:'Granite Hammer',icon:'🔨',dmg:6,cd:0.85,price:30,fact:'Granite is dense (about 2.7 g/cm³) and tough, which is why it is used for monuments and countertops. Slow but heavy!'},
  {id:'bow',name:'Bow & Arrow',icon:'🏹',dmg:5,cd:0.7,price:45,ranged:true,spd:42,grav:7,fact:'Ancient arrowheads were knapped from flint and obsidian. The glassy rock breaks in smooth, curved flakes that leave a razor edge.'},
@@ -596,8 +596,7 @@ function weaponMesh(id,fp){
   const M=c=>{ const m=new THREE.MeshLambertMaterial({color:c}); if(fp){m.depthTest=false;} return m; };
   const add=(w,h,d,c,y,x)=>{ const m=box(w,h,d,M(c)); m.position.set(x||0,y,0); if(fp)m.renderOrder=999; g.add(m); return m; };
   add(0.06,0.3,0.06,0x6b4a2a,0.05);
-  if(id==='slingshot'){ add(0.05,0.05,0.22,0x6b4a2a,0.2); const a=add(0.05,0.2,0.05,0x6b4a2a,0.3); a.position.z=-0.09; const b=add(0.05,0.2,0.05,0x6b4a2a,0.3); b.position.z=0.09;
-    add(0.02,0.02,0.18,0xc0503a,0.39); add(0.07,0.07,0.07,0x8a8a88,0.39); }
+  if(id==='boomerang'){ g.children[0].visible=false; boomerangShape(g,M,fp); }
   if(id==='bow'){ g.children[0].visible=false; const W=0x8a5a2a;
     for(let i=-4;i<=4;i++){ const a=add(0.05,0.1,0.05,W,0.2+i*0.09); a.position.z=-0.12+(i*i)*0.008; }
     add(0.012,0.8,0.012,0xeeeeee,0.2).position.z=0.02; add(0.03,0.03,0.6,0xc9a46a,0.2).position.z=-0.12;
@@ -608,6 +607,11 @@ function weaponMesh(id,fp){
   if(id==='diamond'){ add(0.04,0.6,0.1,0x6fe8f0,0.5); add(0.24,0.05,0.07,0xe6c04a,0.2); }
   return g;
 }
+function boomerangShape(g,M,fp){
+  const c=[0xb5763a,0x8a5226]; const a=box(0.08,0.42,0.04,M(c[0])); a.position.set(0,0.24,0); a.rotation.z=0.5;
+  const b=box(0.08,0.42,0.04,M(c[0])); b.position.set(0.17,0.08,0); b.rotation.z=0.5+1.75;
+  const st=box(0.085,0.05,0.045,M(c[1])); st.position.set(-0.05,0.33,0); st.rotation.z=0.5;
+  for(const m of [a,b,st]){ if(fp)m.renderOrder=999; g.add(m); } return g; }
 const tpWeapon=new THREE.Group(); armR.add(tpWeapon); tpWeapon.position.set(0,-0.62,-0.08); tpWeapon.rotation.x=-Math.PI/2;
 const fpHolder=new THREE.Group(); camera.add(fpHolder); fpHolder.position.set(0.38,-0.36,-0.6);
 const fpHandMat=new THREE.MeshLambertMaterial({color:0xe0b08a,depthTest:false});
@@ -616,7 +620,7 @@ const fpWeapon=new THREE.Group(); fpHolder.add(fpWeapon); fpWeapon.rotation.set(
 function refreshWeapon(){
   tpWeapon.clear(); tpWeapon.add(weaponMesh(weapon,false));
   fpWeapon.clear(); fpWeapon.add(weaponMesh(weapon,true));
-  const w=WP[weapon]; $('bWeapon').textContent=w.icon+' '+w.name.split(' ')[0];
+  const w=WP[weapon]; $('bWeapon').textContent=w.icon+' '+w.name.split(' ')[0]; refreshHeld();
 }
 let swingT=0;
 
@@ -733,7 +737,9 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='place')tone('square',220,90,0.09,0.1);
   else if(k==='hit'){ noise(400,0.1,0.6,'lowpass'); tone('square',160,70,0.08,0.12); }
   else if(k==='swing')noise(2500,0.08,0.15,'highpass');
-  else if(k==='sling'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
+  else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
+  else if(k==='whoosh')noise(1400,0.12,0.08,'bandpass');
+  else if(k==='catch')tone('square',330,520,0.07,0.08);
   else if(k==='bow'){ tone('triangle',220,110,0.15,0.18); noise(3500,0.12,0.12,'highpass'); }
   else if(k==='thunk')tone('square',140,60,0.05,0.06);
   else if(k==='hurt')tone('sawtooth',300,120,0.2,0.15);
@@ -766,7 +772,7 @@ function rayBox(o,d,e){ let tmin=0,tmax=Infinity; const mn=[e.p[0]-e.hw,e.p[1],e
 let target=null, aimMob=null, aimNPC=false, camDist=0;
 function updateTarget(){
   const o=camera.position.clone(), d=lookDir();
-  const reach = camMode===1 ? 6 : 6+camDist, mreach = (WP[weapon].ranged?40:3.6)+(camMode===1?0:camDist);
+  const reach = camMode===1 ? 6 : 6+camDist, mreach = (WP[weapon].ranged?(WP[weapon].range||40):3.6)+(camMode===1?0:camDist);
   target=raycast(o,d,reach);
   let bt=target?target.t:Infinity;
   if(WP[weapon].ranged&&!target){ const far=raycast(o,d,mreach); if(far)bt=far.t; }
@@ -787,19 +793,18 @@ let atkCd=0;
 function hitAction(){
   swingT=0.25;
   const w=WP[weapon];
-  if(w.ranged){ if((aimMob||!target)){ if(atkCd<=0)shoot(w); return; } }
+  if(w.ranged){ if((aimMob||!target)){ if(atkCd<=0&&!(w.boomer&&boom))shoot(w); return; } }
   else if(aimMob){ if(atkCd<=0) attackMob(aimMob); return; }
   sfx('swing'); doBreak();
 }
-// --- projectiles (player pebbles/arrows and skeleton arrows)
+// --- projectiles (player arrows and skeleton arrows)
 const shots=[];
-const pebbleGeo=new THREE.BoxGeometry(0.12,0.12,0.12), pebbleMat=new THREE.MeshLambertMaterial({color:0x8a8a88});
 const arrowMatW=new THREE.MeshLambertMaterial({color:0xc9a46a}), arrowMatT=new THREE.MeshLambertMaterial({color:0x221a33}), boneMat=new THREE.MeshLambertMaterial({color:0xe8e4d6});
 function arrowMesh(mob){ const g=new THREE.Group(); const s=box(0.04,0.04,0.6,mob?boneMat:arrowMatW); g.add(s);
   const t=box(0.07,0.07,0.1,arrowMatT); t.position.z=-0.32; g.add(t); const f=box(0.12,0.02,0.1,lm(0xdddddd)); f.position.z=0.27; g.add(f);
-  g.traverse(o=>{ if(o.geometry&&o.geometry!==pebbleGeo)o.userData.own=true; }); return g; }
+  g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function addShot(o,d,spd,grav,dmg,kind,fromMob){
-  const mesh=kind==='pebble'?new THREE.Mesh(pebbleGeo,pebbleMat):arrowMesh(fromMob); scene.add(mesh);
+  const mesh=arrowMesh(fromMob); scene.add(mesh);
   shots.push({p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}); }
 function shoot(w){
   atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
@@ -807,9 +812,37 @@ function shoot(w){
     // aim toward what the camera crosshair points at
     const aim=aimMob?new THREE.Vector3(aimMob.p[0],aimMob.p[1]+aimMob.h*0.5,aimMob.p[2]):camera.position.clone().addScaledVector(d,30);
     d.copy(aim.sub(o).normalize()); }
-  addShot(o,d,w.spd,w.grav,w.dmg,weapon==='bow'?'arrow':'pebble',false);
-  sfx(weapon==='bow'?'bow':'sling');
+  if(w.boomer){ throwBoomerang(o,d,w); return; }
+  addShot(o,d,w.spd,w.grav,w.dmg,'arrow',false);
+  sfx('bow');
 }
+// --- boomerang: flies out, curves, comes back to the player's hand
+let boom=null;
+function throwBoomerang(o,d,w){
+  const mesh=boomerangShape(new THREE.Group(),c=>lm(c),false); mesh.scale.setScalar(1.3); scene.add(mesh);
+  const side=new THREE.Vector3(-d.z,0,d.x).normalize();
+  boom={p:o.clone(),d:d.clone(),side,t:0,out:true,dmg:w.dmg,hit:new Set(),mesh,spin:0,wT:0}; sfx('throw'); refreshHeld();
+}
+function boomHome(){ return new THREE.Vector3(pl.p[0],pl.p[1]+1.2,pl.p[2]); }
+function updateBoomerang(dt){
+  if(!boom)return; const b=boom; b.t+=dt;
+  const OUT=0.6, SPD=26;
+  if(b.out){
+    // fast at first, slowing to a stop at the far end, drifting sideways into a curve
+    const sp=SPD*Math.max(0.05,1-b.t/OUT);
+    b.p.addScaledVector(b.d,sp*dt).addScaledVector(b.side,2*Math.sin(b.t/OUT*Math.PI)*dt);
+    if(solidAt(Math.floor(b.p.x),Math.floor(b.p.y),Math.floor(b.p.z))){ burst(b.p.x-0.5,b.p.y-0.5,b.p.z-0.5,new THREE.Color(.7,.5,.3),4); sfx('thunk'); b.out=false; b.hit.clear(); }
+    if(b.t>=OUT){ b.out=false; b.hit.clear(); }
+  } else {
+    const h=boomHome(), to=h.clone().sub(b.p), dist=to.length(), sp=Math.min(24,8+(b.t-OUT)*30);
+    if(dist<0.9||b.t>6){ scene.remove(b.mesh); b.mesh.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); boom=null; sfx('catch'); refreshHeld(); return; }
+    b.p.addScaledVector(to.normalize(),Math.min(dist,sp*dt));
+  }
+  for(const m of mobs){ if(!b.hit.has(m)&&boxHit(m,b.p.x,b.p.y,b.p.z,0.45)){ b.hit.add(m); damageMob(m,b.dmg,m.p[0]-pl.p[0],m.p[2]-pl.p[2],1.5); } }
+  b.spin+=dt*22; b.mesh.position.copy(b.p); b.mesh.rotation.set(-Math.PI/2,0,b.spin);
+  b.wT-=dt; if(b.wT<=0){ b.wT=0.18; sfx('whoosh'); }
+}
+function refreshHeld(){ const away=!!boom&&weapon==='boomerang'; tpWeapon.visible=!away; fpWeapon.visible=!away; }
 function freeShot(s){ scene.remove(s.mesh); s.mesh.traverse(o=>{ if(o.userData.own)o.geometry.dispose(); }); shots.splice(shots.indexOf(s),1); }
 function boxHit(e,x,y,z,pad){ return x>e.p[0]-e.hw-pad&&x<e.p[0]+e.hw+pad&&z>e.p[2]-e.hw-pad&&z<e.p[2]+e.hw+pad&&y>e.p[1]-pad&&y<e.p[1]+e.h+pad; }
 function updateShots(dt){
@@ -819,7 +852,7 @@ function updateShots(dt){
     const steps=4; for(let k=0;k<steps&&!hit;k++){
       s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
       const [x,y,z]=s.p;
-      if(solidAt(Math.floor(x),Math.floor(y),Math.floor(z))){ hit=true; burst(x-0.5,y-0.5,z-0.5,s.kind==='pebble'?new THREE.Color(.55,.55,.53):new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
+      if(solidAt(Math.floor(x),Math.floor(y),Math.floor(z))){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
       if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.1)){ hit=true; const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,'A Skeleton\'s arrow'); } }
       else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
     }
@@ -993,7 +1026,7 @@ const nearMerchant=()=>Math.hypot(pl.p[0]-merchant.p[0],pl.p[2]-merchant.p[2])<3
 function helpHTML(){
   return '<h2>⛏ StrataCraft</h2>Build with real rocks, minerals and soils. Pick a block to learn a fact about it. Fight monsters for coins and spend them at <b>Flint\'s Shop</b> (right in front of you).'+
   '<h3>iPhone controls</h3><ul><li><b>Left side:</b> drag to walk (you hop up single blocks on your own)</li><li><b>Right side:</b> drag to look around</li>'+
-  '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. With the 🪃 slingshot or 🏹 bow it shoots at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
+  '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
@@ -1186,7 +1219,7 @@ function update(dt){
   const near=nearMerchant(); $('bTalk').style.display=near&&IS_TOUCH?'flex':'none';
   const pr=$('prompt'); if(near&&!IS_TOUCH){ pr.textContent='Press E to talk to Flint'; pr.style.display='block'; } else pr.style.display='none';
 
-  updateMobs(dt); updateShots(dt); updateDrops(dt); updateTarget();
+  updateMobs(dt); updateShots(dt); updateBoomerang(dt); updateDrops(dt); updateTarget();
 
   // world sim
   sizzleCD-=dt;
