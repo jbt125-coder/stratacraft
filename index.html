@@ -18,6 +18,8 @@
     background:radial-gradient(ellipse at center,rgba(255,0,0,0) 40%,rgba(255,0,0,.55) 100%)}
   #burn{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;
     background:radial-gradient(ellipse at center,rgba(255,120,0,0) 45%,rgba(255,110,0,.5) 100%)}
+  #web{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background-size:cover;background-position:center}
+  #webCount{display:none;margin-top:5px;margin-left:6px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:15px;color:#eee}
   #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:4}
   #cross:before,#cross:after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 2px #000}
   #cross:before{left:10px;top:0;width:2px;height:22px}
@@ -114,10 +116,10 @@
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="tint"></div><div id="hurt"></div><div id="burn"></div>
+<div id="tint"></div><div id="hurt"></div><div id="web"></div><div id="burn"></div>
 <div id="touch"></div>
 <div id="cross" class="ui"></div>
-<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div></div>
+<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div></div>
 <div id="looking" class="ui"></div>
 <div id="top" class="ui">
   <div class="tbtn" id="bWeapon">✊ Fists</div>
@@ -494,7 +496,8 @@ function generate(s){
 
 // ================= PHYSICS =================
 let edgeOpen=false; // true while the player moves: they may leave the world to see it from the side
-function solidAt(x,y,z){ if(x<0||z<0||x>=W||z>=D)return !edgeOpen; if(y<0)return true; if(y>=H)return false; const b=world[idx(x,y,z)]; return b!==0&&B[b].solid; }
+let leafPass=false; // true while a spider climbs up through a tree's leaves
+function solidAt(x,y,z){ if(x<0||z<0||x>=W||z>=D)return !edgeOpen; if(y<0)return true; if(y>=H)return false; const b=world[idx(x,y,z)]; return b!==0&&B[b].solid&&!(leafPass&&b===ID.leaves); }
 function boxHits(x,y,z,hw,h){
   const x0=Math.floor(x-hw),x1=Math.floor(x+hw-1e-6),y0=Math.floor(y),y1=Math.floor(y+h-1e-6),z0=Math.floor(z-hw),z1=Math.floor(z+hw-1e-6);
   for(let yy=y0;yy<=y1;yy++)for(let zz=z0;zz<=z1;zz++)for(let xx=x0;xx<=x1;xx++) if(solidAt(xx,yy,zz))return true;
@@ -531,7 +534,7 @@ const pl={p:[CX+0.5,SPAWN_H,CZ+2.5],v:[0,0,0],kb:[0,0,0],hw:0.3,h:1.8,onGround:f
 let yaw=0, pitch=-0.2, fly=false, camMode=1, sel=ID.granite;
 const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamond'];
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
-let invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
+let webbed=0, invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
 
 // ================= SAVE =================
@@ -653,6 +656,8 @@ const MOBT={
   magma:{name:'Magma Cube',hp:7,dmg:2,spd:2.8,coins:[3,6],hw:0.4,h:0.8,hop:true,fireproof:true},
   skeleton:{name:'Skeleton',hp:8,dmg:1,spd:2.2,coins:[4,7],hw:0.3,h:1.85,archer:true},
   spider:{name:'Cave Spider',hp:6,dmg:1,spd:4.2,coins:[2,5],hw:0.55,h:0.6,climb:true,legs:true},
+  eagle:{name:'Eagle',hp:5,dmg:1,spd:8,coins:[2,4],hw:0.45,h:0.5,flyer:true},
+  griffin:{name:'Griffin',hp:14,dmg:2,spd:6.5,coins:[6,10],hw:0.7,h:1.1,flyer:true},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
 function mobModel(type){
@@ -676,6 +681,20 @@ function mobModel(type){
     eye(-0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0,1.5,-0.215,0x222222,0.2,0.04);
     r.armL=limbOn(body,-0.28,1.42,0.1,0.68,bn); r.armR=limbOn(body,0.28,1.42,0.1,0.68,bn);
     const bw=box(0.05,0.7,0.05,L({color:0x6b4a2a})); bw.position.set(0,-0.62,-0.1); r.armL.add(bw);
+  } else if(type==='eagle'||type==='griffin'){
+    const big=type==='griffin', br=L({color:big?0xc79a52:0x5a3a22}), wh=L({color:0xf2efe6}), yl=L({color:0xf0b020}), wg=L({color:big?0x8a6a3a:0x4a2e1a});
+    const s=big?1.6:1; const bd=box(0.34*s,0.3*s,0.8*s,br); bd.position.set(0,0.25*s,0); body.add(bd);
+    const hd=box(0.26*s,0.26*s,0.28*s,wh); hd.position.set(0,0.4*s,-0.48*s); body.add(hd);
+    const bk=box(0.09*s,0.09*s,0.14*s,yl); bk.position.set(0,0.36*s,-0.66*s); body.add(bk);
+    eye(-0.08*s,0.45*s,-0.625*s,0x111111,0.05*s,0.05*s); eye(0.08*s,0.45*s,-0.625*s,0x111111,0.05*s,0.05*s);
+    const tl=box(0.3*s,0.06*s,0.3*s,big?br:wh); tl.position.set(0,0.28*s,0.5*s); body.add(tl);
+    r.wings=[];
+    for(const sd of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sd*0.16*s,0.36*s,0); body.add(piv);
+      const w1=box(0.7*s,0.04*s,0.42*s,wg); w1.position.x=sd*0.36*s; piv.add(w1);
+      const w2=box(0.45*s,0.035*s,0.3*s,wg); w2.position.x=sd*0.92*s; w2.position.z=0.05*s; piv.add(w2); piv.userData.sd=sd; r.wings.push(piv); }
+    if(big){ for(const lx of [-0.15,0.15])for(const lz of [-0.35,0.4]){ const lg=box(0.12*s,0.3*s,0.12*s,lz<0?yl:br); lg.position.set(lx*s,0.0,lz*s); body.add(lg); }
+      const tuft=box(0.1*s,0.1*s,0.1*s,L({color:0x3a2a18})); tuft.position.set(0,0.3*s,0.82*s); body.add(tuft); }
+    else { for(const lx of [-0.08,0.08]){ const lg=box(0.06,0.14,0.06,yl); lg.position.set(lx,0.06,0.1); body.add(lg); } }
   } else if(type==='spider'){
     const dk=L({color:0x2a2420}), hr=L({color:0x3d332c});
     const ab=box(0.7,0.5,0.75,hr); ab.position.set(0,0.42,0.3); body.add(ab);
@@ -739,6 +758,9 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='hit'){ noise(400,0.1,0.6,'lowpass'); tone('square',160,70,0.08,0.12); }
   else if(k==='swing')noise(2500,0.08,0.15,'highpass');
   else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
+  else if(k==='web'){ noise(5000,0.25,0.12,'highpass'); tone('sine',900,500,0.15,0.05); }
+  else if(k==='screech'){ tone('sawtooth',1500,900,0.25,0.07); tone('square',1800,1100,0.2,0.04,0.05); }
+  else if(k==='flap')noise(600,0.09,0.06,'lowpass');
   else if(k==='whoosh')noise(1400,0.12,0.08,'bandpass');
   else if(k==='catch')tone('square',330,520,0.07,0.08);
   else if(k==='bow'){ tone('triangle',220,110,0.15,0.18); noise(3500,0.12,0.12,'highpass'); }
@@ -804,8 +826,11 @@ const arrowMatW=new THREE.MeshLambertMaterial({color:0xc9a46a}), arrowMatT=new T
 function arrowMesh(mob){ const g=new THREE.Group(); const s=box(0.04,0.04,0.6,mob?boneMat:arrowMatW); g.add(s);
   const t=box(0.07,0.07,0.1,arrowMatT); t.position.z=-0.32; g.add(t); const f=box(0.12,0.02,0.1,lm(0xdddddd)); f.position.z=0.27; g.add(f);
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
+const webMat=new THREE.MeshBasicMaterial({color:0xf4f4f4,transparent:true,opacity:0.85});
+function webMesh(){ const g=new THREE.Group(); for(let i=0;i<3;i++){ const b=box(0.36,0.04,0.04,webMat); b.rotation.set(0,i*1.05,i*0.5); g.add(b); }
+  const c=box(0.12,0.12,0.12,webMat); g.add(c); g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function addShot(o,d,spd,grav,dmg,kind,fromMob){
-  const mesh=arrowMesh(fromMob); scene.add(mesh);
+  const mesh=kind==='web'?webMesh():arrowMesh(fromMob); scene.add(mesh);
   shots.push({p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}); }
 function shoot(w){
   atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
@@ -854,19 +879,21 @@ function updateShots(dt){
       s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
       const [x,y,z]=s.p;
       if(solidAt(Math.floor(x),Math.floor(y),Math.floor(z))){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
-      if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.1)){ hit=true; const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,'A Skeleton\'s arrow'); } }
+      if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.15)){ hit=true;
+        if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,'A Skeleton\'s arrow'); } } }
       else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
     }
     if(hit){ freeShot(s); continue; }
     s.mesh.position.set(s.p[0],s.p[1],s.p[2]);
-    if(s.kind==='arrow'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
+    if(s.kind==='web') s.mesh.rotation.y+=dt*8;
+    else if(s.kind==='arrow'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
   }
 }
 function attackMob(m){
   const w=WP[weapon]; atkCd=w.cd; damageMob(m,w.dmg,m.p[0]-pl.p[0],m.p[2]-pl.p[2],weapon==='granite'?9:6);
 }
 function damageMob(m,dmg,dx,dz,kb){
-  m.hp-=dmg; m.flash=0.15; m.g.bar.visible=true; const l=Math.hypot(dx,dz)||1;
+  if(m.t.flyer)m.angry=12; m.hp-=dmg; m.flash=0.15; m.g.bar.visible=true; const l=Math.hypot(dx,dz)||1;
   m.kb[0]=dx/l*kb; m.kb[2]=dz/l*kb; if(m.onGround)m.v[1]=4.5;
   sfx('hit'); burst(m.p[0]-0.5,m.p[1]+m.h*0.3,m.p[2]-0.5,new THREE.Color(1,0.3,0.3),5);
   if(m.hp<=0) killMob(m);
@@ -874,7 +901,7 @@ function damageMob(m,dmg,dx,dz,kb){
 function killMob(m){
   const c=m.t.coins, n=c[0]+Math.floor(rand()*(c[1]-c[0]+1));
   dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
-  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):new THREE.Color(.45,.32,.2);
+  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):new THREE.Color(.45,.32,.2);
   burst(m.p[0]-0.5,m.p[1],m.p[2]-0.5,col,14);
   if(m.type==='magma'){ const x=Math.floor(m.p[0]),y=Math.floor(m.p[1]+0.2),z=Math.floor(m.p[2]); if(get(x,y,z)===0)tryIgnite(x,y,z); }
   removeMob(m);
@@ -896,6 +923,21 @@ function placeAction(){
   if(sel===ID.lava) toast('🔥 Careful! Lava sets wood, leaves and grass on fire.');
 }
 
+// ================= SPIDER WEBS =================
+const WEB_FALL=3;
+function overWorld(){ return outsideDist()===0; }
+function addWeb(){ if(dead)return; webbed++; sfx('web'); updateWebHUD();
+  if(webbed>=WEB_FALL&&fly&&overWorld()){ setFly(false,false); toast('🕸️ Too much web! You can\'t fly. Land in water to wash it off.'); }
+  else if(webbed>=WEB_FALL) toast('🕸️ You\'re tangled in web! Find water to wash it off.');
+  else toast('🕸️ Spider web! ('+webbed+'/'+WEB_FALL+') Too much and you can\'t fly.'); }
+function clearWeb(msg){ if(!webbed)return; webbed=0; updateWebHUD(); if(msg)toast('💧 The water washed the web off!'); }
+function updateWebHUD(){ const c=$('webCount'); c.style.display=webbed?'inline-block':'none'; c.textContent='🕸️ '+webbed;
+  $('web').style.opacity=Math.min(0.85,webbed*0.22).toFixed(2); }
+{ const c=document.createElement('canvas'); c.width=c.height=512; const x=c.getContext('2d'); x.strokeStyle='rgba(255,255,255,.9)'; x.lineWidth=2;
+  for(const [cx,cy] of [[0,0],[512,0],[0,512],[512,512]]){ for(let a=0;a<8;a++){ const an=a/8*Math.PI*2; x.beginPath(); x.moveTo(cx,cy); x.lineTo(cx+Math.cos(an)*260,cy+Math.sin(an)*260); x.stroke(); }
+    for(let r=30;r<260;r+=34){ x.beginPath(); for(let a=0;a<=16;a++){ const an=a/16*Math.PI*2, rr=r+(a%2?6:0); const px=cx+Math.cos(an)*rr, py=cy+Math.sin(an)*rr; if(a)x.lineTo(px,py); else x.moveTo(px,py); } x.stroke(); } }
+  $('web').style.backgroundImage='url('+c.toDataURL()+')'; }
+
 // ================= PLAYER DAMAGE =================
 let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
@@ -909,7 +951,7 @@ function die(src){
   $('mbox').innerHTML='<h2>💀 You were defeated!</h2>'+src+' got you.'+(lost?'<br>You dropped <b>'+lost+'</b> coins.':'')+
     '<div class="row"><button class="mbtn" id="mResp">Respawn</button></div>';
   $('modal').style.display='flex';
-  tap($('mResp'),()=>{ dead=false; hp=MAXHP; pl.p=[CX+0.5,SPAWN_H+0.01,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; unstick(pl); yaw=0; pitch=-0.2;
+  tap($('mResp'),()=>{ dead=false; hp=MAXHP; clearWeb(false); pl.p=[CX+0.5,SPAWN_H+0.01,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; unstick(pl); yaw=0; pitch=-0.2;
     for(const m of mobs.slice()) if(Math.hypot(m.p[0]-pl.p[0],m.p[2]-pl.p[2])<14) removeMob(m);
     updateHUD(); closeMenu(); queueSave(); });
 }
@@ -1029,7 +1071,8 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
+function toggleFly(){ if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
+  if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
 const OUT_MAX=70;
 function outsideDist(){ const ox=Math.max(0,-pl.p[0],pl.p[0]-W), oz=Math.max(0,-pl.p[2],pl.p[2]-D); return Math.hypot(ox,oz); }
 let viewF=-1;
@@ -1053,7 +1096,7 @@ function helpHTML(){
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
-  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls (2–5 coins) · 💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
+  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
   '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button><button class="mbtn red" id="mNew">New World…</button></div>'+
   '<div style="margin-top:8px;font-size:12px;opacity:.7">Your world saves automatically on this device.</div>';
 }
@@ -1082,6 +1125,8 @@ const LINES=[
   'Them Mud Slimes are mostly clay and silt. Squishy, but they bite.',
   'Skeletons shoot from afar. Duck behind a rock wall, or get yourself a bow.',
   'Cave Spiders climb right up cliffs. Can\'t wall \'em out, partner!',
+  'Spider silk is stronger than steel for its weight! Stuck in web? Jump in a lake.',
+  'Leave the eagles be and they\'ll leave you be. Same goes double for griffins.',
 ];
 function openShop(){
   if(document.pointerLockElement)document.exitPointerLock();
@@ -1111,7 +1156,7 @@ function updatePlayer(dt){
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   const fwd=-iz, str=ix, s=Math.sin(yaw), c=Math.cos(yaw);
   const env=envAt(pl);
-  const speed=(fly?(outsideDist()>0?13:9):4.6)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
+  const speed=(fly?(outsideDist()>0?13:9):4.6)*(webbed?Math.max(0.55,1-webbed*0.12):1)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
   pl.v[0]=(-s*fwd+c*str)*speed; pl.v[2]=(-c*fwd-s*str)*speed;
   const up=upHeld||keys.Space, down=downHeld||keys.ShiftLeft||keys.ShiftRight;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
@@ -1130,7 +1175,7 @@ function updatePlayer(dt){
     if(pl.p[1]<-30)pl.p[1]=-30; }
   if(pl.p[1]>H+20)pl.p[1]=H+20;
   // environment damage
-  if(env.water) burning=0;
+  if(env.water){ burning=0; clearWeb(true); }
   if(env.lava){ burning=4; hurtPlayer(2,undefined,undefined,'Lava'); }
   else if(env.fire){ burning=Math.max(burning,3); hurtPlayer(1,undefined,undefined,'Fire'); }
   if(burning>0){ burning-=dt; burnT-=dt; if(burnT<=0){ burnT=1; hurtPlayer(1,undefined,undefined,'Fire'); } }
@@ -1147,13 +1192,16 @@ function updatePlayer(dt){
 function updateMobs(dt){
   for(const m of mobs.slice()){
     const t=m.t, dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dy=pl.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
-    if(dist>48){ removeMob(m); continue; }
-    if(boxHits(m.p[0],m.p[1],m.p[2],m.hw,m.h)) m.p[1]+=1;
+    if(dist>(t.flyer?60:48)){ removeMob(m); continue; }
+    if(!m.climbing&&boxHits(m.p[0],m.p[1],m.p[2],m.hw,m.h)) m.p[1]+=1;
     const env=envAt(m);
     if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
-    let mx=0,mz=0; const chase=dist<22&&!dead&&Math.abs(dy)<8;
+    if(t.flyer){ updateFlyer(m,dt); continue; }
+    let mx=0,mz=0; let chase=dist<22&&!dead&&Math.abs(dy)<8;
     const reach=m.hw+pl.hw+0.45;
-    if(chase&&t.archer){ m.shootT=(m.shootT===undefined?1.5:m.shootT)-dt;
+    m.climbing=false; m.perched=false;
+    if(t.legs&&!(chase&&dist<5&&Math.abs(dy)<2)){ const r=spiderTree(m,dt,dist,dx,dz,dy); mx=r[0]; mz=r[1]; chase=r[2]; }
+    else if(chase&&t.archer){ m.shootT=(m.shootT===undefined?1.5:m.shootT)-dt;
       if(dist>11){ mx=dx/dist; mz=dz/dist; } else if(dist<5){ mx=-dx/dist; mz=-dz/dist; } else { mx=-dz/dist*0.5; mz=dx/dist*0.5; }
       if(m.shootT<=0&&dist<16&&!paused){ m.shootT=2+rand()*1.2;
         const o=new THREE.Vector3(m.p[0],m.p[1]+1.5,m.p[2]), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1.1,pl.p[2]);
@@ -1169,14 +1217,15 @@ function updateMobs(dt){
     m.v[0]=m.mv[0]*slow; m.v[2]=m.mv[1]*slow;
     if(env.water){ m.v[1]-=8*dt; if(m.v[1]<1.2&&m.p[1]<SEA)m.v[1]=1.2; } else m.v[1]-=25*dt;
     if(m.v[1]<-30)m.v[1]=-30;
-    physStep(m,dt);
+    leafPass=!!m.climbing; physStep(m,dt); leafPass=false;
+    if(m.climbing){ m.v[1]=Math.max(m.v[1],4.5); }
     if(!t.hop && m.wall && m.onGround && (mx||mz)) m.v[1]=7.5;
     if(t.climb && m.wall && (mx||mz)) m.v[1]=4;
     if(t.hop && m.wall && !m.onGround) {}
     m.cd-=dt;
     if(chase && !t.archer && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
     // visuals
-    if(chase) m.yaw=Math.atan2(-dx,-dz); else if(mx||mz) m.yaw=Math.atan2(-mx,-mz);
+    if(chase||m.perched) m.yaw=Math.atan2(-dx,-dz); else if(mx||mz) m.yaw=Math.atan2(-mx,-mz);
     const g=m.g; g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
     if(t.hop){ const sq=m.onGround?1:1+Math.max(-0.2,Math.min(0.25,m.v[1]*0.04)); g.body.scale.set(1/Math.sqrt(sq),sq,1/Math.sqrt(sq)); }
     else if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3; m.atk=Math.max(0,m.atk-dt);
@@ -1192,7 +1241,8 @@ function updateMobs(dt){
   // spawning
   spawnT-=dt;
   if(spawnT<=0){ spawnT=2.5;
-    if(mobsOn && mobs.length<6 && !dead){
+    if(mobsOn && !dead && mobs.filter(m=>m.t.flyer).length<3 && rand()<0.35) spawnFlyer();
+    if(mobsOn && mobs.filter(m=>!m.t.flyer).length<6 && !dead){
       for(let a=0;a<8;a++){
         const ang=rand()*6.28, r=14+rand()*14, x=Math.floor(pl.p[0]+Math.sin(ang)*r), z=Math.floor(pl.p[2]+Math.cos(ang)*r);
         if(x<1||z<1||x>=W-1||z>=D-1)continue; if(Math.hypot(x-MX,z-MZ)<12)continue;
@@ -1204,6 +1254,70 @@ function updateMobs(dt){
       }
     }
   }
+}
+// --- spiders: walk to a tree, climb to the top, and shoot webs from there
+function findTree(m){ for(let a=0;a<14;a++){ const x=Math.floor(m.p[0]+(rand()-.5)*24), z=Math.floor(m.p[2]+(rand()-.5)*24);
+    if(x<1||z<1||x>=W-1||z>=D-1)continue; const s=surfaceAt(x,z); if(s.id===ID.leaves&&s.y>m.p[1]+1&&s.y<H-2) return {x,z,top:s.y+1}; } return null; }
+function spiderTree(m,dt,dist,dx,dz,dy){
+  m.climbing=false; m.perched=false;
+  if(!m.tree){ m.treeT=(m.treeT||0)-dt; if(m.treeT<=0){ m.treeT=2; m.tree=findTree(m); m.treeTime=0; } }
+  if(m.tree){ const tr=m.tree, tx=tr.x+0.5-m.p[0], tz=tr.z+0.5-m.p[2], td=Math.hypot(tx,tz); m.treeTime+=dt;
+    if(get(tr.x,tr.top-1,tr.z)!==ID.leaves||m.treeTime>25){ m.tree=null; m.treeT=4; return [0,0,false]; }
+    if(m.p[1]>=tr.top-0.05&&td<2.5){ // on top of the tree
+      m.perched=true; m.shootT=(m.shootT===undefined?1:m.shootT)-dt;
+      const d3=Math.hypot(dist,dy);
+      if(!dead&&!paused&&m.shootT<=0&&d3<20){ m.shootT=2.2+rand()*1.5; spiderSpit(m); }
+      return [td>0.6?tx/td*0.4:0, td>0.6?tz/td*0.4:0, false]; }
+    if(td<1.7){ m.climbing=true; return [td>0.3?tx/td*0.5:0, td>0.3?tz/td*0.5:0, false]; }
+    if(m.treeTime>12){ m.tree=null; m.treeT=4; return [0,0,false]; }
+    return [tx/td, tz/td, false]; }
+  // no tree nearby: act like a normal spider
+  if(dist<22&&!dead&&Math.abs(dy)<8){ const reach=m.hw+pl.hw+0.45; return dist>reach*0.85?[dx/dist,dz/dist,true]:[0,0,true]; }
+  return [0,0,false];
+}
+function spiderSpit(m){
+  const o=new THREE.Vector3(m.p[0],m.p[1]+0.45,m.p[2]), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1.0,pl.p[2]);
+  const fl=o.distanceTo(tg)/18; tg.y+=0.5*5*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.7);
+  if(raycast(o,d,Math.max(0.1,o.distanceTo(new THREE.Vector3(pl.p[0],pl.p[1]+1,pl.p[2]))-0.6))){ m.shootT=0.8; return; }
+  addShot(o,d,18,5,0,'web',true); m.atk=0.3; sfx('web'); }
+
+// --- eagles and griffins: glide around the sky; they only attack if you bump into them or hit them
+function spawnFlyer(){
+  for(let a=0;a<6;a++){ const ang=rand()*6.28, r=18+rand()*16, x=pl.p[0]+Math.sin(ang)*r, z=pl.p[2]+Math.cos(ang)*r;
+    if(x<2||z<2||x>W-2||z>D-2)continue; const sy=surfaceAt(Math.floor(x),Math.floor(z)).y;
+    const y=Math.min(H+6,Math.max(sy+10,22+rand()*12)); spawnMob(rand()<0.7?'eagle':'griffin',x,y,z); return; } }
+function skyTarget(m){ const x=Math.max(2,Math.min(W-2,m.p[0]+(rand()-.5)*40)), z=Math.max(2,Math.min(D-2,m.p[2]+(rand()-.5)*40));
+  const sy=surfaceAt(Math.floor(x),Math.floor(z)).y; return [x,Math.min(H+6,Math.max(sy+9,20+rand()*14)),z]; }
+function updateFlyer(m,dt){
+  const t=m.t, g=m.g; if(!m.goal)m.goal=skyTarget(m);
+  const cx=pl.p[0]-m.p[0], cy=(pl.p[1]+1.1)-(m.p[1]+m.h*0.5), cz=pl.p[2]-m.p[2], cd=Math.hypot(cx,cy,cz)||0.001;
+  // bumping into one makes it angry
+  if(!dead&&cd<m.hw+pl.hw+0.6){ if(!(m.angry>0)){ m.angry=12; sfx('screech'); toast('⚠️ You bumped into '+(m.type==='eagle'?'an Eagle':'a Griffin')+'! It\'s angry!'); } }
+  m.angry=Math.max(0,(m.angry||0)-dt); if(cd>34)m.angry=0;
+  m.cd-=dt; m.retreat=Math.max(0,(m.retreat||0)-dt);
+  let tx,ty,tz,spd=t.spd;
+  if(m.angry>0&&!dead){
+    if(m.retreat>0){ tx=m.p[0]-cx; ty=m.p[1]+6; tz=m.p[2]-cz; }
+    else { tx=pl.p[0]; ty=pl.p[1]+1.1; tz=pl.p[2]; spd=t.spd*1.25;
+      if(cd<m.hw+pl.hw+0.7&&m.cd<=0&&!paused){ m.cd=1.2; m.retreat=0.9; m.atk=0.3; const hl=Math.hypot(cx,cz)||1; hurtPlayer(t.dmg,cx/hl,cz/hl,'An angry '+t.name); sfx('screech'); } } }
+  else { const gx=m.goal[0]-m.p[0], gy=m.goal[1]-m.p[1], gz=m.goal[2]-m.p[2]; if(Math.hypot(gx,gy,gz)<2.5)m.goal=skyTarget(m);
+    tx=m.goal[0]; ty=m.goal[1]; tz=m.goal[2]; spd=t.spd*0.6; }
+  const vx=tx-m.p[0], vy=ty-m.p[1], vz=tz-m.p[2], vl=Math.hypot(vx,vy,vz)||1;
+  const k=Math.min(1,dt*2.5); m.v[0]+=(vx/vl*spd-m.v[0])*k; m.v[1]+=(vy/vl*spd*0.7-m.v[1])*k; m.v[2]+=(vz/vl*spd-m.v[2])*k;
+  const nx=m.p[0]+(m.v[0]+m.kb[0])*dt, ny=m.p[1]+m.v[1]*dt, nz=m.p[2]+(m.v[2]+m.kb[2])*dt;
+  if(boxHits(nx,ny,nz,m.hw,m.h)){ m.p[1]+=4*dt; m.v[1]=Math.max(m.v[1],3); if(!(m.angry>0))m.goal=skyTarget(m); }
+  else { m.p[0]=nx; m.p[1]=ny; m.p[2]=nz; }
+  m.p[0]=Math.max(1,Math.min(W-1,m.p[0])); m.p[2]=Math.max(1,Math.min(D-1,m.p[2])); m.p[1]=Math.min(H+10,m.p[1]);
+  const kd=Math.exp(-5*dt); m.kb[0]*=kd; m.kb[2]*=kd;
+  // visuals
+  const hs=Math.hypot(m.v[0],m.v[2]); if(hs>0.3) m.yaw=Math.atan2(-m.v[0],-m.v[2]);
+  g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw; g.body.rotation.x=Math.max(-0.5,Math.min(0.5,m.v[1]*0.08));
+  const prev=Math.sin(m.phase); m.phase+=dt*(m.angry>0?14:(m.v[1]>0.5?11:4)); const fl=Math.sin(m.phase);
+  for(const w of g.wings) w.rotation.z=fl*0.55*w.userData.sd;
+  if(prev<0&&fl>=0&&Math.hypot(cx,cz)<14)sfx('flap');
+  m.atk=Math.max(0,m.atk-dt);
+  m.flash=Math.max(0,m.flash-dt); for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:(m.angry>0?0x330000:mt.userData.e));
+  if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); }
 }
 function updateDrops(dt){
   for(let i=drops.length-1;i>=0;i--){ const c=drops[i];
