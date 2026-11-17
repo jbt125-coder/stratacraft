@@ -463,7 +463,7 @@ const CX=W/2, CZ=D/2, MX=CX, MZ=CZ-6;
 function generate(s){
   seed=s; world=new Uint8Array(N); meta=new Uint8Array(N);
   activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
-  const n1=makeNoise(s), n2=makeNoise(s+1), n3=makeNoise(s+2); const rnd=mulberry32(s+99);
+  const n1=makeNoise(s), n2=makeNoise(s+1), n3=makeNoise(s+2); const rnd=mulberry32(s+99); const appleSpots=[];
   const HM=new Int16Array(W*D);
   const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
   for(let z=0;z<D;z++)for(let x=0;x<W;x++){
@@ -489,7 +489,7 @@ function generate(s){
     if(Math.hypot(x-CX,z-CZ)<12)continue; if(world[idx(x,h-1,z)]!==ID.grass)continue;
     if(trees.some(t=>Math.abs(t[0]-x)<4&&Math.abs(t[1]-z)<4))continue;
     if(n2(x/13+30,z/13+30)<0.35 && rnd()<0.7)continue; // clearings
-    trees.push([x,z]); const th=4+Math.floor(rnd()*2);
+    trees.push([x,z]); const th=4+Math.floor(rnd()*2); if(rnd()<0.22)appleSpots.push([x,h+th-1,z]);
     for(let i=0;i<th;i++) world[idx(x,h+i,z)]=ID.log;
     const ty=h+th-1;
     for(let dy=-2;dy<=1;dy++){ const r=dy>=0?1:2;
@@ -516,6 +516,7 @@ function generate(s){
   for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++) world[idx(MX+dx,y0+3,MZ+dz)]=ID.planks;
   world[idx(MX-1,y0,MZ+1)]=ID.planks; world[idx(MX+1,y0,MZ+1)]=ID.planks;
   for(let i=0;i<N;i++) if(world[i]===ID.lava)lavaSet.add(i);
+  for(const [x,ty,z] of appleSpots) makeAppleTree(x,ty,z);
 }
 
 // ================= PHYSICS =================
@@ -571,6 +572,7 @@ let saveTimer=null;
 const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between survival worlds
 function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,
   cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed],lay:cg.lay||1}:null,
+  apples:appleTrees.map(t=>({x:t.x,ty:t.ty,z:t.z,c:t.cand,g:Math.round(t.grow),s:t.slots.map(sl=>[sl.c,sl.st,Math.round(sl.t)])})),
   tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,phase:tgm.phase,rv:rv.p.slice()}:null}; }
 function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
@@ -592,6 +594,8 @@ function applySnapshot(s){
       score:Array.isArray(t.score)?t.score.slice(0,2):[0,0],phase:t.phase==='done'?'done':'intro'}; rv.p=Array.isArray(t.rv)?t.rv.slice():[CX+3.5,SPAWN_H,CZ+2.5]; }
   else tgm=null;
   for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
+  if(Array.isArray(s.apples)) for(const a of s.apples){ if(!Array.isArray(a.c))continue; const tr={x:a.x,ty:a.ty,z:a.z,cand:a.c,grow:+a.g||30,slots:[]}; appleTrees.push(tr);
+    for(const [c,st,t] of (a.s||[])) if(tr.cand[c]) addFruit(tr,c,st,t); }
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&tgm.round===2)),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
@@ -860,11 +864,15 @@ function updateTarget(){
   aimMob=null; let best=Math.min(bt,mreach);
   for(const m of mobs){ const t=rayBox(o,d,m); if(t!==null&&t<best){best=t;aimMob=m;} }
   const nt=mode==='survival'?rayBox(o,d,merchant):null; aimNPC = !aimMob && nt!==null && nt<Math.min(bt,mreach+1.5);
+  aimFruit=null; if(!aimMob&&!aimNPC){ let fb=Math.min(bt,5+(camMode===1?0:camDist));
+    for(const tr of appleTrees)for(const sl of tr.slots){ const c=sl.pos, ox=c[0]-o.x, oy=c[1]-o.y, oz=c[2]-o.z, tt=ox*d.x+oy*d.y+oz*d.z;
+      if(tt<0||tt>fb)continue; const px=ox-d.x*tt, py=oy-d.y*tt, pz=oz-d.z*tt; if(px*px+py*py+pz*pz<0.36*0.36){ fb=tt; aimFruit={tr,sl}; } } }
   $('cross').classList.toggle('mob',!!aimMob);
-  if(target&&!aimMob&&!aimNPC){ hl.visible=true; hl.position.set(target.x+0.5,target.y+0.5,target.z+0.5); } else hl.visible=false;
+  if(target&&!aimMob&&!aimNPC&&!aimFruit){ hl.visible=true; hl.position.set(target.x+0.5,target.y+0.5,target.z+0.5); } else hl.visible=false;
   const lk=$('looking'); let html='';
   if(aimMob) html='⚔️ <b>'+aimMob.t.name+'</b> &nbsp;❤ '+Math.max(0,aimMob.hp)+'/'+aimMob.t.hp;
   else if(aimNPC) html='🧔 <b>Flint the Prospector</b> (tap 🧱 to talk)';
+  else if(aimFruit) html=aimFruit.sl.st===2?'🍎 <b>Apple</b> (tap ⛏ or 🧱 to pick it and heal)':'🌸 <b>Apple blossom</b> (it will grow into an apple)';
   else if(target){ const b=B[target.b]; html='Looking at: <b>'+b.name+'</b> <span class="badge" style="background:'+CAT[b.cat].c+'">'+b.cat+'</span>'; }
   if(html){ if(lk._h!==html){ lk.innerHTML=html; lk._h=html; } lk.style.display='block'; } else lk.style.display='none';
 }
@@ -873,6 +881,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
+  if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
     if(!tgm||tgm.phase!=='play'||atkCd>0||shots.some(s=>s.owner==='you'))return; if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); return; }
   const w=WP[weapon];
@@ -997,6 +1006,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
+  if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
   const x=target.x+target.face[0], y=target.y+target.face[1], z=target.z+target.face[2];
@@ -1188,6 +1198,7 @@ function helpHTML(){
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
+  '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +3 hearts</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
   '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
@@ -1199,6 +1210,7 @@ function cornersHelp(){
   '<h3>How to lose</h3><ul><li>Monsters that reach your cave attack your <b>🛏️ bed</b>, and troll rocks and orc spears can hit it too. If your bed breaks, you lose</li><li>If you die, you come back at your bed</li></ul>'+
   '<h3>Their attacks</h3><ul><li>💀 Skeletons shoot fast arrows · 👹 Orcs throw slower spears that hurt more · 🧌 Trolls throw slow, heavy rocks that smash the blocks you build</li><li>Watch them fly toward you and dodge!</li></ul>'+
   '<h3>Building</h3><ul><li>Every block you mine goes in your hotbar (the number is how many you have). Build walls to hide behind, or a bridge across the lava. Careful: monsters can walk over your bridge too!</li><li>Under the lava is solid rock. Dig down in your cave and tunnel under the lava to come up inside an enemy cave from behind</li></ul>'+
+  '<h3>Around the valley</h3><ul><li>Black obsidian trails wind across the lava (lava that cooled fast). You can walk on them, but none of them reaches all the way to another corner</li><li>Every corner is a little different. Look for 🍎 apple trees: aim at an apple and tap ⛏ or 🧱 to eat it and heal</li></ul>'+
   '<h3>The sky</h3><ul><li>Defeat a 🦁 griffin to get <b>wings for 90 seconds</b>. Fly over and attack a cave! When the wings wear off, you fall</li><li>Hit an 🦅 eagle and it comes after you</li></ul>'+
   '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit shoots or mines · 🧱 Place builds · the weapon button swaps bow and fists</li><li>Keyboard: WASD, Space, left click hits, right click places, Q swaps weapons</li></ul>';
 }
@@ -1317,7 +1329,7 @@ function openNewGame(){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ clearApples(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
 function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='survival'?'':'none';
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
@@ -1342,22 +1354,26 @@ setLayout(2);
 const hallW=a=>2.2+Math.max(0,a-3)*0.9; // the cave mouth flares out so the caves can see each other
 const SHOT={skeleton:{kind:'arrow',spd:30,g:7,dmg:1,cd:[3.5,6]}, orc:{kind:'spear',spd:26,g:7,dmg:2,cd:[4.5,7]}, troll:{kind:'rock',spd:22,g:6,dmg:3,cd:[5.5,8.5]}};
 function bedPos(){ const b=FCC[0].back; return [Math.floor(b[0]),FC.FLOOR,Math.floor(b[1])]; }
-function plantTree(x,h,z,rnd){ const th=4+Math.floor(rnd()*2); for(let i=0;i<th;i++)world[idx(x,h+i,z)]=ID.log; const ty=h+th-1;
+function plantTree(x,h,z,rnd){ const th=4+Math.floor(rnd()*2); for(let i=0;i<th;i++)world[idx(x,h+i,z)]=ID.log; const ty=h+th-1; plantTree.ty=ty;
   for(let dy=-2;dy<=1;dy++){ const r=dy>=0?1:2; for(let dx=-r;dx<=r;dx++)for(let dz=-r;dz<=r;dz++){ if(Math.abs(dx)===r&&Math.abs(dz)===r&&(dy===1||rnd()<0.5))continue;
     const xx=x+dx,yy=ty+dy,zz=z+dz; if(inB(xx,yy,zz)&&world[idx(xx,yy,zz)]===0)world[idx(xx,yy,zz)]=ID.leaves; } } }
 function generateCorners(s){
   setLayout(2); seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear();
   activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
-  const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), HM=new Int16Array(W*D);
+  const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), HM=new Int16Array(W*D), appleSpots=[];
+  // every corner gets its own look
+  const STYLES=['meadow','forest','rocky','sandy'], style=FCC.map(()=>STYLES[Math.floor(rnd()*4)]), lift=FCC.map(()=>Math.floor(rnd()*2));
   const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
   for(let z=0;z<D;z++)for(let x=0;x<W;x++){
     let near=1e9, nc=null; for(const c of FCC){ const d=Math.hypot(x+0.5-c.corner[0],z+0.5-c.corner[1]); if(d<near){ near=d; nc=c; } }
     const ax=x+0.5-nc.center[0], az=z+0.5-nc.center[1], along=ax*nc.dir[0]+az*nc.dir[1], side=Math.abs(ax*nc.perp[0]+az*nc.perp[1]);
     const ledge=along>0&&near<=FC.R+1&&side<=hallW(along)+1; // every cave mouth gets solid ground in front
     const edge=FC.R+(n1(x/7,z/7)-0.5)*3, plat=near<edge||ledge;
-    const h=plat?FC.TOP+Math.floor(n1(x/10+40,z/10+40)*3):FC.ROCK+1; HM[x+z*W]=h;
+    const ci=FCC.indexOf(nc), st=style[ci];
+    const h=plat?FC.TOP+lift[ci]+Math.floor(n1(x/10+40,z/10+40)*(st==='rocky'?4:2)):FC.ROCK+1; HM[x+z*W]=h;
+    const sandy=plat&&st==='sandy'&&n1(x/5+70,z/5+70)>0.45;
     for(let y=0;y<h;y++){ const depth=h-1-y; let id;
-      if(y===0)id=ID.basalt; else if(plat&&depth===0)id=ID.grass; else if(plat&&depth<=2)id=ID.dirt; else if(y<4)id=ID.granite;
+      if(y===0)id=ID.basalt; else if(plat&&depth===0)id=sandy?ID.sand:ID.grass; else if(plat&&depth<=2)id=sandy?ID.sandstone:ID.dirt; else if(y<4)id=ID.granite;
       else { id=SED[(y+Math.floor(n3(x/9,z/9)*4))%SED.length]; const q=rnd(); if(q<0.012)id=ID.coal; else if(q<0.02)id=ID.quartz; }
       if(plat&&near>edge-1.6&&y>=FC.ROCK-1&&y<=FC.LAVA+1)id=ID.basalt; // lava cooled into basalt where it touches the cliffs
       world[idx(x,y,z)]=id; }
@@ -1377,12 +1393,37 @@ function generateCorners(s){
       if(room) for(let y=F;y<=F+4;y++) world[idx(x,y,z)]=0;
       else if(hall) for(let y=F;y<=F+3;y++) world[idx(x,y,z)]=0; }
     const b=c.back; world[idx(Math.floor(b[0]),F,Math.floor(b[1]))]=i===0?ID.bed:ID[FC_SPAWNER[i]];
-    let n=0; for(let a=0;a<40&&n<3;a++){ const r=4+rnd()*18, an=(rnd()-0.5)*1.4, ca=Math.cos(an), sa=Math.sin(an);
+    const spot=()=>{ const r=4+rnd()*18, an=(rnd()-0.5)*1.4, ca=Math.cos(an), sa=Math.sin(an);
       const x=Math.floor(c.corner[0]+(c.dir[0]*ca-c.dir[1]*sa)*r), z=Math.floor(c.corner[1]+(c.dir[0]*sa+c.dir[1]*ca)*r);
-      if(x<2||z<2||x>=W-2||z>=D-2)continue; if(Math.hypot(x+0.5-c.center[0],z+0.5-c.center[1])<10)continue;
-      const h=HM[x+z*W]; if(h<FC.TOP||world[idx(x,h-1,z)]!==ID.grass||world[idx(x,h,z)])continue; plantTree(x,h,z,rnd); n++; }
+      if(x<3||z<3||x>=W-3||z>=D-3||Math.hypot(x+0.5-c.center[0],z+0.5-c.center[1])<10)return null; const h=HM[x+z*W]; if(h<FC.TOP||world[idx(x,h,z)])return null; return [x,h,z]; };
+    const st=style[i], want=st==='forest'?6:st==='meadow'?3:st==='rocky'?2:1, apples=1+(rnd()<0.5?1:0);
+    let n=0; for(let a=0;a<60&&n<want;a++){ const q=spot(); if(!q||world[idx(q[0],q[1]-1,q[2])]!==ID.grass)continue; plantTree(q[0],q[1],q[2],rnd); if(n<apples)appleSpots.push([q[0],plantTree.ty,q[2]]); n++; }
+    const rocks=st==='rocky'?4:1+Math.floor(rnd()*2), RK=[ID.marble,ID.quartzite,ID.gneiss,ID.obsidian,ID.pumice];
+    for(let k=0,a=0;a<40&&k<rocks;a++){ const q=spot(); if(!q)continue; const id=RK[Math.floor(rnd()*RK.length)], sz=1+Math.floor(rnd()*2); // a boulder
+      for(let dx=0;dx<=sz;dx++)for(let dz=0;dz<=sz;dz++)for(let dy=0;dy<sz;dy++){ if(rnd()<0.2&&dy>0)continue; const xx=q[0]+dx,zz=q[2]+dz; if(inB(xx,q[1]+dy,zz)&&!world[idx(xx,q[1]+dy,zz)])world[idx(xx,q[1]+dy,zz)]=id; } k++; }
   }
+  // winding obsidian trails on the lava (lava that cooled fast). None of them links two corners.
+  const nearCorner=(x,z)=>{ let best=-1,bd=1e9; FCC.forEach((c,k)=>{ const d=Math.hypot(x+0.5-c.corner[0],z+0.5-c.corner[1]); if(d<bd){bd=d;best=k;} }); return [best,bd]; };
+  const Y=FC.LAVA, trails=7+Math.floor(rnd()*4);
+  for(let t=0;t<trails;t++){ let x,z,a,home=-1;
+    if(rnd()<0.5){ home=Math.floor(rnd()*4); const c=FCC[home], an=(rnd()-0.5)*1.3, r=FC.R+1.5, ca=Math.cos(an), sa=Math.sin(an);
+      x=c.corner[0]+(c.dir[0]*ca-c.dir[1]*sa)*r; z=c.corner[1]+(c.dir[0]*sa+c.dir[1]*ca)*r; a=Math.atan2(c.dir[1]*ca+c.dir[0]*sa,c.dir[0]*ca-c.dir[1]*sa); }
+    else { x=20+rnd()*(W-40); z=20+rnd()*(D-40); a=rnd()*6.28; }
+    const L=16+Math.floor(rnd()*32);
+    for(let k=0;k<L;k++){ a+=(rnd()-0.5)*0.9; x+=Math.cos(a); z+=Math.sin(a); const xi=Math.floor(x), zi=Math.floor(z);
+      if(xi<2||zi<2||xi>=W-2||zi>=D-2)break; const [ci,cd]=nearCorner(xi,zi); if(cd<FC.R+3&&ci!==home)break;
+      if(rnd()<0.07)continue; // a little gap to hop over
+      const lay=(px,pz)=>{ if(inB(px,Y,pz)&&world[idx(px,Y,pz)]===ID.lava)world[idx(px,Y,pz)]=ID.obsidian; };
+      lay(xi,zi); if(rnd()<0.4)lay(xi+Math.round(-Math.sin(a)),zi+Math.round(Math.cos(a))); } }
+  // safety: if trails ever join up into a path between two corners, remove that path
+  const seen=new Uint8Array(W*D);
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){ if(seen[x+z*W]||world[idx(x,Y,z)]!==ID.obsidian)continue;
+    const comp=[], q=[[x,z]], hits=new Set(); seen[x+z*W]=1;
+    while(q.length){ const [cx,cz]=q.pop(); comp.push([cx,cz]); const [ci,cd]=nearCorner(cx,cz); if(cd<FC.R+3)hits.add(ci);
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=cx+dx,nz=cz+dz; if(nx<0||nz<0||nx>=W||nz>=D||seen[nx+nz*W]||world[idx(nx,Y,nz)]!==ID.obsidian)continue; seen[nx+nz*W]=1; q.push([nx,nz]); } }
+    if(hits.size>1) for(const [cx,cz] of comp) world[idx(cx,Y,cz)]=ID.lava; }
   for(let i=0;i<N;i++) if(world[i]===ID.lava)lavaSet.add(i);
+  for(const [x,ty,z] of appleSpots) makeAppleTree(x,ty,z);
   cg={sp:[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:FC.BED_HP,inv:{},wings:0,over:null,spT:[0,3,5,7],lay:2};
 }
 function spawnAtBed(){ const c=FCC[0]; pl.p=[c.center[0],FC.FLOOR+0.01,c.center[1]]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=Math.atan2(-c.dir[0],-c.dir[1]); pitch=-0.05; }
@@ -1444,6 +1485,42 @@ function updateCorners(dt){ if(mode!=='corners'||!cg)return;
     const c=FCC[i], m=spawnMob(FC_TEAM[i],c.back[0]+c.dir[0]*1.8,FC.FLOOR+0.01,c.back[1]+c.dir[1]*1.8); m.home=i; m.cd=1; }
 }
 
+// ================= APPLE TREES =================
+// Blossoms appear one at a time (every 30 s, up to 5 per tree) and ripen into apples you can pick to heal.
+const appleTrees=[]; let aimFruit=null;
+const APPLE_EVERY=30, RIPEN=20, APPLE_MAX=5, APPLE_HEAL=3;
+const fruitMats={apple:lm(0xd8232a),stem:lm(0x5a3a1a),leaf:lm(0x3f9a2e),petal:lm(0xffdbe9),mid:lm(0xffd84a)};
+function fruitMesh(st){ const g=new THREE.Group();
+  if(st===2){ g.add(box(0.26,0.24,0.26,fruitMats.apple)); const s=box(0.04,0.1,0.04,fruitMats.stem); s.position.y=0.16; g.add(s); const l=box(0.1,0.03,0.06,fruitMats.leaf); l.position.set(0.06,0.18,0); g.add(l); }
+  else { g.add(box(0.08,0.06,0.08,fruitMats.mid)); for(let i=0;i<4;i++){ const p=box(0.11,0.03,0.11,fruitMats.petal); const an=i*Math.PI/2; p.position.set(Math.cos(an)*0.08,0,Math.sin(an)*0.08); g.add(p); } }
+  return g; }
+function addFruit(tr,c,st,t){ const pos=tr.cand[c].slice(0,3), sl={c,st,t:t===undefined?RIPEN:t,pos,mesh:fruitMesh(st)}; sl.mesh.position.set(pos[0],pos[1],pos[2]); scene.add(sl.mesh); tr.slots.push(sl); return sl; }
+function dropFruit(tr,sl){ scene.remove(sl.mesh); sl.mesh.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); tr.slots.splice(tr.slots.indexOf(sl),1); }
+function clearApples(){ for(const tr of appleTrees) for(const sl of tr.slots.slice()) dropFruit(tr,sl); appleTrees.length=0; aimFruit=null; }
+function makeAppleTree(x,ty,z){ const cand=[];
+  for(let dy=-2;dy<=-1;dy++)for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){ const lx=x+dx,ly=ty+dy,lz=z+dz; if(get(lx,ly,lz)!==ID.leaves)continue;
+    for(const [ex,ez] of [[1,0],[-1,0],[0,1],[0,-1]]){ if(Math.sign(dx)!==ex&&Math.sign(dz)!==ez)continue; if(get(lx+ex,ly,lz+ez))continue;
+      cand.push([lx+0.5+ex*0.64,ly+0.3,lz+0.5+ez*0.64,lx,ly,lz]); }
+    if(dy===-2&&!get(lx,ly-1,lz)&&(dx||dz)) cand.push([lx+0.5,ly-0.2,lz+0.5,lx,ly,lz]); }
+  for(let i=cand.length-1;i>0;i--){ const j=Math.floor(rand()*(i+1)); [cand[i],cand[j]]=[cand[j],cand[i]]; }
+  if(cand.length<3)return null; cand.length=Math.min(cand.length,10);
+  const tr={x,ty,z,cand,grow:5+rand()*APPLE_EVERY,slots:[]}; appleTrees.push(tr);
+  addFruit(tr,0,2); addFruit(tr,1,2); addFruit(tr,2,1,8+rand()*RIPEN); return tr; }
+let appleCheckT=0;
+function updateApples(dt){ appleCheckT-=dt; const chk=appleCheckT<=0; if(chk)appleCheckT=1;
+  for(const tr of appleTrees){
+    tr.grow-=dt; if(tr.grow<=0){ tr.grow=APPLE_EVERY;
+      if(tr.slots.length<APPLE_MAX){ const used=new Set(tr.slots.map(sl=>sl.c)), free=[]; tr.cand.forEach((c,k)=>{ if(!used.has(k)&&get(c[3],c[4],c[5])===ID.leaves)free.push(k); });
+        if(free.length) addFruit(tr,free[Math.floor(rand()*free.length)],1,RIPEN); } }
+    for(const sl of tr.slots.slice()){
+      if(chk){ const c=tr.cand[sl.c]; if(get(c[3],c[4],c[5])!==ID.leaves){ dropFruit(tr,sl); continue; } } // its branch is gone
+      if(sl.st===1){ sl.t-=dt; if(sl.t<=0){ sl.st=2; scene.remove(sl.mesh); sl.mesh=fruitMesh(2); sl.mesh.position.set(sl.pos[0],sl.pos[1],sl.pos[2]); scene.add(sl.mesh); } }
+      else sl.mesh.rotation.y+=dt*0.6; } } }
+function pickFruit(f){ const {tr,sl}=f; aimFruit=null;
+  if(sl.st!==2){ toast('🌸 That\'s still a blossom. It will turn into an apple soon!'); return; }
+  dropFruit(tr,sl); const before=hp; hp=Math.min(MAXHP,hp+APPLE_HEAL); updateHUD(); sfx('coin'); burst(sl.pos[0]-0.5,sl.pos[1]-0.5,sl.pos[2]-0.5,new THREE.Color(.9,.15,.15),6);
+  toast(hp>before?'🍎 Yum! +'+(hp-before)+' hearts':'🍎 Yum! (you were already at full health)'); queueSave(); }
+
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
@@ -1486,16 +1563,23 @@ function hurtVictim(V,n,kx,kz,src){ if(V===pl){ hurtPlayer(n,kx,kz,src); return;
 const tmpA=new THREE.Vector3(), tmpN=new THREE.Vector3();
 function tgCheckRings(s,x0,y0,z0){ // did this arrow pass through a bullseye this step?
   if(!tgm||tgm.phase!=='play')return false;
-  const list=[]; for(const m of mobs) if(m.tdiscs)list.push(...m.tdiscs);
-  if(tgm.round===4) list.push(s.owner==='you'?rv.shield:plShield);
-  for(const d of list){ d.updateWorldMatrix(true,false); d.getWorldPosition(tmpA); d.getWorldDirection(tmpN);
+  const list=[], owners=[]; for(const m of mobs) if(m.tdiscs)for(const d of m.tdiscs){ list.push(d); owners.push(m); }
+  if(tgm.round===4){ list.push(s.owner==='you'?rv.shield:plShield); owners.push(null); }
+  for(let li=0;li<list.length;li++){ const d=list[li]; d.updateWorldMatrix(true,false); d.getWorldPosition(tmpA); d.getWorldDirection(tmpN);
     const a=(x0-tmpA.x)*tmpN.x+(y0-tmpA.y)*tmpN.y+(z0-tmpA.z)*tmpN.z, b=(s.p[0]-tmpA.x)*tmpN.x+(s.p[1]-tmpA.y)*tmpN.y+(s.p[2]-tmpA.z)*tmpN.z;
     if((a>0)===(b>0)||a===b)continue; const f=a/(a-b), hx=x0+(s.p[0]-x0)*f, hy=y0+(s.p[1]-y0)*f, hz=z0+(s.p[2]-z0)*f;
     const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z), pts=ringPoints(r/d.userData.R); if(!pts)continue;
     s.scored=true; tgScore(s.owner==='you'?0:1,pts,[hx,hy+0.4,hz]); sfx(pts===25?'buy':'coin'); burst(hx-0.5,hy-0.5,hz-0.5,new THREE.Color(pts===25?1:1,pts===25?.2:.85,pts===25?.2:.3),pts===25?16:6);
+    if(owners[li]) tgPoof(owners[li]);
     if(s.owner==='you')toast(pts===25?'🎯 BULLSEYE! +25':pts===5?'🔵 Blue ring! +5':pts===2?'🟡 Yellow ring! +2':'🟢 Green ring! +1');
     return true; }
   return false; }
+function tgPoof(m){ // a monster that gets scored on vanishes and pops up somewhere else
+  const type=m.type; burst(m.p[0]-0.5,m.p[1]+m.h*0.4,m.p[2]-0.5,new THREE.Color(1,1,1),14); removeMob(m);
+  if(MOBT[type].flyer){ spawnFlyer(type); return; }
+  for(let a=0;a<30;a++){ const ang=rand()*6.28, r=12+rand()*22, x=Math.floor(pl.p[0]+Math.sin(ang)*r), z=Math.floor(pl.p[2]+Math.cos(ang)*r);
+    if(x<2||z<2||x>=W-2||z>=D-2)continue; const su=surfaceAt(x,z); if(su.y<0||!B[su.id].solid||su.id===ID.leaves)continue;
+    if(get(x,su.y+1,z)||get(x,su.y+2,z))continue; spawnMob(type,x+0.5,su.y+1,z+0.5); burst(x,su.y+1,z,new THREE.Color(1,1,1),10); return; } }
 function tgScore(who,pts,pos){ tgm.score[who]+=pts; updateTGHud(); queueSave();
   tgPopup((pts>0?'+':'')+pts,who===0?(pts>0?'#7fe3cf':'#ff6b5b'):(pts>0?'#ff9d8a':'#ff6b5b'),pos,who===1?'🤖 ':''); }
 const popups=[];
@@ -1511,7 +1595,7 @@ function targetsHelp(){
   return '<h2>🎯 Targets</h2>Every monster carries a bullseye target. You and an AI rival archer both shoot at them. Hit closer to the middle for more points!'+
   '<div class="board" style="margin-top:8px"><div style="color:#3fbf4a">Green<br>1</div><div style="color:#ffd23a">Yellow<br>2</div><div style="color:#2f7be0">Blue<br>5</div><div style="color:#e8322c">Red<br>25</div></div>'+
   '<h3>Rounds</h3><ul><li><b>1 🚶 On foot</b>: walk and shoot</li><li><b>2 🪽 Wings on</b>: fly while you shoot</li><li><b>3 ⚔️ Attack mode</b>: monsters fight back. Every hit costs 1 point (for you and your rival)</li><li><b>4 🛡️ Shield duel</b>: no monsters. You both wear a bullseye shield, so shoot each other\'s shield</li></ul>'+
-  '<h3>Rules</h3><ul><li>You can only have one arrow in the air. When it scores or misses, you can shoot again</li><li>Arrows drop over distance, so aim a little high for far targets</li><li>Highest total after Round 4 wins</li></ul>';
+  '<h3>Rules</h3><ul><li>You can only have one arrow in the air. When it scores or misses, you can shoot again</li><li>Arrows drop over distance, so aim a little high for far targets</li><li>A monster you score on vanishes and pops up somewhere else</li><li>Highest total after Round 4 wins</li></ul>';
 }
 let tgPickDiff='medium', tgPickLen=120;
 function openTargetsSetup(){
@@ -1745,10 +1829,10 @@ function spiderSpit(m){ const V=mobVictim||pl;
   addShot(o,d,18,5,0,'web',true); m.atk=0.3; sfx('web'); }
 
 // --- eagles and griffins: glide around the sky; they only attack if you bump into them or hit them
-function spawnFlyer(){
+function spawnFlyer(type){
   for(let a=0;a<6;a++){ const ang=rand()*6.28, r=18+rand()*16, x=pl.p[0]+Math.sin(ang)*r, z=pl.p[2]+Math.cos(ang)*r;
     if(x<2||z<2||x>W-2||z>D-2)continue; const sy=surfaceAt(Math.floor(x),Math.floor(z)).y;
-    const y=Math.min(H+6,Math.max(sy+10,22+rand()*12)); spawnMob(rand()<0.7?'eagle':'griffin',x,y,z); return; } }
+    const y=Math.min(H+6,Math.max(sy+10,22+rand()*12)); spawnMob(type||(rand()<0.7?'eagle':'griffin'),x,y,z); return; } }
 function skyTarget(m){ const x=Math.max(2,Math.min(W-2,m.p[0]+(rand()-.5)*40)), z=Math.max(2,Math.min(D-2,m.p[2]+(rand()-.5)*40));
   const sy=surfaceAt(Math.floor(x),Math.floor(z)).y; return [x,Math.min(H+6,Math.max(sy+9,20+rand()*14)),z]; }
 function updateFlyer(m,dt){
@@ -1796,7 +1880,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
 
@@ -1861,7 +1945,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
