@@ -22,6 +22,7 @@
   #webCount{display:none;margin-top:5px;margin-left:6px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:15px;color:#eee}
   #fcHud{display:none;margin-top:5px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff}
   #tgHud{display:none;margin-top:5px;background:rgba(20,24,32,.7);padding:4px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff;line-height:1.35}
+  #cartHud{display:none;margin-top:5px;background:rgba(20,24,32,.7);padding:4px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff;line-height:1.35}
   #tgHud .you{color:#7fe3cf}#tgHud .ai{color:#ff9d8a}#tgHud .tm{color:#ffd84a}
   .seg{display:flex;gap:6px;margin-top:6px}.seg button{flex:1;height:38px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#232a39;color:#fff;font-weight:800;font-size:14px}
   .seg button.on{background:#ffcf4a;color:#111;border-color:#ffcf4a}
@@ -136,7 +137,7 @@
 <div id="tint"></div><div id="hurt"></div><div id="web"></div><div id="burn"></div>
 <div id="touch"></div>
 <div id="cross" class="ui"></div>
-<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div><div id="tgHud"></div></div>
+<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div><div id="tgHud"></div><div id="cartHud"></div></div>
 <div id="looking" class="ui"></div>
 <div id="top" class="ui">
   <div class="tbtn" id="bArrow" style="display:none">🏹</div>
@@ -583,7 +584,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=s.mode==='corners'?'corners':s.mode==='targets'?'targets':'survival';
+  mode=['corners','targets','cart'].includes(s.mode)?s.mode:'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -603,6 +604,7 @@ function applySnapshot(s){
     for(const [c,st,t] of (a.s||[])) if(tr.cand[c]) addFruit(tr,c,st,t); }
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
+  if(mode==='cart'){ buildCartScene(); crt=newCrt(); placeCart(); }
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 }
@@ -888,6 +890,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
+  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); atkCd=0.35; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
     if(tgm&&tgm.out[0]){ toast('💤 You\'re out until this round ends.'); return; }
@@ -966,6 +969,7 @@ function updateShots(dt){
       s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
       const [x,y,z]=s.p;
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
+      if(s.owner&&mode==='cart'&&cartCheck(s,px0,py0,pz0)){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
@@ -1018,6 +1022,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
+  if(mode==='cart')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
@@ -1186,7 +1191,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
+function toggleFly(){ if(mode==='cart'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1197,7 +1202,7 @@ function updateViewRange(dt){ // fog thins out as you fly away so the whole land
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
   const fc=mode==='corners'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ if(mode==='targets'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+function cycleWeapon(){ if(mode==='targets'||mode==='cart'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1232,12 +1237,12 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1278,14 +1283,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1311,7 +1316,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1336,22 +1341,25 @@ function openNewGame(){
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Survival</b><div class="fx">Free mode. Build with real rocks, fight monsters for coins and shop at Flint\'s. Your coins and weapons carry over.</div></div><button class="ibtn" data-new="survival">Start</button></div>'+
     '<div class="item"><div class="ic">🏰</div><div class="tx"><b>Four Corners</b><div class="fx">Four cliff caves around a lava valley. Shoot across with your bow, mine blocks to build walls and bridges, and break the skeleton, orc and troll spawn blocks. Keep your bed safe!</div></div><button class="ibtn" data-new="corners">Start</button></div>'+
     '<div class="item"><div class="ic">🎯</div><div class="tx"><b>Targets</b><div class="fx">Every monster carries a bullseye. Out-shoot an AI archer over 4 rounds: on foot, with wings, attack mode and a shield duel.</div></div><button class="ibtn" data-new="targets">Start</button></div>'+
+    '<div class="item"><div class="ic">🛤️</div><div class="tx"><b>Mine Cart Rush</b><div class="fx">Ride a mine cart up hills, down drops and through a tunnel. Shoot targets, animals, sunflowers, apples, glass, a volcano, a fountain and a dragon for a high score!</div></div><button class="ibtn" data-new="cart">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
+    if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
     closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
   tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),openMenu);
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ clearApples(); clearGlass(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='targets'?'none':'';
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart')?'none':'';
+  $('cartHud').style.display=mode==='cart'?'inline-block':'none'; document.body.classList.toggle('tg',mode==='targets'||mode==='cart');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
-  document.body.classList.toggle('fc',fc); document.body.classList.toggle('tg',mode==='targets'); viewF=-1; updateViewRange(0); updateFCHud(); }
+  document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
 function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists',arrows:cleanArrows(k.arrows)}; } }catch(e){}
   return {coins:0,owned:['fists'],weapon:'fists',arrows:cleanArrows()}; }
 function startSurvival(){
@@ -1509,7 +1517,7 @@ const ARROWS={explode:{name:'Exploding arrow',icon:'💥',price:25,qty:1,desc:'B
   fire:{name:'Fire arrow',icon:'🔥',price:10,qty:3,desc:'Sets a monster on fire so it keeps burning, and lights up wood and grass.'},
   split:{name:'Splitting arrow',icon:'🔱',price:5,qty:5,desc:'Splits into 3 arrows as it leaves your bow.'},
   seek:{name:'Auto-aim arrow',icon:'🎯',price:5,qty:3,desc:'Curves toward the nearest monster in front of you.'}};
-const arrowsAllowed=()=>mode!=='targets'&&owned.includes('bow');
+const arrowsAllowed=()=>(mode==='survival'||mode==='corners')&&owned.includes('bow');
 function refreshArrowBtn(){ const b=$('bArrow'); if(!arrowsAllowed()){ b.style.display='none'; return; } b.style.display='';
   const t=arrowSel==='normal'?'🏹':ARROWS[arrowSel].icon+arrows[arrowSel]; if(b.textContent!==t)b.textContent=t; b.classList.toggle('on',arrowSel!=='normal'); }
 function arrowRows(){ let h='';
@@ -1591,6 +1599,268 @@ function pickFruit(f){ const {tr,sl}=f; aimFruit=null;
   if(sl.st!==2){ toast('🌸 That\'s still a blossom. It will turn into an apple soon!'); return; }
   dropFruit(tr,sl); const before=hp; hp=Math.min(MAXHP,hp+APPLE_HEAL); updateHUD(); sfx('coin'); burst(sl.pos[0]-0.5,sl.pos[1]-0.5,sl.pos[2]-0.5,new THREE.Color(.9,.15,.15),6);
   toast(hp>before?'🍎 Yum! +1 heart':'🍎 Yum! (you were already at full health)'); queueSave(); }
+
+// ================= MINE CART RUSH =================
+// One scenic track (meadow → cliff and waterfall → bridge over the lake → past the volcano → orchard → tunnel) ridden 3 times.
+const CART_CP=[[48,80,12,5],[64,82,12,4.5],[78,76,12,4.5],[88,62,14,5],[90,50,19,5],[86,38,23,4],[78,24,23,4],[70,22,20,6.5],[60,24,15,7],
+  [50,28,13,6],[40,32,13,5],[34,40,12,5],[28,50,12,5.5],[20,58,12,5.5],[18,68,13,8],[24,77,13,9],[34,82,12,6]]; // x, z, rail height, cruise speed
+const CART_LAKE=[62,29,9], CART_PLAT=[84,30,14], CART_VOLC=[18,26,13], CART_HILL=[20,72,10], CART_LAPS=3, TSTEP=0.5;
+const TRK=(()=>{ const P=CART_CP, n=P.length, raw=[];
+  const cr=(a,b,c,d,t)=>0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
+  for(let i=0;i<n;i++){ const a=P[(i-1+n)%n],b=P[i],c=P[(i+1)%n],d=P[(i+2)%n]; for(let k=0;k<40;k++){ const t=k/40; raw.push([0,1,2,3].map(j=>cr(a[j],b[j],c[j],d[j],t))); } }
+  raw.push(raw[0]); const X=[],Y=[],Z=[],C=[]; let carry=0;
+  for(let i=0;i<raw.length-1;i++){ const a=raw[i],b=raw[i+1], seg=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]); let t=carry;
+    while(t<seg){ const f=t/seg; X.push(a[0]+(b[0]-a[0])*f); Z.push(a[1]+(b[1]-a[1])*f); Y.push(a[2]+(b[2]-a[2])*f); C.push(a[3]+(b[3]-a[3])*f); t+=TSTEP; } carry=t-seg; }
+  return {X,Y,Z,C,n:X.length,L:X.length*TSTEP}; })();
+function trackAt(s){ const L=TRK.L; s=((s%L)+L)%L; const f=s/TSTEP, i=Math.floor(f)%TRK.n, j=(i+1)%TRK.n, u=f-Math.floor(f);
+  const x=TRK.X[i]+(TRK.X[j]-TRK.X[i])*u, y=TRK.Y[i]+(TRK.Y[j]-TRK.Y[i])*u, z=TRK.Z[i]+(TRK.Z[j]-TRK.Z[i])*u;
+  return {x,y,z,dx:(TRK.X[j]-TRK.X[i])/TSTEP,dy:(TRK.Y[j]-TRK.Y[i])/TSTEP,dz:(TRK.Z[j]-TRK.Z[i])/TSTEP,c:TRK.C[i]}; }
+function generateCart(s){
+  seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), appleSpots=[];
+  const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
+  const DT=new Float32Array(W*D).fill(99);
+  for(let i=0;i<TRK.n;i+=2){ const tx=TRK.X[i],tz=TRK.Z[i]; for(let dz=-9;dz<=9;dz++)for(let dx=-9;dx<=9;dx++){ const x=Math.floor(tx)+dx,z=Math.floor(tz)+dz; if(x<0||z<0||x>=W||z>=D)continue;
+    const d=Math.hypot(x+0.5-tx,z+0.5-tz); if(d<DT[x+z*W])DT[x+z*W]=d; } }
+  const dist=(x,z,c)=>Math.hypot(x+0.5-c[0],z+0.5-c[1]);
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+    let h=10+Math.floor(n1(x/18,z/18)*3), kind='land';
+    const dp=dist(x,z,CART_PLAT), dv=dist(x,z,CART_VOLC), dh=dist(x,z,CART_HILL), dl=dist(x,z,CART_LAKE);
+    if(dp<CART_PLAT[2]-(dp>12.5&&rnd()<0.3?1:0)){ h=23; kind='plat'; }
+    if(dh<CART_HILL[2]) h=Math.max(h,Math.round(25-dh*0.85));
+    if(dv<CART_VOLC[2]){ h=Math.max(h,Math.round(34-dv*1.7)); kind='volc'; if(dv<2.5)h=28; }
+    if(dl<CART_LAKE[2]){ h=Math.min(h,Math.round(4+dl*0.6)); kind='lake'; }
+    for(let y=0;y<h;y++){ const depth=h-1-y; let id;
+      if(y===0)id=ID.basalt;
+      else if(kind==='volc'){ id=depth===0&&rnd()<0.5?ID.pumice:rnd()<0.08?ID.obsidian:ID.basalt; }
+      else if(kind==='lake'&&depth<=1) id=n1(x/6,z/6)>0.5?ID.clay:ID.sand;
+      else if(depth===0) id=ID.grass; else if(depth<=2) id=ID.dirt; else if(y<4) id=ID.granite;
+      else { id=SED[(y+Math.floor(n3(x/9,z/9)*4))%SED.length]; if(rnd()<0.012)id=ID.coal; }
+      world[idx(x,y,z)]=id; }
+    if(kind==='lake') for(let y=h;y<=CART_LAKE[2];y++) world[idx(x,y,z)]=ID.water;
+    if(kind==='volc'&&dv<2.5) for(let y=28;y<=29;y++) world[idx(x,y,z)]=ID.lava;
+  }
+  // a river across the cliff top that pours over the edge as a waterfall into the lake
+  for(let t=0;t<=1;t+=0.02){ const rx=92+(71-92)*t, rz=26+(30-26)*t; for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){ const x=Math.floor(rx)+dx,z=Math.floor(rz)+dz; if(inB(x,22,z)&&world[idx(x,22,z)])world[idx(x,22,z)]=ID.water; } }
+  for(let z=29;z<=31;z++)for(let x=69;x<=71;x++){ if(dist(x,z,CART_PLAT)<CART_PLAT[2])continue; for(let y=9;y<=22;y++) if(!world[idx(x,y,z)]||world[idx(x,y,z)]===ID.water)world[idx(x,y,z)]=ID.water; }
+  // the track bed: embankments, cuttings, a tunnel and a trestle bridge
+  for(let i=0;i<TRK.n;i++){ const tx=TRK.X[i],tz=TRK.Z[i],yi=Math.round(TRK.Y[i]);
+    for(let dz=-2;dz<=2;dz++)for(let dx=-2;dx<=2;dx++){ const x=Math.floor(tx+dx*0.75),z=Math.floor(tz+dz*0.75); if(!inB(x,0,z))continue;
+      const over=dist(x,z,CART_LAKE)<CART_LAKE[2]&&yi-1>CART_LAKE[2]+1;
+      if(over){ world[idx(x,yi-1,z)]=ID.planks; if(i%6===0&&Math.abs(dx)<=1&&Math.abs(dz)<=1) for(let y=yi-2;y>0&&(!world[idx(x,y,z)]||world[idx(x,y,z)]===ID.water);y--)world[idx(x,y,z)]=ID.log; }
+      else { for(let y=yi-1;y>0&&(!world[idx(x,y,z)]||B[world[idx(x,y,z)]].fluid);y--) world[idx(x,y,z)]=ID.dirt; world[idx(x,yi-1,z)]=ID.conglomerate; }
+      for(let y=yi;y<=yi+4;y++) if(inB(x,y,z)&&world[idx(x,y,z)]!==ID.water)world[idx(x,y,z)]=0; } }
+  // trees, with an apple orchard next to the track
+  let apples=0; for(let a=0;a<220;a++){ const x=3+Math.floor(rnd()*(W-6)), z=3+Math.floor(rnd()*(D-6)); if(DT[x+z*W]<4)continue;
+    if(dist(x,z,CART_LAKE)<CART_LAKE[2]+1||dist(x,z,CART_VOLC)<CART_VOLC[2]+1)continue;
+    const orchard=x>=6&&x<=34&&z>=44&&z<=64; if(!orchard&&rnd()<0.7)continue;
+    const su=surfaceAt(x,z); if(su.id!==ID.grass||world[idx(x,su.y+1,z)])continue;
+    let near=false; for(let dz=-3;dz<=3&&!near;dz++)for(let dx=-3;dx<=3;dx++) if(inB(x+dx,su.y+1,z+dz)&&world[idx(x+dx,su.y+1,z+dz)]===ID.log){ near=true; break; } if(near)continue;
+    plantTree(x,su.y+1,z,rnd); if(orchard&&apples<7){ appleSpots.push([x,plantTree.ty,z]); apples++; } }
+  for(let i=0;i<N;i++) if(world[i]===ID.lava)lavaSet.add(i);
+  for(const [x,ty,z] of appleSpots) makeAppleTree(x,ty,z);
+}
+// --- 3D things that ride along with the scenery
+const cartRoot=new THREE.Group(); scene.add(cartRoot);
+const cartObjs={cart:null,posts:[],flowers:[],animals:[],clouds:[],glass:[],flying:[],dragon:null};
+const cfx=[]; const cfxGeo=new THREE.BoxGeometry(0.22,0.22,0.22), cfxMats={};
+const cfxMat=c=>cfxMats[c]||(cfxMats[c]=new THREE.MeshBasicMaterial({color:c}));
+function puff(x,y,z,cols,n,spd,up,g,life){ for(let i=0;i<n;i++){ if(cfx.length>420)break; const m=new THREE.Mesh(cfxGeo,cfxMat(cols[Math.floor(rand()*cols.length)])); m.position.set(x,y,z); cartRoot.add(m);
+  cfx.push({m,v:[(rand()-.5)*spd,up*(0.6+rand()*0.6),(rand()-.5)*spd],g,life:life*(0.6+rand()*0.6)}); } }
+const sunTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  x.fillStyle='#ffcf1a'; for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; x.beginPath(); x.ellipse(64+Math.cos(a)*40,64+Math.sin(a)*40,22,11,a,0,Math.PI*2); x.fill(); }
+  x.beginPath(); x.arc(64,64,30,0,Math.PI*2); x.fillStyle='#6a3b12'; x.fill(); x.fillStyle='#3d2208'; for(let i=0;i<40;i++){ const a=rand()*6.28, r=rand()*26; x.fillRect(64+Math.cos(a)*r,64+Math.sin(a)*r,3,3); }
+  return new THREE.CanvasTexture(c); })();
+const sunMat=new THREE.MeshBasicMaterial({map:sunTex,transparent:true,alphaTest:0.4,side:THREE.DoubleSide});
+function discMesh(R,mat){ const m=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),mat||tgMat); m.userData.R=R; return m; }
+function clearCart(){ cartRoot.traverse(o=>{ if(o.geometry&&o.geometry!==cfxGeo)o.geometry.dispose(); }); cartRoot.clear(); cfx.length=0;
+  cartObjs.cart=null; for(const k of ['posts','flowers','animals','clouds','glass','flying'])cartObjs[k].length=0; cartObjs.dragon=null; }
+function nearestTrack(x,z){ let best=0,bd=1e9; for(let i=0;i<TRK.n;i+=4){ const d=Math.hypot(TRK.X[i]-x,TRK.Z[i]-z); if(d<bd){ bd=d; best=i; } } return [TRK.X[best],TRK.Y[best],TRK.Z[best],bd]; }
+function faceTrack(m,x,z){ const t=nearestTrack(x,z); m.rotation.y=Math.atan2(t[0]-x,t[2]-z); }
+function buildCartScene(){ clearCart();
+  // rails and sleepers
+  const railG=new THREE.BoxGeometry(0.09,0.1,TSTEP+0.02), sleeperG=new THREE.BoxGeometry(1.4,0.1,0.32);
+  const rails=new THREE.InstancedMesh(railG,lm(0x9aa0aa),TRK.n*2), sleepers=new THREE.InstancedMesh(sleeperG,lm(0x6b4a2a),Math.ceil(TRK.n/2));
+  const d=new THREE.Object3D(); let si=0;
+  for(let i=0;i<TRK.n;i++){ const p=trackAt(i*TSTEP+TSTEP/2), yaw=Math.atan2(-p.dx,-p.dz), pit=Math.atan2(p.dy,Math.hypot(p.dx,p.dz)), px=Math.cos(yaw), pz=-Math.sin(yaw);
+    for(const side of [-1,1]){ d.position.set(p.x+px*side*0.5,p.y+0.12,p.z+pz*side*0.5); d.rotation.set(pit,yaw,0,'YXZ'); d.updateMatrix(); rails.setMatrixAt(i*2+(side>0?1:0),d.matrix); }
+    if(i%2===0){ d.position.set(p.x,p.y+0.04,p.z); d.rotation.set(pit,yaw,0,'YXZ'); d.updateMatrix(); sleepers.setMatrixAt(si++,d.matrix); } }
+  sleepers.count=si; cartRoot.add(rails,sleepers);
+  // the cart
+  const c=new THREE.Group(), iron=lm(0x5a5f6a), trim=lm(0x8a5a3a), dk=lm(0x222222); c.rotation.order='YXZ';
+  const fl=box(1.2,0.12,1.6,iron); fl.position.y=0.3; c.add(fl);
+  for(const [w,h,dd,x,z] of [[0.1,0.7,1.6,-0.6,0],[0.1,0.7,1.6,0.6,0],[1.3,0.7,0.1,0,-0.8],[1.3,0.7,0.1,0,0.8]]){ const b=box(w,h,dd,iron); b.position.set(x,0.65,z); c.add(b); }
+  for(const z of [-0.8,0.8]){ const b=box(1.34,0.1,0.14,trim); b.position.set(0,1.0,z); c.add(b); }
+  for(const x of [-0.5,0.5])for(const z of [-0.55,0.55]){ const wh=box(0.14,0.3,0.3,dk); wh.position.set(x,0.15,z); c.add(wh); }
+  cartRoot.add(c); cartObjs.cart=c;
+  // sunflower patches
+  const rnd=mulberry32(seed+7);
+  for(const [cx,cz] of [[70,70],[58,88],[84,84],[30,60],[44,72]]) for(let k=0;k<7;k++){ const x=cx+(rnd()-.5)*8, z=cz+(rnd()-.5)*8; if(x<2||z<2||x>W-2||z>D-2)continue;
+    const nt=nearestTrack(x,z); if(nt[3]<2.6)continue; const su=surfaceAt(Math.floor(x),Math.floor(z)); if(su.id!==ID.grass)continue;
+    const g=new THREE.Group(), hgt=1.5+rnd()*0.8, st=box(0.1,hgt,0.1,lm(0x3f8a2a)); st.position.y=hgt/2; g.add(st);
+    const lf=box(0.4,0.05,0.18,lm(0x4f9a32)); lf.position.set(0.15,hgt*0.45,0); g.add(lf);
+    const head=discMesh(0.5,sunMat); head.position.y=hgt+0.25; g.add(head); g.position.set(x,su.y+1,z); faceTrack(g,x,z); cartRoot.add(g);
+    cartObjs.flowers.push({g,head}); }
+  // animals that wander near the track
+  const homes=[[66,72],[80,70],[56,86],[86,56],[38,74],[30,46],[14,52],[44,36],[74,86],[26,62]];
+  for(let k=0;k<10;k++){ const type=['deer','sheep','rabbit'][k%3], h=homes[k]; const a=makeAnimal(type); a.home=h; a.p=[h[0],0,h[1]]; a.goal=null; cartObjs.animals.push(a); }
+  // clouds carrying bullseyes
+  for(let k=0;k<3;k++){ const p=trackAt(TRK.L*(k+0.3)/3), side=k%2?1:-1, yaw=Math.atan2(-p.dx,-p.dz), px=Math.cos(yaw)*side, pz=-Math.sin(yaw)*side;
+    const g=new THREE.Group(); const cl=box(8,2.2,4.5,cMat); g.add(cl); const dsc=discMesh(1.3); dsc.position.set(0,0,0); g.add(dsc);
+    g.position.set(p.x+px*16,31+k*2,p.z+pz*16); faceTrack(g,g.position.x,g.position.z); dsc.position.z=2.3; cartRoot.add(g); cartObjs.clouds.push({g,disc:dsc,off:0}); }
+}
+function makeAnimal(type){ const g=new THREE.Group(), body=new THREE.Group(); g.add(body); cartRoot.add(g); const legs=[];
+  const L=(c)=>lm(c); let R=0.3, w=0.5, y=0.9;
+  if(type==='deer'){ const br=L(0x8a5a32); const b=box(0.5,0.55,1.0,br); b.position.y=0.95; body.add(b); const nk=box(0.22,0.5,0.22,br); nk.position.set(0,1.3,-0.45); body.add(nk);
+    const hd=box(0.28,0.28,0.42,br); hd.position.set(0,1.58,-0.6); body.add(hd); for(const sx of [-1,1]){ const an=box(0.05,0.35,0.05,L(0xd8c8a8)); an.position.set(sx*0.12,1.85,-0.55); an.rotation.z=sx*0.4; body.add(an); }
+    const tl=box(0.12,0.14,0.08,L(0xffffff)); tl.position.set(0,1.1,0.52); body.add(tl);
+    for(const [lx,lz] of [[-0.17,-0.38],[0.17,-0.38],[-0.17,0.38],[0.17,0.38]]){ const l=limbOn(body,lx,0.7,0.1,0.7,br); l.position.z=lz; legs.push(l); } R=0.3; w=0.5; y=0.98; }
+  else if(type==='sheep'){ const wl=L(0xeeeeea), dk=L(0x333333); const b=box(0.7,0.6,0.9,wl); b.position.y=0.72; body.add(b); const hd=box(0.32,0.32,0.36,dk); hd.position.set(0,0.88,-0.55); body.add(hd);
+    for(const [lx,lz] of [[-0.22,-0.3],[0.22,-0.3],[-0.22,0.3],[0.22,0.3]]){ const l=limbOn(body,lx,0.45,0.12,0.45,dk); l.position.z=lz; legs.push(l); } R=0.28; w=0.7; y=0.74; }
+  else { const fu=L(0xb59a7a); const b=box(0.32,0.3,0.45,fu); b.position.y=0.25; body.add(b); const hd=box(0.24,0.22,0.24,fu); hd.position.set(0,0.42,-0.24); body.add(hd);
+    for(const sx of [-1,1]){ const e=box(0.06,0.26,0.06,fu); e.position.set(sx*0.07,0.65,-0.22); body.add(e); } const tl=box(0.12,0.12,0.1,L(0xffffff)); tl.position.set(0,0.3,0.26); body.add(tl); R=0.17; w=0.32; y=0.26; }
+  const discs=[]; for(const sx of [-1,1]){ const d=discMesh(R); d.rotation.y=Math.PI/2; d.position.set(sx*(w/2+0.02),y,type==='deer'?0.05:0); body.add(d); discs.push(d); }
+  return {type,g,body,legs,discs,yaw:rand()*6,phase:0,flee:0,hidden:0,hop:0,vy:0,y:0,mult:type==='rabbit'?2:1}; }
+// --- ride state
+let crt=null;
+function newCrt(){ return {phase:'intro',dist:0,v:0,lap:1,score:0,counts:{},t:0,glassT:4,fountT:3,volcT:5,dragonDone:false,lastYaw:null,lapSet:0}; }
+const CART_BEST='stratacraft_cart_best';
+function cartBest(){ try{ return +localStorage.getItem(CART_BEST)||0; }catch(e){ return 0; } }
+function placeCart(){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz); const c=cartObjs.cart; if(!c)return;
+  c.position.set(p.x,p.y,p.z); c.rotation.y=cy; c.rotation.x=Math.atan2(p.dy,Math.hypot(p.dx,p.dz));
+  if(crt.lastYaw===null){ yaw=cy; pitch=-0.1; } else { let dy=cy-crt.lastYaw; while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI; yaw+=dy; } crt.lastYaw=cy;
+  pl.p=[p.x,p.y+0.3,p.z]; pl.v=[0,0,0]; pl.kb=[0,0,0]; }
+function startCart(){ clearEntities(); mode='cart'; cg=null; tgm=null; generateCart((Math.random()*1e9)|0);
+  owned=['fists','bow']; weapon='bow'; arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  setFly(false,false); applyMode(); rebuildAll(); buildCartScene(); crt=newCrt(); placeCart(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); cartIntro(); }
+function cartIntro(){ if(!crt)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const best=cartBest();
+  $('mbox').innerHTML='<h2>🛤️ Mine Cart Rush</h2><div class="say">Ride the cart for '+CART_LAPS+' laps and shoot everything with a bullseye! The cart speeds up downhill and slows down climbing.</div>'+
+    '<div class="board"><div>🏆 Best score<div class="n" style="color:#ffd84a">'+best+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="cGo">'+(crt.phase==='ride'?'Keep riding':'Start the ride!')+'</button><button class="mbtn gray" id="cMenu">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('cGo'),()=>{ closeMenu(); if(crt.phase!=='ride'){ cartReset(); crt.phase='count'; crt.t=3.99; } });
+  tap($('cMenu'),openMenu); }
+function cartReset(){ const keep=crt; crt=newCrt(); crt.lastYaw=keep?keep.lastYaw:null; for(const o of cartObjs.glass)cartRoot.remove(o.m); cartObjs.glass.length=0;
+  for(const o of cartObjs.flying)cartRoot.remove(o.m); cartObjs.flying.length=0; if(cartObjs.dragon){ cartRoot.remove(cartObjs.dragon.g); cartObjs.dragon=null; }
+  cartNewLap(); placeCart(); updateCartHud(); }
+function cartNewLap(){ // fresh posts, fresh sunflower heads, and fresh targets on the animals and clouds
+  for(const o of cartObjs.posts){ cartRoot.remove(o.g); o.g.traverse(x=>{ if(x.geometry)x.geometry.dispose(); }); } cartObjs.posts.length=0;
+  for(let k=0;k<12;k++){ const s=TRK.L*(k+0.2+rand()*0.6)/12, p=trackAt(s), side=rand()<0.5?-1:1, yaw2=Math.atan2(-p.dx,-p.dz), off=3.5+rand()*3;
+    const x=p.x+Math.cos(yaw2)*side*off, z=p.z-Math.sin(yaw2)*side*off; if(x<2||z<2||x>W-2||z>D-2)continue; const su=surfaceAt(Math.floor(x),Math.floor(z)); if(su.y<0||B[su.id].fluid)continue;
+    const g=new THREE.Group(), post=box(0.18,2.2,0.18,lm(0x6b4a2a)); post.position.y=1.1; g.add(post); const d=discMesh(0.55); d.position.y=2.4; g.add(d);
+    g.position.set(x,Math.max(su.y+1,p.y-1),z); g.rotation.y=Math.atan2(p.x-x,p.z-z); cartRoot.add(g); cartObjs.posts.push({g,disc:d}); }
+  for(const f of cartObjs.flowers)f.head.visible=true; for(const a of cartObjs.animals){ a.hidden=0; for(const d of a.discs)d.visible=true; } for(const c of cartObjs.clouds){ c.off=0; c.disc.visible=true; } }
+function ridePlayer(dt){ if(!crt)return;
+  if(crt.phase==='count'){ const before=Math.ceil(crt.t); crt.t-=dt; const now=Math.ceil(crt.t); if(now!==before){ if(now>0){ toast('🛤️ '+now+'…'); sfx('place'); } else { toast('🛤️ GO!'); sfx('buy'); crt.phase='ride'; crt.v=3; } } }
+  else if(crt.phase==='ride'){ const p=trackAt(crt.dist), slope=p.dy/Math.max(0.01,Math.hypot(p.dx,p.dy,p.dz));
+    crt.v+=(-9.8*0.75*slope+(p.c-crt.v)*0.6)*dt; crt.v=Math.max(2.5,Math.min(15,crt.v)); crt.dist+=crt.v*dt;
+    const lap=Math.floor(crt.dist/TRK.L)+1;
+    if(lap>CART_LAPS){ crt.dist=TRK.L*CART_LAPS; cartFinish(); }
+    else if(lap!==crt.lap){ crt.lap=lap; cartNewLap(); toast(lap===CART_LAPS?'🛤️ Final lap! Watch the sky…':'🛤️ Lap '+lap+' of '+CART_LAPS); } }
+  placeCart(); }
+function cartFinish(){ crt.phase='done'; crt.v=0; const best=cartBest(), rec=crt.score>best; if(rec)try{ localStorage.setItem(CART_BEST,String(crt.score)); }catch(e){}
+  if(document.pointerLockElement)document.exitPointerLock(); paused=true; const C=crt.counts;
+  const rows=[['🎯','Posts','post'],['🌻','Sunflowers','sunflower'],['🦌','Animals','animal'],['🍎','Apples','apple'],['🪟','Glass','glass'],['☁️','Clouds','cloud'],['⛲','Fountain','fountain'],['🌋','Volcano','volcano'],['🐉','Dragon','dragon']]
+    .filter(r=>C[r[2]]).map(r=>'<li>'+r[0]+' '+r[1]+': '+C[r[2]]+' hits</li>').join('');
+  $('mbox').innerHTML='<h2>'+(rec?'🏆 NEW RECORD!':'🛤️ Ride complete!')+'</h2><div class="board"><div>⭐ Your score<div class="n" style="color:#7fe3cf">'+crt.score+'</div></div><div>🏆 Best<div class="n" style="color:#ffd84a">'+Math.max(best,crt.score)+'</div></div></div>'+
+    (rows?'<ul style="margin-top:10px">'+rows+(C.bull?'<li>🔴 Bullseyes: '+C.bull+'</li>':'')+'</ul>':'<div class="say">No hits this time. Aim a little ahead of moving targets!</div>')+
+    '<div class="row"><button class="mbtn" id="cAgain">Ride again</button><button class="mbtn gray" id="cMenu">Menu</button></div>';
+  $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
+  tap($('cAgain'),()=>{ closeMenu(); cartReset(); crt.phase='count'; crt.t=3.99; }); tap($('cMenu'),openMenu); }
+function updateCartHud(){ const el=$('cartHud'); if(mode!=='cart'||!crt){ el.style.display='none'; return; } el.style.display='inline-block';
+  const h='🛤️ Lap '+Math.min(crt.lap,CART_LAPS)+'/'+CART_LAPS+' &nbsp;💨 '+Math.round(crt.v*3.6)+' km/h<br><span style="color:#7fe3cf">⭐ '+crt.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(cartBest(),crt.score)+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function cartScore(pts,pos,kind,ring){ crt.score+=pts; crt.counts[kind]=(crt.counts[kind]||0)+1; if(ring===25)crt.counts.bull=(crt.counts.bull||0)+1;
+  tgPopup('+'+pts,ring===25?'#ff5a4a':'#7fe3cf',pos); sfx(ring===25?'buy':'coin'); updateCartHud(); }
+// all the bullseyes an arrow can hit right now
+function cartTargets(){ const L=[];
+  for(const o of cartObjs.posts) if(o.disc.visible)L.push({m:o.disc,mult:1,kind:'post',hit:()=>{ o.disc.visible=false; }});
+  for(const f of cartObjs.flowers) if(f.head.visible)L.push({m:f.head,mult:1,kind:'sunflower',sun:true,hit:()=>{ f.head.visible=false; const w=new THREE.Vector3(); f.head.getWorldPosition(w); puff(w.x,w.y,w.z,[0xffcf1a,0x6a3b12],12,4,3,9,0.9); }});
+  for(const a of cartObjs.animals) if(!a.hidden) for(const d of a.discs) L.push({m:d,mult:a.mult,kind:'animal',hit:()=>{ a.hidden=6; a.flee=2.5; for(const x of a.discs)x.visible=false; }});
+  for(const c of cartObjs.clouds) if(c.disc.visible)L.push({m:c.disc,mult:2,kind:'cloud',hit:()=>{ c.disc.visible=false; c.off=12; const w=new THREE.Vector3(); c.g.getWorldPosition(w); puff(w.x,w.y,w.z,[0xffffff,0xeeeeee],20,6,2,1,1.2); }});
+  for(const o of cartObjs.glass)L.push({m:o.m,mult:2,kind:'glass',hit:()=>{ o.life=0; o.hit=true; sfx('glass'); puff(o.m.position.x,o.m.position.y,o.m.position.z,[0xcfefff,0xffffff,0x9fd8ff],26,8,4,12,1.2); }});
+  for(const o of cartObjs.flying)L.push({m:o.m,mult:o.mult,kind:o.kind,hit:()=>{ o.life=0; puff(o.m.position.x,o.m.position.y,o.m.position.z,[0xffffff,0xff5a4a],10,5,3,8,0.8); }});
+  const dr=cartObjs.dragon; if(dr&&dr.chest.visible)L.push({m:dr.chest,mult:3,kind:'dragon',hit:()=>{ dr.chest.visible=false; dr.chestT=4; }});
+  return L; }
+function cartCheck(s,x0,y0,z0){ if(!crt||crt.phase!=='ride')return false;
+  for(const e of cartTargets()){ const d=e.m; d.updateWorldMatrix(true,false); d.getWorldPosition(tmpA); d.getWorldDirection(tmpN);
+    const a=(x0-tmpA.x)*tmpN.x+(y0-tmpA.y)*tmpN.y+(z0-tmpA.z)*tmpN.z, b=(s.p[0]-tmpA.x)*tmpN.x+(s.p[1]-tmpA.y)*tmpN.y+(s.p[2]-tmpA.z)*tmpN.z;
+    if((a>0)===(b>0)||a===b)continue; const f=a/(a-b), hx=x0+(s.p[0]-x0)*f, hy=y0+(s.p[1]-y0)*f, hz=z0+(s.p[2]-z0)*f;
+    const sc=new THREE.Vector3(); d.getWorldScale(sc); const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z)/(d.userData.R*sc.x); if(r>1)continue;
+    const ring=e.sun?(r<=0.45?10:3):ringPoints(r); if(!ring)continue; const pts=ring*e.mult;
+    cartScore(pts,[hx,hy+0.5,hz],e.kind,e.sun?(ring===10?25:0):ring); e.hit();
+    if(e.kind==='glass'||e.kind==='cloud'||e.mult>1) toast((e.sun?'🌻':e.kind==='glass'?'🪟':e.kind==='cloud'?'☁️':e.kind==='dragon'?'🐉':e.kind==='volcano'?'🌋':'🎯')+' +'+pts+(e.mult>1?' (×'+e.mult+')':''));
+    return true; }
+  for(const tr of appleTrees) for(const sl of tr.slots){ if(sl.st!==2)continue; const c=sl.pos, ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
+    let t=((c[0]-x0)*ex+(c[1]-y0)*ey+(c[2]-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-c[0], dy=y0+ey*t-c[1], dz=z0+ez*t-c[2];
+    if(dx*dx+dy*dy+dz*dz<0.36*0.36){ dropFruit(tr,sl); puff(c[0],c[1],c[2],[0xd8232a,0xff6655],10,4,3,9,0.8); cartScore(10,[c[0],c[1]+0.5,c[2]],'apple',0); toast('🍎 Apple! +10'); return true; } }
+  return false; }
+// --- the dragon: swoops beside the cart and breathes bullseyes
+function makeDragon(){ const g=new THREE.Group(), sc=lm(0x6a2a8a), bel=lm(0xc79a52), hornM=lm(0xeeeeee), wingM=lm(0x8a3aaa); cartRoot.add(g);
+  const b=box(1.4,1.2,3.2,sc); g.add(b); const be=box(1.2,0.3,2.6,bel); be.position.y=-0.6; g.add(be);
+  const nk=box(0.6,0.6,1.8,sc); nk.position.set(0,0.6,-2.2); nk.rotation.x=0.35; g.add(nk);
+  const hd=box(0.9,0.75,1.3,sc); hd.position.set(0,1.05,-3.3); g.add(hd); const jaw=box(0.8,0.25,1.0,sc); jaw.position.set(0,0.6,-3.45); g.add(jaw);
+  for(const sx of [-1,1]){ const hn=box(0.14,0.6,0.14,hornM); hn.position.set(sx*0.3,1.6,-3.0); hn.rotation.x=0.5; g.add(hn); const e=box(0.14,0.14,0.05,bm(0xffe14a)); e.position.set(sx*0.3,1.2,-3.96); g.add(e); }
+  const tl=box(0.5,0.5,2.6,sc); tl.position.set(0,0.1,2.8); g.add(tl); const tl2=box(0.3,0.3,1.8,sc); tl2.position.set(0,0.0,4.8); g.add(tl2);
+  const wings=[]; for(const sx of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sx*0.7,0.5,-0.2); g.add(piv); const w=box(3.4,0.08,2.2,wingM); w.position.x=sx*1.7; piv.add(w); piv.userData.sd=sx; wings.push(piv); }
+  const chest=discMesh(0.75); chest.position.set(0,0,-1.62); g.add(chest);
+  return {g,wings,chest,t:0,breathT:0,chestT:0}; }
+function cartToWorld(off){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), fx=-Math.sin(cy), fz=-Math.cos(cy), rx=Math.cos(cy), rz=-Math.sin(cy);
+  return new THREE.Vector3(p.x+rx*off[0]+fx*off[2],p.y+off[1],p.z+rz*off[0]+fz*off[2]); }
+function updateDragon(dt){ const dr=cartObjs.dragon; dr.t+=dt; const T=dr.t; let off;
+  const lerp=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u), ease=u=>u*u*(3-2*u);
+  if(T<3) off=lerp([30,26,45],[8,6,14],ease(T/3)); else if(T<17) off=[8+Math.sin(T*0.8)*2,6+Math.sin(T*1.3)*1.2,14+Math.sin(T*0.5)*3]; else if(T<20) off=lerp([8,6,14],[-30,32,55],ease((T-17)/3));
+  else { cartRoot.remove(dr.g); dr.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); cartObjs.dragon=null; return; }
+  const w=cartToWorld(off), prev=dr.g.position.clone(); dr.g.position.copy(w); const look=cartToWorld([0,1.5,0]); dr.g.lookAt(look); dr.g.rotateY(Math.PI);
+  for(const wg of dr.wings) wg.rotation.z=Math.sin(T*6)*0.5*wg.userData.sd;
+  if(dr.chestT>0){ dr.chestT-=dt; if(dr.chestT<=0)dr.chest.visible=true; }
+  if(T>3&&T<17){ dr.breathT-=dt; if(dr.breathT<=0){ dr.breathT=0.45; // fire breath made of bullseyes
+      const mouth=new THREE.Vector3(0,0.8,-4.2).applyMatrix4(dr.g.matrixWorld), aim=cartToWorld([(rand()-.5)*4,2.2+rand()*1.5,3+rand()*4]);
+      const v=aim.sub(mouth).normalize().multiplyScalar(5.5); const m=discMesh(0.42); m.position.copy(mouth); cartRoot.add(m);
+      cartObjs.flying.push({m,v:[v.x,v.y,v.z],g:0,life:3,mult:2,kind:'dragon'}); puff(mouth.x,mouth.y,mouth.z,[0xff8a1a,0xffd84a],4,2,0.5,0,0.4); } } }
+function launchBullseyes(x,y,z,n,up,side,g,mult,kind,R){ for(let k=0;k<n;k++){ const m=discMesh(R); m.position.set(x,y,z); cartRoot.add(m);
+  cartObjs.flying.push({m,v:[(rand()-.5)*side,up*(0.85+rand()*0.3),(rand()-.5)*side],g,life:6,mult,kind}); } }
+function updateCart(dt){
+  for(let i=cfx.length-1;i>=0;i--){ const f=cfx[i]; f.life-=dt; f.v[1]-=f.g*dt; f.m.position.x+=f.v[0]*dt; f.m.position.y+=f.v[1]*dt; f.m.position.z+=f.v[2]*dt; if(f.life<=0){ cartRoot.remove(f.m); cfx.splice(i,1); } }
+  if(mode!=='cart'||!crt)return; updateCartHud();
+  const riding=crt.phase==='ride';
+  // animals graze, wander and hop away when hit
+  for(const a of cartObjs.animals){ if(a.hidden>0){ a.hidden-=dt; if(a.hidden<=0){ a.hidden=0; for(const d of a.discs)d.visible=true; } }
+    let spd=a.type==='sheep'?0.9:a.type==='deer'?1.6:2.2, mx=0,mz=0;
+    if(a.flee>0){ a.flee-=dt; const dx=a.p[0]-pl.p[0], dz=a.p[2]-pl.p[2], l=Math.hypot(dx,dz)||1; mx=dx/l; mz=dz/l; spd*=2.6; }
+    else { if(!a.goal||rand()<dt*0.15)a.goal=[a.home[0]+(rand()-.5)*10,a.home[1]+(rand()-.5)*10]; const dx=a.goal[0]-a.p[0], dz=a.goal[1]-a.p[2], l=Math.hypot(dx,dz); if(l>0.6){ mx=dx/l; mz=dz/l; } }
+    const nx=a.p[0]+mx*spd*dt, nz=a.p[2]+mz*spd*dt; const su=surfaceAt(Math.floor(nx),Math.floor(nz));
+    if(nx>2&&nz>2&&nx<W-2&&nz<D-2&&su.y>=0&&!B[su.id].fluid&&nearestTrack(nx,nz)[3]>1.8&&Math.abs(su.y+1-a.y)<=1.2){ a.p[0]=nx; a.p[2]=nz; a.y=su.y+1; } else a.goal=null;
+    if(!a.y){ const s0=surfaceAt(Math.floor(a.p[0]),Math.floor(a.p[2])); a.y=s0.y+1; }
+    if(mx||mz) a.yaw=Math.atan2(-mx,-mz); a.phase+=dt*spd*4*(mx||mz?1:0);
+    let hop=0; if(a.type==='rabbit'&&(mx||mz)) hop=Math.abs(Math.sin(a.phase*0.7))*0.35;
+    a.g.position.set(a.p[0],a.y+hop,a.p[2]); a.g.rotation.y=a.yaw; for(let i=0;i<a.legs.length;i++) a.legs[i].rotation.x=Math.sin(a.phase+(i%2)*Math.PI)*0.5; }
+  for(const c of cartObjs.clouds){ if(c.off>0){ c.off-=dt; if(c.off<=0)c.disc.visible=true; } c.g.position.x+=Math.sin(crt.t*0.2)*dt*0.4; }
+  for(const f of cartObjs.flowers) f.head.rotation.z=Math.sin(crt.t*1.5+f.g.position.x)*0.08;
+  // flying bullseyes (fountain, volcano, dragon breath) face you as they fly
+  for(let i=cartObjs.flying.length-1;i>=0;i--){ const o=cartObjs.flying[i]; o.life-=dt; o.v[1]-=o.g*dt; o.m.position.x+=o.v[0]*dt; o.m.position.y+=o.v[1]*dt; o.m.position.z+=o.v[2]*dt; o.m.lookAt(camera.position);
+    if(o.kind==='fountain'&&o.m.position.y<CART_LAKE[2]+0.5&&o.v[1]<0)o.life=0;
+    if(o.life<=0){ cartRoot.remove(o.m); o.m.geometry.dispose(); cartObjs.flying.splice(i,1); } }
+  // glass targets pop up ahead of the cart
+  for(let i=cartObjs.glass.length-1;i>=0;i--){ const o=cartObjs.glass[i]; o.age+=dt; o.life-=dt; const sc=Math.min(1,o.age*3)*(o.life<0.6?Math.max(0.01,o.life/0.6):1); o.m.scale.setScalar(sc);
+    if(o.life<=0){ cartRoot.remove(o.m); o.m.geometry.dispose(); cartObjs.glass.splice(i,1); } }
+  if(!riding)return; crt.t+=dt;
+  crt.glassT-=dt; if(crt.glassT<=0){ crt.glassT=4+rand()*4; const p=trackAt(crt.dist+14+rand()*10), yaw2=Math.atan2(-p.dx,-p.dz), side=rand()<0.5?-1:1, off=3+rand()*4;
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),glassMat); m.userData.R=1.1; m.position.set(p.x+Math.cos(yaw2)*side*off,p.y+2+rand()*4,p.z-Math.sin(yaw2)*side*off);
+    m.lookAt(p.x,m.position.y,p.z); m.scale.setScalar(0.01); cartRoot.add(m); cartObjs.glass.push({m,age:0,life:8}); }
+  // the lake fountain
+  crt.fountT-=dt; if(crt.fountT<=0){ crt.fountT=6+rand()*3; const [fx,fz]=CART_LAKE; puff(fx,CART_LAKE[2]+0.6,fz,[0xffffff,0xbfe6ff,0x6fb8ff],45,2.5,11,9,1.7); launchBullseyes(fx,CART_LAKE[2]+1,fz,2+Math.floor(rand()*2),8,2.5,4,1,'fountain',0.55); }
+  // the volcano erupts
+  crt.volcT-=dt; if(crt.volcT<=0){ crt.volcT=8+rand()*3; const [vx,vz]=CART_VOLC; puff(vx,31,vz,[0xff3a10,0xff8a1a,0xffd84a,0x555555],60,7,15,9,2.5); launchBullseyes(vx,31,vz,3,13,7,5,2,'volcano',0.65); sfx('boom'); }
+  // the dragon arrives on the final lap
+  if(!crt.dragonDone&&crt.lap===CART_LAPS&&(crt.dist%TRK.L)>TRK.L*0.25){ crt.dragonDone=true; cartObjs.dragon=makeDragon(); toast('🐉 A DRAGON! Shoot its fire, it\'s made of bullseyes!'); sfx('screech'); }
+  if(cartObjs.dragon)updateDragon(dt);
+}
+function cartHelp(){
+  return '<h2>🛤️ Mine Cart Rush</h2>Ride a mine cart around a scenic track for '+CART_LAPS+' laps. The cart speeds up going downhill and slows down climbing. Shoot as many bullseyes as you can and beat your best score!'+
+  '<h3>Targets</h3><ul><li>🎯 Bullseye posts along the track: green 1, yellow 2, blue 5, red 25</li><li>🌻 Sunflowers: the brown middle is 10, the petals 3</li><li>🦌 Deer and 🐑 sheep carry targets, and 🐇 rabbits are worth double. They hop away when hit, but never get hurt</li><li>🍎 Apples in the orchard trees: +10</li><li>🪟 Glass targets that pop up ahead: double points</li><li>☁️ Bullseyes on clouds: double · ⛲ Bullseyes shooting out of the lake fountain · 🌋 Bullseyes blasting out of the volcano: double</li><li>🐉 On the last lap a dragon breathes bullseyes (double), and the target on its chest is triple!</li></ul>'+
+  '<h3>Controls</h3><ul><li>The cart drives itself. Look around and tap ⛏ Hit (or click) to shoot. You can fire again quickly</li><li>Arrows drop over distance, so aim a little high and a little ahead</li></ul>';
+}
 
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
@@ -1745,7 +2015,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -1835,6 +2105,7 @@ function updateTargets(dt){ updateGlass(dt);
 const tmp=new THREE.Vector3();
 let waterT=0, lavaT=0, fireT=0, spawnT=2, animT=0, animPh=0;
 function updatePlayer(dt){
+  if(mode==='cart'){ ridePlayer(dt); return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -2023,7 +2294,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
 
@@ -2088,7 +2359,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
