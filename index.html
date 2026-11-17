@@ -573,7 +573,7 @@ const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between 
 function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,
   cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed],lay:cg.lay||1}:null,
   apples:appleTrees.map(t=>({x:t.x,ty:t.ty,z:t.z,c:t.cand,g:Math.round(t.grow),s:t.slots.map(sl=>[sl.c,sl.st,Math.round(sl.t)])})),
-  tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,phase:tgm.phase,rv:rv.p.slice()}:null}; }
+  tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,rs:tgm.rs,wins:tgm.wins,boost:tgm.boost,out:tgm.out,last:tgm.last,rvhp:rv.hp,phase:tgm.phase,rv:rv.p.slice()}:null}; }
 function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
 function validSave(s){ return !!s&&(s.v===2||s.v===3)&&Array.isArray(s.w)&&Array.isArray(s.m)&&Array.isArray(s.p); }
@@ -590,13 +590,15 @@ function applySnapshot(s){
   if(mode==='corners'){ const c=s.cg||{}; cg={sp:Array.isArray(c.sp)?c.sp.slice(0,4):[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:c.bedHP===undefined?FC.BED_HP:c.bedHP,
       inv:c.inv||{},wings:+c.wings||0,over:c.over||null,spT:[0,4,6,8],lay:c.lay===2?2:1}; setLayout(cg.lay); for(const i of (c.placed||[]))placed.add(i); }
   else cg=null;
-  if(mode==='targets'){ const t=s.tgm||{}; tgm={round:Math.min(5,Math.max(1,t.round|0||1)),len:t.len||120,time:t.time===undefined?(t.len||120):t.time,diff:TG_DIFF[t.diff]?t.diff:'medium',
-      score:Array.isArray(t.score)?t.score.slice(0,2):[0,0],phase:t.phase==='done'?'done':'intro'}; rv.p=Array.isArray(t.rv)?t.rv.slice():[CX+3.5,SPAWN_H,CZ+2.5]; }
+  if(mode==='targets'){ const t=s.tgm||{}, ar=(v,d)=>Array.isArray(v)&&v.length===2?v.slice():d;
+    tgm=Object.assign(newTgm(t.diff,t.len),{round:Math.min(TG_LAST+1,Math.max(1,t.round|0||1)),time:t.time===undefined?(t.len||120):t.time,score:ar(t.score,[0,0]),rs:ar(t.rs,[0,0]),
+      wins:ar(t.wins,[0,0]),boost:t.boost|0,out:ar(t.out,[false,false]),last:t.last||null,phase:t.phase==='done'?'done':'intro'});
+    rv.hp=t.rvhp||MAXHP; rv.p=Array.isArray(t.rv)?t.rv.slice():[CX+3.5,SPAWN_H,CZ+2.5]; }
   else tgm=null;
   for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
   if(Array.isArray(s.apples)) for(const a of s.apples){ if(!Array.isArray(a.c))continue; const tr={x:a.x,ty:a.ty,z:a.z,cand:a.c,grow:+a.g||30,slots:[]}; appleTrees.push(tr);
     for(const [c,st,t] of (a.s||[])) if(tr.cand[c]) addFruit(tr,c,st,t); }
-  setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&tgm.round===2)),false);
+  setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
@@ -820,6 +822,7 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
   else if(k==='web'){ noise(5000,0.25,0.12,'highpass'); tone('sine',900,500,0.15,0.05); }
   else if(k==='screech'){ tone('sawtooth',1500,900,0.25,0.07); tone('square',1800,1100,0.2,0.04,0.05); }
+  else if(k==='glass'){ noise(6000,0.35,0.3,'highpass'); tone('triangle',2400,1800,0.12,0.06); tone('triangle',3200,2600,0.1,0.05,0.05); }
   else if(k==='spear'){ noise(1200,0.18,0.12,'bandpass'); tone('triangle',300,150,0.12,0.08); }
   else if(k==='rock'){ tone('sine',140,60,0.25,0.25); noise(300,0.2,0.2,'lowpass'); }
   else if(k==='flap')noise(600,0.09,0.06,'lowpass');
@@ -883,6 +886,7 @@ function hitAction(){
   swingT=0.25;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
+    if(tgm&&tgm.out[0]){ toast('💤 You\'re out until this round ends.'); return; }
     if(!tgm||tgm.phase!=='play'||atkCd>0||shots.some(s=>s.owner==='you'))return; if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); return; }
   const w=WP[weapon];
   if(w.ranged){ if((aimMob||!target)){ if(atkCd<=0&&!(w.boomer&&boom))shoot(w); return; } }
@@ -1039,9 +1043,10 @@ function updateWebHUD(){ const c=$('webCount'); c.style.display=webbed?'inline-b
 let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
   if(dead||invuln>0)return;
-  if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point instead of health
+  if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point and a heart
+    if(tgm.out[0])return;
     invuln=0.8; hurtFlash=0.35; sfx('hurt'); if(kx!==undefined){ pl.kb[0]=kx*7; pl.kb[2]=kz*7; if(pl.onGround)pl.v[1]=5; }
-    if(tgm.phase==='play')tgScore(0,-1,[pl.p[0],pl.p[1]+2,pl.p[2]]); return; } hp-=n; invuln=0.45; sinceHurt=0; hurtFlash=0.35; sfx('hurt');
+    if(tgm.phase==='play'&&!tgm.out[0]){ tgScore(0,-1,[pl.p[0],pl.p[1]+2,pl.p[2]]); hp=Math.max(0,hp-1); updateHUD(); if(hp<=0)tgKnockOut(0); } return; } hp-=n; invuln=0.45; sinceHurt=0; hurtFlash=0.35; sfx('hurt');
   if(kx!==undefined){ pl.kb[0]=kx*7; pl.kb[2]=kz*7; if(pl.onGround)pl.v[1]=5; }
   updateHUD(); if(hp<=0) die(src||'danger');
 }
@@ -1173,7 +1178,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='targets'&&!fly&&!(tgm&&tgm.round===2)){ toast('🪽 Wings are only on in Round 2!'); return; }
+function toggleFly(){ if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1198,7 +1203,7 @@ function helpHTML(){
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
-  '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +3 hearts</li></ul>'+
+  '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +1 heart</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
   '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
@@ -1329,7 +1334,7 @@ function openNewGame(){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ clearApples(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ clearApples(); clearGlass(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
 function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='survival'?'':'none';
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
@@ -1488,7 +1493,7 @@ function updateCorners(dt){ if(mode!=='corners'||!cg)return;
 // ================= APPLE TREES =================
 // Blossoms appear one at a time (every 30 s, up to 5 per tree) and ripen into apples you can pick to heal.
 const appleTrees=[]; let aimFruit=null;
-const APPLE_EVERY=30, RIPEN=20, APPLE_MAX=5, APPLE_HEAL=3;
+const APPLE_EVERY=30, RIPEN=20, APPLE_MAX=5, APPLE_HEAL=1;
 const fruitMats={apple:lm(0xd8232a),stem:lm(0x5a3a1a),leaf:lm(0x3f9a2e),petal:lm(0xffdbe9),mid:lm(0xffd84a)};
 function fruitMesh(st){ const g=new THREE.Group();
   if(st===2){ g.add(box(0.26,0.24,0.26,fruitMats.apple)); const s=box(0.04,0.1,0.04,fruitMats.stem); s.position.y=0.16; g.add(s); const l=box(0.1,0.03,0.06,fruitMats.leaf); l.position.set(0.06,0.18,0); g.add(l); }
@@ -1519,13 +1524,15 @@ function updateApples(dt){ appleCheckT-=dt; const chk=appleCheckT<=0; if(chk)app
 function pickFruit(f){ const {tr,sl}=f; aimFruit=null;
   if(sl.st!==2){ toast('🌸 That\'s still a blossom. It will turn into an apple soon!'); return; }
   dropFruit(tr,sl); const before=hp; hp=Math.min(MAXHP,hp+APPLE_HEAL); updateHUD(); sfx('coin'); burst(sl.pos[0]-0.5,sl.pos[1]-0.5,sl.pos[2]-0.5,new THREE.Color(.9,.15,.15),6);
-  toast(hp>before?'🍎 Yum! +'+(hp-before)+' hearts':'🍎 Yum! (you were already at full health)'); queueSave(); }
+  toast(hp>before?'🍎 Yum! +1 heart':'🍎 Yum! (you were already at full health)'); queueSave(); }
 
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
-  {name:'⚔️ Attack mode',tip:'The monsters fight back now. Every hit costs 1 point, for you and for your rival.'},
-  {name:'🛡️ Shield duel',tip:'The monsters are gone. You both wear a bullseye shield. Shoot your rival\'s shield!'}];
+  {name:'⚔️ Attack mode',tip:'The monsters fight back now. Every hit costs 1 point AND 1 heart. Lose all your hearts and you are out until the round ends. Same for your rival!'},
+  {name:'🛡️ Shield duel',tip:'The monsters are gone. You both wear a bullseye shield. Hit your rival\'s shield and they get sent away to a random spot!'},
+  {name:'🪟 Glass targets',tip:'Fly! Giant glass targets pop up all over the sky and shatter when you hit them. They come faster and faster, up to 5 at once. Hit as many as you can!'}];
+const TG_LAST=5;
 const TG_DIFF={easy:{name:'Easy',err:0.6,wait:2.6},medium:{name:'Medium',err:0.4,wait:2.0},hard:{name:'Hard',err:0.22,wait:1.3}};
 const TG_SPOT={slime:[0,0.45,-0.42,0.36,0],magma:[0,0.45,-0.42,0.36,0],golem:[0,1.15,-0.29,0.42,0],skeleton:[0,1.2,-0.13,0.3,0],
   spider:[0,1.0,0.3,0.34,0],eagle:[0,0.05,0,0.34,1],griffin:[0,0.08,0,0.5,1]};
@@ -1556,22 +1563,40 @@ const rv={p:[CX+3.5,SPAWN_H,CZ+2.5],v:[0,0,0],kb:[0,0,0],hw:0.3,h:1.8,onGround:f
 const plShield=tgDisc(0.42); plShield.position.set(0,1.1,-0.17); model.add(plShield);
 function tgShields(){ const on=mode==='targets'&&tgm&&tgm.round===4; rv.shield.visible=on; plShield.visible=on; }
 let mobVictim=null;
-function victimFor(m){ if(mode==='targets'&&tgm&&tgm.round===3&&rv.g.visible){ const a=Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2]), b=Math.hypot(rv.p[0]-m.p[0],rv.p[2]-m.p[2]); if(b<a)return rv; } return pl; }
+let victimOut=false;
+function victimFor(m){ victimOut=false; if(!(mode==='targets'&&tgm))return pl;
+  const youOk=!tgm.out[0], rvOk=!tgm.out[1]; if(!youOk&&!rvOk){ victimOut=true; return pl; }
+  if(!youOk)return rv; if(!rvOk)return pl;
+  const a=Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2]), b=Math.hypot(rv.p[0]-m.p[0],rv.p[2]-m.p[2]); return b<a?rv:pl; }
 function hurtVictim(V,n,kx,kz,src){ if(V===pl){ hurtPlayer(n,kx,kz,src); return; }
-  if(rv.invuln>0)return; rv.invuln=0.8; rv.kb[0]=kx*7; rv.kb[2]=kz*7; if(rv.onGround)rv.v[1]=5; rv.flash=0.25;
-  if(tgm&&tgm.phase==='play')tgScore(1,-1,[rv.p[0],rv.p[1]+2.2,rv.p[2]]); }
+  if(rv.invuln>0||tgm.out[1])return; rv.invuln=0.8; rv.kb[0]=kx*7; rv.kb[2]=kz*7; if(rv.onGround)rv.v[1]=5;
+  if(tgm.phase!=='play')return; tgScore(1,-1,[rv.p[0],rv.p[1]+2.2,rv.p[2]]); rv.hp=Math.max(0,(rv.hp||MAXHP)-1); if(rv.hp<=0)tgKnockOut(1); }
+function tgKnockOut(who){ if(tgm.out[who])return; tgm.out[who]=true; updateTGHud();
+  if(who===1){ burst(rv.p[0]-0.5,rv.p[1]+0.8,rv.p[2]-0.5,new THREE.Color(1,1,1),16); rv.g.visible=false; toast('🤖 The rival ran out of hearts! It\'s out until the round ends.'); }
+  else { toast('💤 You ran out of hearts! You\'re out until this round ends.'); for(const sh of shots.slice()) if(sh.owner==='you'){ sh.scored=true; freeShot(sh); } } }
+function tgSendAway(who,from){ // Round 4: a shield hit sends that player to a random spot far away
+  const e=who===0?pl:rv; burst(e.p[0]-0.5,e.p[1]+0.8,e.p[2]-0.5,new THREE.Color(1,1,1),16);
+  for(let a=0;a<60;a++){ const x=4+Math.floor(rand()*(W-8)), z=4+Math.floor(rand()*(D-8)); if(Math.hypot(x-from.p[0],z-from.p[2])<22)continue;
+    const su=surfaceAt(x,z); if(su.y<0||!B[su.id].solid||su.id===ID.leaves||get(x,su.y+1,z)||get(x,su.y+2,z))continue;
+    e.p=[x+0.5,su.y+1.01,z+0.5]; e.v=[0,0,0]; e.kb=[0,0,0]; break; }
+  burst(e.p[0]-0.5,e.p[1]+0.8,e.p[2]-0.5,new THREE.Color(1,1,1),12);
+  toast(who===0?'💨 Your shield got hit! You were sent somewhere else.':'💨 You hit the rival\'s shield! It got sent away.'); }
 const tmpA=new THREE.Vector3(), tmpN=new THREE.Vector3();
 function tgCheckRings(s,x0,y0,z0){ // did this arrow pass through a bullseye this step?
   if(!tgm||tgm.phase!=='play')return false;
   const list=[], owners=[]; for(const m of mobs) if(m.tdiscs)for(const d of m.tdiscs){ list.push(d); owners.push(m); }
-  if(tgm.round===4){ list.push(s.owner==='you'?rv.shield:plShield); owners.push(null); }
+  if(tgm.round===4){ const sh=s.owner==='you'?(tgm.out[1]?null:rv.shield):(tgm.out[0]?null:plShield); if(sh){ list.push(sh); owners.push('shield'); } }
+  for(const gt of glassTargets){ list.push(gt.tdisc); owners.push(gt); }
   for(let li=0;li<list.length;li++){ const d=list[li]; d.updateWorldMatrix(true,false); d.getWorldPosition(tmpA); d.getWorldDirection(tmpN);
     const a=(x0-tmpA.x)*tmpN.x+(y0-tmpA.y)*tmpN.y+(z0-tmpA.z)*tmpN.z, b=(s.p[0]-tmpA.x)*tmpN.x+(s.p[1]-tmpA.y)*tmpN.y+(s.p[2]-tmpA.z)*tmpN.z;
     if((a>0)===(b>0)||a===b)continue; const f=a/(a-b), hx=x0+(s.p[0]-x0)*f, hy=y0+(s.p[1]-y0)*f, hz=z0+(s.p[2]-z0)*f;
-    const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z), pts=ringPoints(r/d.userData.R); if(!pts)continue;
-    s.scored=true; tgScore(s.owner==='you'?0:1,pts,[hx,hy+0.4,hz]); sfx(pts===25?'buy':'coin'); burst(hx-0.5,hy-0.5,hz-0.5,new THREE.Color(pts===25?1:1,pts===25?.2:.85,pts===25?.2:.3),pts===25?16:6);
-    if(owners[li]) tgPoof(owners[li]);
-    if(s.owner==='you')toast(pts===25?'🎯 BULLSEYE! +25':pts===5?'🔵 Blue ring! +5':pts===2?'🟡 Yellow ring! +2':'🟢 Green ring! +1');
+    const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z), ring=ringPoints(r/d.userData.R); if(!ring)continue;
+    const ow=owners[li], dbl=ow&&ow.t&&ow.t.flyer, pts=dbl?ring*2:ring; // eagle and griffin targets are worth double
+    s.scored=true; tgScore(s.owner==='you'?0:1,pts,[hx,hy+0.4,hz]); sfx(ring===25?'buy':'coin'); burst(hx-0.5,hy-0.5,hz-0.5,new THREE.Color(1,ring===25?.2:.85,ring===25?.2:.3),ring===25?16:6);
+    if(ow==='shield') tgSendAway(s.owner==='you'?1:0,s.owner==='you'?pl:rv);
+    else if(ow&&ow.glass) shatterGlass(ow);
+    else if(ow) tgPoof(ow);
+    if(s.owner==='you')toast((ring===25?'🎯 BULLSEYE! +':ring===5?'🔵 Blue ring! +':ring===2?'🟡 Yellow ring! +':'🟢 Green ring! +')+pts+(dbl?' (double for a flyer!)':''));
     return true; }
   return false; }
 function tgPoof(m){ // a monster that gets scored on vanishes and pops up somewhere else
@@ -1580,7 +1605,7 @@ function tgPoof(m){ // a monster that gets scored on vanishes and pops up somewh
   for(let a=0;a<30;a++){ const ang=rand()*6.28, r=12+rand()*22, x=Math.floor(pl.p[0]+Math.sin(ang)*r), z=Math.floor(pl.p[2]+Math.cos(ang)*r);
     if(x<2||z<2||x>=W-2||z>=D-2)continue; const su=surfaceAt(x,z); if(su.y<0||!B[su.id].solid||su.id===ID.leaves)continue;
     if(get(x,su.y+1,z)||get(x,su.y+2,z))continue; spawnMob(type,x+0.5,su.y+1,z+0.5); burst(x,su.y+1,z,new THREE.Color(1,1,1),10); return; } }
-function tgScore(who,pts,pos){ tgm.score[who]+=pts; updateTGHud(); queueSave();
+function tgScore(who,pts,pos){ tgm.score[who]+=pts; tgm.rs[who]+=pts; updateTGHud(); queueSave();
   tgPopup((pts>0?'+':'')+pts,who===0?(pts>0?'#7fe3cf':'#ff6b5b'):(pts>0?'#ff9d8a':'#ff6b5b'),pos,who===1?'🤖 ':''); }
 const popups=[];
 function tgPopup(text,col,pos,prefix){ const c=document.createElement('canvas'); c.width=256; c.height=96; const x=c.getContext('2d');
@@ -1588,19 +1613,21 @@ function tgPopup(text,col,pos,prefix){ const c=document.createElement('canvas');
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true})); sp.renderOrder=1000;
   sp.scale.set(1.6,0.6,1); sp.position.set(pos[0],pos[1],pos[2]); scene.add(sp); popups.push({sp,life:1.4}); }
 function updateTGHud(){ const el=$('tgHud'); if(mode!=='targets'||!tgm){ el.style.display='none'; return; } el.style.display='inline-block';
-  const r=Math.min(4,tgm.round), t=Math.max(0,Math.ceil(tgm.time)), mm=Math.floor(t/60), ss=('0'+(t%60)).slice(-2);
-  const h='Round '+r+'/4 '+TG_ROUNDS[r].name+' &nbsp;<span class="tm">⏱ '+mm+':'+ss+'</span><br><span class="you">🧑 You '+tgm.score[0]+'</span> &nbsp;·&nbsp; <span class="ai">🤖 Rival '+tgm.score[1]+'</span>';
+  const r=Math.min(TG_LAST,tgm.round), t=Math.max(0,Math.ceil(tgm.time)), mm=Math.floor(t/60), ss=('0'+(t%60)).slice(-2);
+  const h='Round '+r+'/'+TG_LAST+' '+TG_ROUNDS[r].name+' &nbsp;<span class="tm">⏱ '+mm+':'+ss+'</span><br><span class="you">🧑 You '+tgm.rs[0]+(tgm.out[0]?' 💤':'')+'</span> &nbsp;·&nbsp; <span class="ai">🤖 Rival '+tgm.rs[1]+(tgm.out[1]?' 💤':'')+'</span>'+
+    '<br><span style="font-size:12px;opacity:.85">Rounds won: you '+tgm.wins[0]+' · rival '+tgm.wins[1]+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 function targetsHelp(){
   return '<h2>🎯 Targets</h2>Every monster carries a bullseye target. You and an AI rival archer both shoot at them. Hit closer to the middle for more points!'+
   '<div class="board" style="margin-top:8px"><div style="color:#3fbf4a">Green<br>1</div><div style="color:#ffd23a">Yellow<br>2</div><div style="color:#2f7be0">Blue<br>5</div><div style="color:#e8322c">Red<br>25</div></div>'+
-  '<h3>Rounds</h3><ul><li><b>1 🚶 On foot</b>: walk and shoot</li><li><b>2 🪽 Wings on</b>: fly while you shoot</li><li><b>3 ⚔️ Attack mode</b>: monsters fight back. Every hit costs 1 point (for you and your rival)</li><li><b>4 🛡️ Shield duel</b>: no monsters. You both wear a bullseye shield, so shoot each other\'s shield</li></ul>'+
+  '<h3>Rounds</h3><ul><li><b>1 🚶 On foot</b>: walk and shoot</li><li><b>2 🪽 Wings on</b>: fly while you shoot</li><li><b>3 ⚔️ Attack mode</b>: monsters fight back. Every hit costs 1 point and 1 heart. Out of hearts = out for the round (same for your rival)</li><li><b>4 🛡️ Shield duel</b>: no monsters. You both wear a bullseye shield. A shield hit sends that player to a random spot</li><li><b>5 🪟 Glass targets</b>: fly and smash giant glass targets that pop up faster and faster</li></ul>'+
+  '<h3>Winning</h3><ul><li>Whoever scores more in a round wins it and gets 1 match point. Most match points wins the match (a tie is decided by total points)</li><li>Eagle and griffin targets are worth <b>double</b></li><li>Every time the rival loses a round, it practices and gets better</li></ul>'+
   '<h3>Rules</h3><ul><li>You can only have one arrow in the air. When it scores or misses, you can shoot again</li><li>Arrows drop over distance, so aim a little high for far targets</li><li>A monster you score on vanishes and pops up somewhere else</li><li>Highest total after Round 4 wins</li></ul>';
 }
 let tgPickDiff='medium', tgPickLen=120;
 function openTargetsSetup(){
   const seg=(attr,opts,cur)=>'<div class="seg">'+opts.map(([v,l])=>'<button data-'+attr+'="'+v+'" class="'+(String(v)===String(cur)?'on':'')+'">'+l+'</button>').join('')+'</div>';
-  $('mbox').innerHTML='<h2>🎯 Targets</h2><div class="say">Shoot the bullseyes the monsters carry and beat the AI rival over 4 rounds.</div>'+
+  $('mbox').innerHTML='<h2>🎯 Targets</h2><div class="say">Shoot the bullseyes the monsters carry and beat the AI rival over 5 rounds.</div>'+
     '<h3>Rival skill</h3>'+seg('diff',[['easy','Easy'],['medium','Medium'],['hard','Hard']],tgPickDiff)+
     '<h3>Round length</h3>'+seg('len',[[60,'1 min'],[120,'2 min'],[180,'3 min']],tgPickLen)+
     '<div class="row"><button class="mbtn" id="tStart">Start match</button><button class="mbtn gray" id="tBack">Back</button></div>';
@@ -1609,47 +1636,60 @@ function openTargetsSetup(){
   $('mbox').querySelectorAll('[data-len]').forEach(b=>tap(b,()=>{ tgPickLen=+b.dataset.len; openTargetsSetup(); }));
   onClick($('tStart'),()=>{ if(!confirm('Start a new Targets match? The game you are playing now will be replaced.'))return; startTargets(tgPickDiff,tgPickLen); });
   tap($('tBack'),openNewGame); }
+function newTgm(diff,len){ return {round:1,len:len||120,time:len||120,diff:TG_DIFF[diff]?diff:'medium',score:[0,0],rs:[0,0],wins:[0,0],boost:0,out:[false,false],last:null,phase:'intro'}; }
+function rivalSkill(){ const d=TG_DIFF[tgm.diff], b=tgm.boost||0; return {err:d.err*Math.pow(0.8,b),wait:d.wait*Math.pow(0.88,b)}; }
 function startTargets(diff,len){
   const kit=mode==='survival'?{coins,owned:owned.slice(),weapon}:null; if(kit)try{ localStorage.setItem(KIT_KEY,JSON.stringify(kit)); }catch(e){}
   clearEntities(); mode='targets'; cg=null; placed.clear(); generate((Math.random()*1e9)|0);
   owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
   pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.1; unstick(pl);
-  tgm={round:1,len:len||120,time:len||120,diff:TG_DIFF[diff]?diff:'medium',score:[0,0],phase:'intro'};
+  tgm=newTgm(diff,len);
   rv.p=[CX+3.5,SPAWN_H,CZ+2.5]; rv.v=[0,0,0]; rv.kb=[0,0,0]; edgeOpen=false; unstick(rv);
   setFly(false,false); applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); tgIntro(); }
 function tgRoundSetup(){ const r=tgm.round;
-  for(const s of shots.slice())freeShot(s);
-  if(r===4){ for(const m of mobs.slice())removeMob(m); const a=rand()*6.28; rv.p=[pl.p[0]+Math.sin(a)*12,pl.p[1]+2,pl.p[2]+Math.cos(a)*12];
+  for(const s of shots.slice())freeShot(s); clearGlass();
+  tgm.rs=[0,0]; tgm.out=[false,false]; hp=MAXHP; rv.hp=MAXHP; rv.g.visible=true; updateHUD(); glassT=3;
+  if(r>=4){ for(const m of mobs.slice())removeMob(m); const a=rand()*6.28; rv.p=[pl.p[0]+Math.sin(a)*12,pl.p[1]+2,pl.p[2]+Math.cos(a)*12];
     rv.p[0]=Math.max(3,Math.min(W-3,rv.p[0])); rv.p[2]=Math.max(3,Math.min(D-3,rv.p[2])); const s=surfaceAt(Math.floor(rv.p[0]),Math.floor(rv.p[2])); rv.p[1]=s.y+1.01; unstick(rv); }
-  setFly(r===2,false); rv.v=[0,0,0]; tgShields(); updateTGHud(); }
+  setFly(r===2||r===5,false); rv.v=[0,0,0]; tgShields(); updateTGHud(); }
 function tgIntro(){ if(!tgm)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
-  if(tgm.phase==='done'||tgm.round>4){ tgFinal(); return; }
-  const r=tgm.round, resume=tgm.time<tgm.len-0.5;
-  $('mbox').innerHTML='<h2>Round '+r+' of 4: '+TG_ROUNDS[r].name+'</h2><div class="say">'+TG_ROUNDS[r].tip+'</div>'+
-    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+tgm.score[0]+'</div></div><div>🤖 Rival ('+TG_DIFF[tgm.diff].name+')<div class="n" style="color:#ff9d8a">'+tgm.score[1]+'</div></div></div>'+
+  if(tgm.phase==='done'||tgm.round>TG_LAST){ tgFinal(); return; }
+  const r=tgm.round, resume=tgm.time<tgm.len-0.5, L=tgm.last;
+  const res=L&&!resume?'<div class="say" style="font-style:normal">Round '+L.r+': you <b>'+L.rs[0]+'</b>, rival <b>'+L.rs[1]+'</b>. '+
+    (L.w===0?'🏆 You won the round! +1 match point':L.w===1?'🤖 The rival won the round.':'🤝 That round was a tie.')+(L.w===0?'<br>🤖 The rival is practicing… it will be better next round!':'')+'</div>':'';
+  $('mbox').innerHTML='<h2>Round '+r+' of '+TG_LAST+': '+TG_ROUNDS[r].name+'</h2>'+res+'<div class="say">'+TG_ROUNDS[r].tip+'</div>'+
+    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+tgm.wins[0]+'</div><div style="font-size:12px;opacity:.8">rounds won · '+tgm.score[0]+' total pts</div></div>'+
+    '<div>🤖 Rival<div class="n" style="color:#ff9d8a">'+tgm.wins[1]+'</div><div style="font-size:12px;opacity:.8">rounds won · '+tgm.score[1]+' total pts</div></div></div>'+
     '<div class="row"><button class="mbtn" id="tGo">'+(resume?'Keep playing':'Start round '+r)+'</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex';
-  tap($('tGo'),()=>{ if(!resume)tgRoundSetup(); tgm.phase='play'; if(tgm.round===2&&!fly)setFly(true,false); closeMenu(); });
+  tap($('tGo'),()=>{ if(!resume)tgRoundSetup(); tgm.phase='play'; if((tgm.round===2||tgm.round===5)&&!fly)setFly(true,false); closeMenu(); });
   tap($('tMenu'),openMenu); }
-function tgEndRound(){ tgm.round++; tgm.time=tgm.len; tgm.phase=tgm.round>4?'done':'intro'; for(const s of shots.slice()){ s.scored=true; freeShot(s); } saveNow(); tgIntro(); }
-function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score; paused=true;
-  $('mbox').innerHTML='<h2>'+(a>b?'🏆 You win!':a<b?'🤖 The rival wins!':'🤝 It\'s a tie!')+'</h2>'+
-    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+a+'</div></div><div>🤖 Rival ('+TG_DIFF[tgm.diff].name+')<div class="n" style="color:#ff9d8a">'+b+'</div></div></div>'+
+function tgEndRound(){ const [a,b]=tgm.rs, w=a>b?0:b>a?1:-1; if(w>=0)tgm.wins[w]++; if(w===0)tgm.boost=(tgm.boost||0)+1; // the rival learns from losing
+  tgm.last={r:tgm.round,rs:[a,b],w}; tgm.round++; tgm.time=tgm.len; tgm.phase=tgm.round>TG_LAST?'done':'intro';
+  for(const s of shots.slice()){ s.scored=true; freeShot(s); } clearGlass(); tgm.out=[false,false]; rv.g.visible=true; hp=MAXHP; updateHUD(); saveNow(); tgIntro(); }
+function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, win=wa>wb?0:wb>wa?1:a>b?0:b>a?1:-1; paused=true;
+  $('mbox').innerHTML='<h2>'+(win===0?'🏆 You win the match!':win===1?'🤖 The rival wins the match!':'🤝 It\'s a tie!')+'</h2>'+
+    (wa===wb&&win>=0?'<div class="say">Rounds were tied, so total points decided it.</div>':'')+
+    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+wa+'</div><div style="font-size:12px;opacity:.8">rounds won</div><div style="margin-top:4px">'+a+' total pts</div></div>'+
+    '<div>🤖 Rival ('+TG_DIFF[tgm.diff].name+')<div class="n" style="color:#ff9d8a">'+wb+'</div><div style="font-size:12px;opacity:.8">rounds won</div><div style="margin-top:4px">'+b+' total pts</div></div></div>'+
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
-  $('modal').style.display='flex'; if(a>b)sfx('buy');
+  $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
 function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); }
-function rivalPick(){ if(tgm.round===4)return 'player';
+function rivalPick(){ if(tgm.round===4)return tgm.out[0]?null:'player';
+  if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
     const sc=d+rand()*8; if(sc<bd){ bd=sc; best=m; } } return best; }
 function updateRival(dt){
-  const flying=tgm.round===2, df=TG_DIFF[tgm.diff];
+  if(tgm.out[1]){ rv.g.visible=false; return; } rv.g.visible=true;
+  const flying=tgm.round===2||tgm.round===5, df=rivalSkill();
   rv.retarget-=dt; rv.shotT-=dt; rv.invuln-=dt;
-  if(rv.target&&rv.target!=='player'&&!mobs.includes(rv.target))rv.target=null;
+  if(rv.target&&rv.target!=='player'&&!mobs.includes(rv.target)&&!glassTargets.includes(rv.target))rv.target=null;
+  if(rv.target==='player'&&tgm.out[0])rv.target=null;
   if(!rv.target||rv.retarget<=0){ rv.retarget=3+rand()*3; rv.target=rivalPick(); rv.orbit+=(rand()-.5)*2; }
   const T=rv.target==='player'?pl:rv.target;
   // where to stand: circle the target at a comfortable range
-  let gx,gz,gy=null; const want=tgm.round===4?13:10;
+  let gx,gz,gy=null; const want=tgm.round===4?13:tgm.round===5?12:10;
   if(T){ gx=T.p[0]+Math.sin(rv.orbit)*want; gz=T.p[2]+Math.cos(rv.orbit)*want; rv.orbit+=dt*0.15; if(flying)gy=Math.max(T.p[1]+4,surfaceAt(Math.floor(rv.p[0]),Math.floor(rv.p[2])).y+5); }
   else { gx=CX+Math.sin(rv.orbit)*20; gz=CZ+Math.cos(rv.orbit)*20; rv.orbit+=dt*0.05; if(flying)gy=SPAWN_H+10; }
   gx=Math.max(3,Math.min(W-3,gx)); gz=Math.max(3,Math.min(D-3,gz));
@@ -1672,7 +1712,7 @@ function updateRival(dt){
     aim.x+=(rand()-.5)*2*df.err; aim.y+=(rand()-.5)*2*df.err; aim.z+=(rand()-.5)*2*df.err;
     const straight=aim.clone().sub(o).normalize(); o.addScaledVector(straight,0.5);
     const blocked=raycast(o,straight,Math.max(0.1,dist-0.8)); const d=ballistic(o,aim,42,7);
-    if(!blocked&&d&&dist<40){ const sh=addShot(o,d,42,7,0,'arrow',false); sh.owner='rival'; rv.shotT=df.wait*(0.8+rand()*0.4); rv.aimT=0.4; sfx('bow'); }
+    if(!blocked&&d&&dist<(tgm.round===5?55:40)){ const sh=addShot(o,d,42,7,0,'arrow',false); sh.owner='rival'; rv.shotT=df.wait*(0.8+rand()*0.4); rv.aimT=0.4; sfx('bow'); }
     else { rv.shotT=0.5; rv.retarget-=1; } }
   if(T){ aimYaw=Math.atan2(-(T.p[0]-rv.p[0]),-(T.p[2]-rv.p[2])); }
   // visuals
@@ -1681,7 +1721,37 @@ function updateRival(dt){
   rv.phase+=dt*Math.hypot(rv.v[0],rv.v[2])*2.2; const a=flying?0.15:Math.sin(rv.phase)*0.6; rv.legL.rotation.x=a; rv.legR.rotation.x=-a;
   rv.aimT=Math.max(0,(rv.aimT||0)-dt); rv.armL.rotation.x=T?-1.45:-a*0.8; rv.armR.rotation.x=T?(rv.aimT>0?-1.1:-1.4):a*0.8;
 }
-function updateTargets(dt){
+// --- Round 5: giant glass targets that shatter
+const glassTargets=[], shards=[]; let glassT=3;
+const glassTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  const ring=(r,col)=>{ x.beginPath(); x.arc(64,64,r,0,Math.PI*2); x.fillStyle=col; x.fill(); x.lineWidth=3; x.strokeStyle='rgba(255,255,255,.95)'; x.stroke(); };
+  ring(63,'rgba(80,210,100,.7)'); ring(63*0.72,'rgba(255,220,70,.72)'); ring(63*0.45,'rgba(60,140,240,.75)'); ring(63*0.2,'rgba(240,60,50,.85)');
+  x.strokeStyle='rgba(255,255,255,.75)'; x.lineWidth=6; x.beginPath(); x.moveTo(30,40); x.lineTo(48,22); x.stroke(); x.beginPath(); x.moveTo(36,54); x.lineTo(62,28); x.stroke();
+  return new THREE.CanvasTexture(c); })();
+const glassMat=new THREE.MeshBasicMaterial({map:glassTex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
+const shardMat=new THREE.MeshBasicMaterial({color:0xcfefff,transparent:true,opacity:0.85,side:THREE.DoubleSide}), shardGeo=new THREE.PlaneGeometry(0.35,0.22);
+function spawnGlass(){ if(glassTargets.length>=5)return;
+  const mid=[(pl.p[0]+rv.p[0])/2,(pl.p[1]+rv.p[1])/2,(pl.p[2]+rv.p[2])/2];
+  for(let a=0;a<20;a++){ const ang=rand()*6.28, r=10+rand()*24, x=Math.max(6,Math.min(W-6,pl.p[0]+Math.sin(ang)*r)), z=Math.max(6,Math.min(D-6,pl.p[2]+Math.cos(ang)*r));
+    const gy=surfaceAt(Math.floor(x),Math.floor(z)).y, y=Math.min(H+4,Math.max(gy+5,pl.p[1]-4+rand()*12));
+    if(glassTargets.some(g=>Math.hypot(g.p[0]-x,g.p[2]-z)<5))continue;
+    const R=1.5+rand()*0.5, m=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),glassMat); m.userData.R=R; m.position.set(x,y,z);
+    m.rotation.y=Math.atan2(mid[0]-x,mid[2]-z); scene.add(m); m.scale.setScalar(0.01);
+    glassTargets.push({p:[x,y,z],v:[0,0,0],tdisc:m,glass:true,life:16,age:0}); sfx('place'); return; } }
+function shatterGlass(gt,quiet){ const i=glassTargets.indexOf(gt); if(i<0)return; glassTargets.splice(i,1); scene.remove(gt.tdisc); gt.tdisc.geometry.dispose();
+  if(quiet)return; sfx('glass');
+  for(let k=0;k<26;k++){ const m=new THREE.Mesh(shardGeo,shardMat); m.position.set(gt.p[0]+(rand()-.5)*2.4,gt.p[1]+(rand()-.5)*2.4,gt.p[2]+(rand()-.5)*2.4);
+    m.rotation.set(rand()*6,rand()*6,rand()*6); scene.add(m); shards.push({m,v:[(rand()-.5)*7,rand()*5,(rand()-.5)*7],life:1.2+rand()*0.6}); } }
+function clearGlass(){ for(const gt of glassTargets.slice())shatterGlass(gt,true); }
+function updateGlass(dt){
+  for(let i=shards.length-1;i>=0;i--){ const s=shards[i]; s.life-=dt; s.v[1]-=14*dt; s.m.position.x+=s.v[0]*dt; s.m.position.y+=s.v[1]*dt; s.m.position.z+=s.v[2]*dt; s.m.rotation.x+=dt*6; s.m.rotation.y+=dt*4;
+    if(s.life<=0){ scene.remove(s.m); shards.splice(i,1); } }
+  for(const gt of glassTargets.slice()){ gt.age+=dt; gt.life-=dt; const sc=Math.min(1,gt.age*3)*(gt.life<1?Math.max(0.01,gt.life):1); gt.tdisc.scale.setScalar(sc);
+    gt.tdisc.position.y=gt.p[1]+Math.sin(gt.age*1.5)*0.15; if(gt.life<=0)shatterGlass(gt,true); }
+  if(!(mode==='targets'&&tgm&&tgm.round===5&&tgm.phase==='play'))return;
+  glassT-=dt; if(glassT<=0){ const prog=1-tgm.time/tgm.len; glassT=Math.max(0.6,5.5-prog*5); // they come faster and faster
+    spawnGlass(); if(prog>0.5&&rand()<prog-0.3)spawnGlass(); } }
+function updateTargets(dt){ updateGlass(dt);
   for(let i=popups.length-1;i>=0;i--){ const p=popups[i]; p.life-=dt; p.sp.position.y+=dt*1.2; p.sp.material.opacity=Math.min(1,p.life/0.5);
     if(p.life<=0){ scene.remove(p.sp); p.sp.material.map.dispose(); p.sp.material.dispose(); popups.splice(i,1); } }
   if(mode!=='targets'||!tgm)return;
@@ -1740,7 +1810,7 @@ function updateMobs(dt){
     const env=envAt(m);
     if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
     if(t.flyer){ updateFlyer(m,dt); continue; }
-    const fights=mode!=='targets'||(tgm&&tgm.round===3&&tgm.phase==='play');
+    const fights=mode!=='targets'||(tgm&&tgm.round===3&&tgm.phase==='play'&&!victimOut);
     let mx=0,mz=0; let chase=fights&&dist<22&&!dead&&Math.abs(dy)<8;
     const reach=m.hw+pl.hw+0.45;
     m.climbing=false; m.perched=false;
@@ -1945,7 +2015,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
