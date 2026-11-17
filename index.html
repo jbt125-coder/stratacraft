@@ -20,6 +20,16 @@
     background:radial-gradient(ellipse at center,rgba(255,120,0,0) 45%,rgba(255,110,0,.5) 100%)}
   #web{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background-size:cover;background-position:center}
   #webCount{display:none;margin-top:5px;margin-left:6px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:15px;color:#eee}
+  #fcHud{display:none;margin-top:5px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff}
+  .slot .cnt{position:absolute;top:1px;left:4px;font-size:12px;font-weight:900;text-shadow:0 1px 2px #000,0 0 3px #000}
+  .slot.empty canvas{opacity:.3}
+  .ibtn.gray{background:#c9ced8}
+  .sbtns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .tabs{display:flex;gap:6px;margin-top:10px}
+  .tab{flex:1;height:36px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#232a39;color:#fff;font-weight:800;font-size:14px}
+  .tab.on{background:#7fe3cf;color:#111;border-color:#7fe3cf}
+  .fld{margin-top:8px;font-weight:700}
+  .fld input{display:block;width:100%;box-sizing:border-box;margin-top:4px;height:40px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#11151d;color:#fff;font-size:16px;padding:0 10px}
   #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:4}
   #cross:before,#cross:after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 2px #000}
   #cross:before{left:10px;top:0;width:2px;height:22px}
@@ -119,7 +129,7 @@
 <div id="tint"></div><div id="hurt"></div><div id="web"></div><div id="burn"></div>
 <div id="touch"></div>
 <div id="cross" class="ui"></div>
-<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div></div>
+<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div></div>
 <div id="looking" class="ui"></div>
 <div id="top" class="ui">
   <div class="tbtn" id="bWeapon">✊ Fists</div>
@@ -217,6 +227,9 @@ const lavaFn=ph=>(x,y,r)=>{const v=Math.sin(x*0.7+ph)+Math.sin(y*0.6-ph*0.7)+Mat
   return nz(t>0.68?[255,222,90]:t>0.47?[246,132,30]:t>0.28?[205,62,16]:[112,26,10],r,.08);};
 makeTile('water',25,waterFn(0));
 makeTile('lava',26,lavaFn(0));
+makeTile('bed',27,(x,y,r)=>{ if(y<5)return nz([240,236,226],r,.04); if(y===5||x===0||x===15)return [120,80,50]; return nz(((x>>2)+(y>>2))%2?[200,40,45]:[170,28,35],r,.06); });
+function spawnerTile(name,sd,core){ makeTile(name,sd,(x,y,r)=>{ if(x%5===0||y%5===0)return nz([40,40,46],r,.15); const d=Math.hypot(x-7.5,y-7.5); if(d<4)return nz(core,r,.15); return nz([18,18,22],r,.2); }); }
+spawnerTile('spawn_skel',28,[235,230,210]); spawnerTile('spawn_orc',29,[90,190,60]); spawnerTile('spawn_troll',30,[150,160,175]);
 
 // fire texture (4 animation frames stacked)
 const fireC=document.createElement('canvas'); fireC.width=16; fireC.height=64; const fctx=fireC.getContext('2d');
@@ -260,6 +273,10 @@ addBlock('leaves','Leaves','Building','Leaves use sunlight, water and CO₂ to m
 addBlock('planks','Wood Planks','Building','Lumber cut from logs. Each ring in a log is roughly one year of the tree\'s growth. Flammable!',{t:'planks'},{flammable:true});
 addBlock('glass','Glass','Building','Made by melting quartz sand at about 1,700 °C. Natural glass (obsidian) forms when lava cools too fast to crystallize.',{t:'glass'},{opaque:false});
 addBlock('fire','Fire','Fluid','Fire needs fuel, heat and oxygen (the fire triangle). Water removes the heat.',{t:'lava'},{solid:false,opaque:false,target:false,hidden:true});
+addBlock('bed','Your Bed','Building','In Four Corners this is your base. If the monsters break it, you lose!',{t:'bed'},{hidden:true});
+addBlock('spawn_skel','Skeleton Spawn Block','Building','Skeletons keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_skel'},{hidden:true});
+addBlock('spawn_orc','Orc Spawn Block','Building','Orcs keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_orc'},{hidden:true});
+addBlock('spawn_troll','Troll Spawn Block','Building','Trolls keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_troll'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
 B.forEach(b=>{ if(!b)return; const id=b.side; const d=actx.getImageData((id%COLS)*T,Math.floor(id/COLS)*T,T,T).data;
@@ -369,7 +386,7 @@ function wake(x,y,z){
 }
 function setBlock(x,y,z,id,lvl){
   if(!inB(x,y,z))return; const i=idx(x,y,z), old=world[i]; if(old===id && meta[i]===(lvl||0))return;
-  world[i]=id; meta[i]=lvl||0;
+  world[i]=id; meta[i]=lvl||0; placed.delete(i);
   if(old===ID.lava){lavaSet.delete(i);lavaArr=null;} if(id===ID.lava){lavaSet.add(i);lavaArr=null;}
   if(old===ID.fire)fires.delete(i); if(id===ID.fire)fires.set(i,2.5+rand()*3);
   markDirty(x,z); wake(x,y,z);
@@ -536,27 +553,40 @@ const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamo
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
 let webbed=0, invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
+let mode='survival', cg=null; // cg = Four Corners game state
+const placed=new Set(); // blocks the player built (troll rocks can smash these)
 
 // ================= SAVE =================
 const SAVE_KEY='stratacraft_v2';
 function rleEncode(a){ const out=[]; let v=a[0],n=1; for(let i=1;i<a.length;i++){ if(a[i]===v&&n<65535)n++; else {out.push(v,n);v=a[i];n=1;} } out.push(v,n); return out; }
 function rleDecode(r){ const a=new Uint8Array(N); let p=0; for(let i=0;i<r.length;i+=2){ a.fill(r[i],p,p+r[i+1]); p+=r[i+1]; } return a; }
 let saveTimer=null;
-function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify({v:2,seed,w:rleEncode(world),m:rleEncode(meta),
-  p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn})); }catch(e){} }
+const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between survival worlds
+function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,
+  cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed]}:null}; }
+function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
-function load(){
-  try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(!s||s.v!==2)return false;
-    seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
-    pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4];
-    if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; fly=!!s.fly; camMode=s.cam===3?3:1;
-    hp=Math.max(1,Math.min(MAXHP,s.hp|0)); coins=s.coins|0; owned=Array.isArray(s.owned)?s.owned:['fists'];
-    owned=[...new Set(owned.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!owned.includes('fists'))owned.unshift('fists');
-    const sw=s.weapon==='flint'||s.weapon==='slingshot'?'boomerang':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
-    for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
-    return true;
-  }catch(e){ return false; }
+function validSave(s){ return !!s&&(s.v===2||s.v===3)&&Array.isArray(s.w)&&Array.isArray(s.m)&&Array.isArray(s.p); }
+function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
+function applySnapshot(s){
+  clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
+  mode=s.mode==='corners'?'corners':'survival';
+  seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
+  pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
+  if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
+  hp=Math.max(1,Math.min(MAXHP,s.hp|0)); coins=s.coins|0; owned=cleanOwned(s.owned);
+  const sw=s.weapon==='flint'||s.weapon==='slingshot'?'boomerang':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
+  webbed=0; dead=false; burning=0; invuln=0;
+  if(mode==='corners'){ const c=s.cg||{}; cg={sp:Array.isArray(c.sp)?c.sp.slice(0,4):[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:c.bedHP===undefined?FC.BED_HP:c.bedHP,
+      inv:c.inv||{},wings:+c.wings||0,over:c.over||null,spT:[0,4,6,8]}; for(const i of (c.placed||[]))placed.add(i); }
+  else cg=null;
+  for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
+  setFly(!!s.fly&&(mode==='survival'||cg.wings>0),false);
+  applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
+  select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
+  $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 }
+function loadCurrent(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(!validSave(s))return false; applySnapshot(s); return true; }catch(e){ return false; } }
 document.addEventListener('visibilitychange',()=>{ if(document.hidden)saveNow(); });
 window.addEventListener('pagehide',saveNow);
 
@@ -657,6 +687,8 @@ const MOBT={
   skeleton:{name:'Skeleton',hp:8,dmg:1,spd:2.2,coins:[4,7],hw:0.3,h:1.85,archer:true},
   spider:{name:'Cave Spider',hp:6,dmg:1,spd:4.2,coins:[2,5],hw:0.55,h:0.6,climb:true,legs:true},
   eagle:{name:'Eagle',hp:5,dmg:1,spd:8,coins:[2,4],hw:0.45,h:0.5,flyer:true},
+  orc:{name:'Orc',hp:10,dmg:2,spd:2.4,coins:[3,6],hw:0.35,h:1.95},
+  troll:{name:'Troll',hp:20,dmg:3,spd:1.6,coins:[6,10],hw:0.5,h:2.55},
   griffin:{name:'Griffin',hp:14,dmg:2,spd:6.5,coins:[6,10],hw:0.7,h:1.1,flyer:true},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
@@ -681,6 +713,19 @@ function mobModel(type){
     eye(-0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0.1,1.66,-0.215,0x111111,0.11,0.11); eye(0,1.5,-0.215,0x222222,0.2,0.04);
     r.armL=limbOn(body,-0.28,1.42,0.1,0.68,bn); r.armR=limbOn(body,0.28,1.42,0.1,0.68,bn);
     const bw=box(0.05,0.7,0.05,L({color:0x6b4a2a})); bw.position.set(0,-0.62,-0.1); r.armL.add(bw);
+  } else if(type==='orc'||type==='troll'){
+    const tr=type==='troll', s=tr?1.32:1, sk=L({color:tr?0x7d8a6a:0x5f9a3a}), cl=L({color:tr?0x5a4a3a:0x6b4226}), dk=L({color:0x2e2218});
+    r.legL=limbOn(body,-0.13*s,0.75*s,0.2*s,0.75*s,cl); r.legR=limbOn(body,0.13*s,0.75*s,0.2*s,0.75*s,cl);
+    const b=box(0.56*s,0.7*s,0.32*s,tr?sk:cl); b.position.y=1.1*s; body.add(b);
+    const belt=box(0.58*s,0.08*s,0.34*s,dk); belt.position.y=0.8*s; body.add(belt);
+    const hd=box(0.46*s,0.44*s,0.42*s,sk); hd.position.y=1.68*s; body.add(hd);
+    eye(-0.11*s,1.75*s,-0.215*s,tr?0xffdd55:0xff3322,0.08*s,0.06*s); eye(0.11*s,1.75*s,-0.215*s,tr?0xffdd55:0xff3322,0.08*s,0.06*s);
+    if(tr){ const ns=box(0.12*s,0.16*s,0.1*s,sk); ns.position.set(0,1.64*s,-0.26*s); body.add(ns); eye(0,1.53*s,-0.215*s,0x2a2018,0.24*s,0.05*s); }
+    else { eye(-0.12*s,1.55*s,-0.215*s,0xf4f0e0,0.05,0.1); eye(0.12*s,1.55*s,-0.215*s,0xf4f0e0,0.05,0.1); }
+    r.armL=limbOn(body,-0.38*s,1.42*s,0.18*s,0.72*s,sk); r.armR=limbOn(body,0.38*s,1.42*s,0.18*s,0.72*s,sk);
+    if(tr){ const rk=box(0.38,0.34,0.36,L({color:0x8a8580})); rk.position.set(0,-0.75*s,0); r.armR.add(rk); }
+    else { const sh=box(0.05,1.4,0.05,L({color:0x6b4a2a})); sh.position.set(0,-0.65,-0.06); r.armR.add(sh);
+      const tp=box(0.09,0.2,0.09,L({color:0x9a9aa0})); tp.position.set(0,-1.42,-0.06); r.armR.add(tp); }
   } else if(type==='eagle'||type==='griffin'){
     const big=type==='griffin', br=L({color:big?0xc79a52:0x5a3a22}), wh=L({color:0xf2efe6}), yl=L({color:0xf0b020}), wg=L({color:big?0x8a6a3a:0x4a2e1a});
     const s=big?1.6:1; const bd=box(0.34*s,0.3*s,0.8*s,br); bd.position.set(0,0.25*s,0); body.add(bd);
@@ -718,9 +763,9 @@ function mobModel(type){
   return r;
 }
 const mobs=[];
-function spawnMob(type,x,y,z){ const t=MOBT[type];
+function spawnMob(type,x,y,z){ const t=MOBT[type]; let made;
   const m={type,t,p:[x,y,z],v:[0,0,0],kb:[0,0,0],hw:t.hw,h:t.h,hp:t.hp,cd:0.8,hopT:rand(),flash:0,yaw:rand()*6,wander:[0,0],wT:0,burnT:0,atk:0,phase:0,onGround:false,mv:[0,0],g:mobModel(type)};
-  scene.add(m.g.root); mobs.push(m); }
+  scene.add(m.g.root); mobs.push(m); made=m; return made; }
 function removeMob(m){ scene.remove(m.g.root); m.g.root.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); mobs.splice(mobs.indexOf(m),1); }
 
 // --- coins
@@ -760,6 +805,8 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
   else if(k==='web'){ noise(5000,0.25,0.12,'highpass'); tone('sine',900,500,0.15,0.05); }
   else if(k==='screech'){ tone('sawtooth',1500,900,0.25,0.07); tone('square',1800,1100,0.2,0.04,0.05); }
+  else if(k==='spear'){ noise(1200,0.18,0.12,'bandpass'); tone('triangle',300,150,0.12,0.08); }
+  else if(k==='rock'){ tone('sine',140,60,0.25,0.25); noise(300,0.2,0.2,'lowpass'); }
   else if(k==='flap')noise(600,0.09,0.06,'lowpass');
   else if(k==='whoosh')noise(1400,0.12,0.08,'bandpass');
   else if(k==='catch')tone('square',330,520,0.07,0.08);
@@ -801,7 +848,7 @@ function updateTarget(){
   if(WP[weapon].ranged&&!target){ const far=raycast(o,d,mreach); if(far)bt=far.t; }
   aimMob=null; let best=Math.min(bt,mreach);
   for(const m of mobs){ const t=rayBox(o,d,m); if(t!==null&&t<best){best=t;aimMob=m;} }
-  const nt=rayBox(o,d,merchant); aimNPC = !aimMob && nt!==null && nt<Math.min(bt,mreach+1.5);
+  const nt=mode==='survival'?rayBox(o,d,merchant):null; aimNPC = !aimMob && nt!==null && nt<Math.min(bt,mreach+1.5);
   $('cross').classList.toggle('mob',!!aimMob);
   if(target&&!aimMob&&!aimNPC){ hl.visible=true; hl.position.set(target.x+0.5,target.y+0.5,target.z+0.5); } else hl.visible=false;
   const lk=$('looking'); let html='';
@@ -829,8 +876,13 @@ function arrowMesh(mob){ const g=new THREE.Group(); const s=box(0.04,0.04,0.6,mo
 const webMat=new THREE.MeshBasicMaterial({color:0xf4f4f4,transparent:true,opacity:0.85});
 function webMesh(){ const g=new THREE.Group(); for(let i=0;i<3;i++){ const b=box(0.36,0.04,0.04,webMat); b.rotation.set(0,i*1.05,i*0.5); g.add(b); }
   const c=box(0.12,0.12,0.12,webMat); g.add(c); g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
+const spearWood=new THREE.MeshLambertMaterial({color:0x6b4a2a}), spearTip=new THREE.MeshLambertMaterial({color:0x9a9aa0}), rockMat=new THREE.MeshLambertMaterial({color:0x8a8580});
+function spearMesh(){ const g=new THREE.Group(); g.add(box(0.06,0.06,1.25,spearWood)); const t=box(0.1,0.1,0.22,spearTip); t.position.z=-0.7; g.add(t);
+  g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
+function rockMesh(){ const g=new THREE.Group(); g.add(box(0.44,0.4,0.42,rockMat)); const k=box(0.26,0.22,0.3,rockMat); k.position.set(0.12,0.16,0.05); g.add(k);
+  g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function addShot(o,d,spd,grav,dmg,kind,fromMob){
-  const mesh=kind==='web'?webMesh():arrowMesh(fromMob); scene.add(mesh);
+  const mesh=kind==='web'?webMesh():kind==='spear'?spearMesh():kind==='rock'?rockMesh():arrowMesh(fromMob); scene.add(mesh);
   shots.push({p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}); }
 function shoot(w){
   atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
@@ -878,15 +930,21 @@ function updateShots(dt){
     const steps=4; for(let k=0;k<steps&&!hit;k++){
       s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
       const [x,y,z]=s.p;
-      if(solidAt(Math.floor(x),Math.floor(y),Math.floor(z))){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
+      const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
+      if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); break; }
+      if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
+        if(bid===ID.bed&&(s.kind==='rock'||s.kind==='spear')) damageBed(s.kind==='rock'?'A Troll\'s rock':'An Orc\'s spear');
+        else if(s.kind==='rock'&&placed.has(idx(bx,by,bz))){ setBlock(bx,by,bz,0); burst(bx,by,bz,B[bid].avg,10); sfx('break'); } }
+      if(solidAt(bx,by,bz)){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
       if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.15)){ hit=true;
-        if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,'A Skeleton\'s arrow'); } } }
+        if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,s.kind==='spear'?'An Orc\'s spear':s.kind==='rock'?'A Troll\'s rock':'A Skeleton\'s arrow'); } } }
       else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
     }
     if(hit){ freeShot(s); continue; }
     s.mesh.position.set(s.p[0],s.p[1],s.p[2]);
     if(s.kind==='web') s.mesh.rotation.y+=dt*8;
-    else if(s.kind==='arrow'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
+    else if(s.kind==='rock'){ s.mesh.rotation.x+=dt*5; s.mesh.rotation.z+=dt*3; }
+    else if(s.kind==='arrow'||s.kind==='spear'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
   }
 }
 function attackMob(m){
@@ -900,8 +958,9 @@ function damageMob(m,dmg,dx,dz,kb){
 }
 function killMob(m){
   const c=m.t.coins, n=c[0]+Math.floor(rand()*(c[1]-c[0]+1));
-  dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
-  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):new THREE.Color(.45,.32,.2);
+  if(mode==='survival')dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
+  if(mode==='corners'&&m.type==='griffin'&&cg){ cg.wings=FC.WINGS; setFly(true,false); updateFCHud(); toast('🪽 You won griffin wings! Fly for 90 seconds. Go attack a cave!'); }
+  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):m.type==='orc'?new THREE.Color(.37,.6,.23):m.type==='troll'?new THREE.Color(.5,.54,.42):new THREE.Color(.45,.32,.2);
   burst(m.p[0]-0.5,m.p[1],m.p[2]-0.5,col,14);
   if(m.type==='magma'){ const x=Math.floor(m.p[0]),y=Math.floor(m.p[1]+0.2),z=Math.floor(m.p[2]); if(get(x,y,z)===0)tryIgnite(x,y,z); }
   removeMob(m);
@@ -909,8 +968,13 @@ function killMob(m){
 function doBreak(){
   if(!target)return;
   if(target.y===0){ toast('The bottom layer is bedrock basalt. It can\'t be broken!'); return; }
+  if(mode==='corners'){ const si=FC_SPAWNER.indexOf(B[target.b].key);
+    if(si>0){ hitSpawner(si,target.x,target.y,target.z); return; }
+    if(target.b===ID.bed){ toast('🛏️ That\'s your bed! Keep it safe.'); return; } }
   const b=B[target.b]; setBlock(target.x,target.y,target.z,0);
-  burst(target.x,target.y,target.z,b.avg); sfx('break'); queueSave();
+  burst(target.x,target.y,target.z,b.avg); sfx('break');
+  if(mode==='corners'&&cg&&!b.hidden){ cg.inv[target.b]=(cg.inv[target.b]||0)+1; refreshInv(); }
+  queueSave();
 }
 function placeAction(){
   if(aimNPC){ openShop(); return; }
@@ -918,8 +982,11 @@ function placeAction(){
   const x=target.x+target.face[0], y=target.y+target.face[1], z=target.z+target.face[2];
   if(!inB(x,y,z))return; const cur=get(x,y,z); if(cur&&B[cur].solid)return;
   if(B[sel].solid && x+1>pl.p[0]-pl.hw && x<pl.p[0]+pl.hw && z+1>pl.p[2]-pl.hw && z<pl.p[2]+pl.hw && y+1>pl.p[1] && y<pl.p[1]+pl.h) return;
+  if(mode==='corners'&&cg&&!((cg.inv[sel]||0)>0)){ toast('You don\'t have any '+B[sel].name+'. Mine some first!'); return; }
   if(cur===ID.fire && sel===ID.water){ setBlock(x,y,z,0); sizzle(x,y,z); }
-  setBlock(x,y,z,sel,0); sfx('place'); queueSave();
+  setBlock(x,y,z,sel,0); sfx('place');
+  if(mode==='corners'&&cg){ cg.inv[sel]--; placed.add(idx(x,y,z)); refreshInv(); }
+  queueSave();
   if(sel===ID.lava) toast('🔥 Careful! Lava sets wood, leaves and grass on fire.');
 }
 
@@ -946,13 +1013,15 @@ function hurtPlayer(n,kx,kz,src){
   updateHUD(); if(hp<=0) die(src||'danger');
 }
 function die(src){
-  dead=true; paused=true; hp=0; updateHUD(); const lost=Math.floor(coins/2); coins-=lost; updateHUD(); burning=0;
+  dead=true; paused=true; hp=0; updateHUD(); const fc=mode==='corners'; const lost=fc?0:Math.floor(coins/2); coins-=lost; updateHUD(); burning=0;
   if(document.pointerLockElement)document.exitPointerLock();
   $('mbox').innerHTML='<h2>💀 You were defeated!</h2>'+src+' got you.'+(lost?'<br>You dropped <b>'+lost+'</b> coins.':'')+
-    '<div class="row"><button class="mbtn" id="mResp">Respawn</button></div>';
+    (fc?'<br>You will come back at your bed.':'')+'<div class="row"><button class="mbtn" id="mResp">Respawn</button></div>';
   $('modal').style.display='flex';
-  tap($('mResp'),()=>{ dead=false; hp=MAXHP; clearWeb(false); pl.p=[CX+0.5,SPAWN_H+0.01,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; unstick(pl); yaw=0; pitch=-0.2;
-    for(const m of mobs.slice()) if(Math.hypot(m.p[0]-pl.p[0],m.p[2]-pl.p[2])<14) removeMob(m);
+  tap($('mResp'),()=>{ dead=false; hp=MAXHP; clearWeb(false);
+    if(fc) spawnAtBed(); else { pl.p=[CX+0.5,SPAWN_H+0.01,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.2; } unstick(pl);
+    if(fc&&fly&&!(cg&&cg.wings>0)) setFly(false,false);
+    for(const m of mobs.slice()) if(m.home===undefined&&Math.hypot(m.p[0]-pl.p[0],m.p[2]-pl.p[2])<14) removeMob(m);
     updateHUD(); closeMenu(); queueSave(); });
 }
 
@@ -1071,7 +1140,8 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
+function toggleFly(){ if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
+  if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
 const OUT_MAX=70;
 function outsideDist(){ const ox=Math.max(0,-pl.p[0],pl.p[0]-W), oz=Math.max(0,-pl.p[2],pl.p[2]-D); return Math.hypot(ox,oz); }
@@ -1079,14 +1149,14 @@ let viewF=-1;
 function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
-  scene.fog.near=40+f*130; scene.fog.far=90+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
+  const fc=mode==='corners'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
 function cycleWeapon(){ const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
   if(coins!==lastCoins){ $('coins').textContent='🪙 '+coins; lastCoins=coins; }
 }
-const nearMerchant=()=>Math.hypot(pl.p[0]-merchant.p[0],pl.p[2]-merchant.p[2])<3.6 && Math.abs(pl.p[1]-merchant.p[1])<2.5;
+const nearMerchant=()=>mode==='survival' && Math.hypot(pl.p[0]-merchant.p[0],pl.p[2]-merchant.p[2])<3.6 && Math.abs(pl.p[1]-merchant.p[1])<2.5;
 
 function helpHTML(){
   return '<h2>⛏ StrataCraft</h2>Build with real rocks, minerals and soils. Pick a block to learn a fact about it. Fight monsters for coins and spend them at <b>Flint\'s Shop</b> (right in front of you).'+
@@ -1097,20 +1167,27 @@ function helpHTML(){
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
   '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
-  '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button><button class="mbtn red" id="mNew">New World…</button></div>'+
-  '<div style="margin-top:8px;font-size:12px;opacity:.7">Your world saves automatically on this device.</div>';
+'';
+}
+function cornersHelp(){
+  return '<h2>🏰 Four Corners</h2>Four cliff caves sit around a valley of lava. You start in your cave, next to your bed, holding a 🏹 bow. The other caves belong to 💀 skeletons, 👹 orcs and 🧌 trolls.'+
+  '<h3>How to win</h3><ul><li>Each enemy cave has a <b>spawn block</b> at the back. Hit it 10 times to break it. Break all 3 to win!</li><li>Until it breaks, that cave keeps making monsters</li></ul>'+
+  '<h3>How to lose</h3><ul><li>Monsters that reach your cave attack your <b>🛏️ bed</b>, and troll rocks and orc spears can hit it too. If your bed breaks, you lose</li><li>If you die, you come back at your bed</li></ul>'+
+  '<h3>Their attacks</h3><ul><li>💀 Skeletons shoot fast arrows · 👹 Orcs throw slower spears that hurt more · 🧌 Trolls throw slow, heavy rocks that smash the blocks you build</li><li>Watch them fly toward you and dodge!</li></ul>'+
+  '<h3>Building</h3><ul><li>Every block you mine goes in your hotbar (the number is how many you have). Build walls to hide behind, or a bridge across the lava. Careful: monsters can walk over your bridge too!</li><li>Under the lava is solid rock. Dig down in your cave and tunnel under the lava to come up inside an enemy cave from behind</li></ul>'+
+  '<h3>The sky</h3><ul><li>Defeat a 🦁 griffin to get <b>wings for 90 seconds</b>. Fly over and attack a cave! When the wings wear off, you fall</li><li>Hit an 🦅 eagle and it comes after you</li></ul>'+
+  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit shoots or mines · 🧱 Place builds · the weapon button swaps bow and fists</li><li>Keyboard: WASD, Space, left click hits, right click places, Q swaps weapons</li></ul>';
 }
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
-  paused=true; $('mbox').innerHTML=helpHTML(); $('modal').style.display='flex';
-  tap($('mPlay'),closeMenu);
-  tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
-  tap($('mNew'),()=>{
-    $('mbox').innerHTML='<h2>Start a new world?</h2>This erases everything you have built and makes a new landscape. Your coins and weapons stay. It can\'t be undone.<div class="row"><button class="mbtn gray" id="mNo">Cancel</button><button class="mbtn red" id="mYes">Erase &amp; Start New</button></div>';
-    tap($('mNo'),openMenu);
-    tap($('mYes'),()=>{ for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
-      generate((Math.random()*1e9)|0); pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; yaw=0; pitch=-0.2; rebuildAll(); saveNow(); closeMenu(); toast('Fresh world!'); });
-  });
+  paused=true; const fc=mode==='corners';
+  $('mbox').innerHTML=(fc?cornersHelp():helpHTML())+
+    '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
+    '<div class="row">'+(fc?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
+    '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
+  $('modal').style.display='flex';
+  tap($('mPlay'),closeMenu); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  if(!fc) tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
 
@@ -1147,6 +1224,186 @@ function openShop(){
   $('mbox').querySelectorAll('[data-heal]').forEach(b=>tap(b,()=>{ if(coins<6||hp>=MAXHP)return; coins-=6; hp=MAXHP; updateHUD(); sfx('buy'); queueSave(); openShop(); }));
 }
 
+// ================= SAVE SLOTS & FILES =================
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners'};
+const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
+function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
+  try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
+  catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+let saveName='';
+async function exportGame(data,name){
+  const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  if(window.showSaveFilePicker){ // laptop browsers that let you pick the folder and name
+    try{ const h=await showSaveFilePicker({suggestedName:fn,types:[{description:'StrataCraft game',accept:{'application/json':['.json']}}]});
+      const w=await h.createWritable(); await w.write(blob); await w.close(); toast('💾 Saved '+h.name); return; }
+    catch(e){ if(e&&e.name==='AbortError')return; } }
+  try{ const f=new File([blob],fn,{type:'application/json'}); // phones: share sheet → Save to Files, pick a folder
+    if(IS_TOUCH&&navigator.canShare&&navigator.canShare({files:[f]})){ await navigator.share({files:[f],title:fn}); return; } }
+  catch(e){ if(e&&e.name==='AbortError')return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fn; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); toast('⬇ Downloaded '+fn);
+}
+const fileIn=document.createElement('input'); fileIn.type='file'; fileIn.accept='.json,application/json'; fileIn.style.display='none'; document.body.appendChild(fileIn);
+fileIn.addEventListener('change',()=>{ const f=fileIn.files&&fileIn.files[0]; fileIn.value=''; if(!f)return;
+  f.text().then(t=>{ let d=null; try{ d=JSON.parse(t); }catch(e){} if(d&&d.data&&validSave(d.data))d=d.data;
+    if(!validSave(d)){ toast('That file isn\'t a StrataCraft game.'); return; }
+    applySnapshot(d); saveNow(); closeMenu(); toast('📂 Loaded '+f.name); if(cg&&cg.over)fcEnd(cg.over==='win'); }); });
+const onClick=(el,fn)=>el.addEventListener('click',e=>{ e.preventDefault(); audioInit(); fn(); });
+function openSaves(tab){
+  tab=tab||mode; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
+  if(!saveName)saveName=defaultName();
+  let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
+    '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
+    '<div class="tabs">'+['survival','corners'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+  const recs=[];
+  for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
+    h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
+      (tab===mode?'<button class="ibtn" data-save="'+i+'">Save</button>':'')+
+      (r?'<button class="ibtn eq" data-load="'+i+'">Load</button><button class="ibtn gray" data-file="'+i+'">⬇ File</button>':'')+'</div></div>'; }
+  if(tab!==mode) h+='<div style="margin-top:8px;font-size:12px;opacity:.75">You can only save into the slots of the game you are playing.</div>';
+  h+='<div class="row"><button class="mbtn gold" id="sExport">⬇ Save this game to a file</button><button class="mbtn gray" id="sImport">📂 Open a game file</button></div>'+
+    '<div class="row"><button class="mbtn" id="sBack">Back</button></div>';
+  $('mbox').innerHTML=h; $('modal').style.display='flex';
+  const nm=$('sName'); nm.addEventListener('input',()=>{ saveName=nm.value; });
+  $('mbox').querySelectorAll('[data-tab]').forEach(b=>tap(b,()=>openSaves(b.dataset.tab)));
+  $('mbox').querySelectorAll('[data-save]').forEach(b=>onClick(b,()=>{ const i=+b.dataset.save, r=recs[i];
+    if(r&&!confirm('Replace "'+r.name+'" in slot '+(i+1)+'?'))return; if(writeSlot(i,saveName))openSaves(tab); }));
+  $('mbox').querySelectorAll('[data-load]').forEach(b=>onClick(b,()=>{ const r=recs[+b.dataset.load];
+    if(!confirm('Load "'+r.name+'"? The game you are playing now will be replaced, so save it first if you want to keep it.'))return;
+    applySnapshot(r.data); saveNow(); closeMenu(); toast('📂 Loaded "'+r.name+'"'); if(cg&&cg.over)fcEnd(cg.over==='win'); }));
+  $('mbox').querySelectorAll('[data-file]').forEach(b=>onClick(b,()=>{ const r=recs[+b.dataset.file]; exportGame(r.data,r.name); }));
+  onClick($('sExport'),()=>exportGame(snapshot(),saveName)); onClick($('sImport'),()=>fileIn.click()); tap($('sBack'),openMenu);
+}
+function openNewGame(){
+  let h='<h2>🎮 New Game</h2><div class="say">A new game replaces the one you are playing now. <b>Save it first</b> if you want to come back to it.</div>'+
+    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Survival</b><div class="fx">Free mode. Build with real rocks, fight monsters for coins and shop at Flint\'s. Your coins and weapons carry over.</div></div><button class="ibtn" data-new="survival">Start</button></div>'+
+    '<div class="item"><div class="ic">🏰</div><div class="tx"><b>Four Corners</b><div class="fx">Four cliff caves around a lava valley. Shoot across with your bow, mine blocks to build walls and bridges, and break the skeleton, orc and troll spawn blocks. Keep your bed safe!</div></div><button class="ibtn" data-new="corners">Start</button></div>'+
+    '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
+  $('mbox').innerHTML=h; $('modal').style.display='flex';
+  $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
+    if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
+    closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
+  tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),openMenu);
+}
+
+// ================= GAME MODES =================
+function clearEntities(){ for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+  for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=!fc; $('coins').style.display=fc?'none':'';
+  document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
+function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists'}; } }catch(e){}
+  return {coins:0,owned:['fists'],weapon:'fists'}; }
+function startSurvival(){
+  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon}:loadKit();
+  clearEntities(); mode='survival'; cg=null; placed.clear(); generate((Math.random()*1e9)|0);
+  coins=kit.coins; owned=kit.owned; weapon=kit.weapon; hp=MAXHP; webbed=0; dead=false; burning=0;
+  pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.2; setFly(false,false); unstick(pl);
+  applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow();
+}
+// --- Four Corners: four cliff caves around a lava valley
+const FC={ROCK:10,LAVA:12,FLOOR:15,TOP:24,R:27,SPAWN_HP:10,BED_HP:5,WINGS:90};
+const FC_TEAM=[null,'skeleton','orc','troll'], FC_SPAWNER=[null,'spawn_skel','spawn_orc','spawn_troll'], FC_ICON=[null,'💀','👹','🧌'];
+const FCC=[[0,D],[0,0],[W,0],[W,D]].map(([cx,cz])=>{ const dx=CX-cx, dz=CZ-cz, l=Math.hypot(dx,dz), dir=[dx/l,dz/l], at=t=>[cx+dir[0]*t,cz+dir[1]*t];
+  return {corner:[cx,cz],dir,perp:[dir[1],-dir[0]],center:at(13),back:at(8.5),mouth:at(FC.R-1.5)}; });
+const SHOT={skeleton:{kind:'arrow',spd:30,g:7,dmg:1,cd:[3.5,6]}, orc:{kind:'spear',spd:26,g:7,dmg:2,cd:[4.5,7]}, troll:{kind:'rock',spd:22,g:6,dmg:3,cd:[5.5,8.5]}};
+function bedPos(){ const b=FCC[0].back; return [Math.floor(b[0]),FC.FLOOR,Math.floor(b[1])]; }
+function plantTree(x,h,z,rnd){ const th=4+Math.floor(rnd()*2); for(let i=0;i<th;i++)world[idx(x,h+i,z)]=ID.log; const ty=h+th-1;
+  for(let dy=-2;dy<=1;dy++){ const r=dy>=0?1:2; for(let dx=-r;dx<=r;dx++)for(let dz=-r;dz<=r;dz++){ if(Math.abs(dx)===r&&Math.abs(dz)===r&&(dy===1||rnd()<0.5))continue;
+    const xx=x+dx,yy=ty+dy,zz=z+dz; if(inB(xx,yy,zz)&&world[idx(xx,yy,zz)]===0)world[idx(xx,yy,zz)]=ID.leaves; } } }
+function generateCorners(s){
+  seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear();
+  activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), HM=new Int16Array(W*D);
+  const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+    let near=1e9, nc=null; for(const c of FCC){ const d=Math.hypot(x+0.5-c.corner[0],z+0.5-c.corner[1]); if(d<near){ near=d; nc=c; } }
+    const ax=x+0.5-nc.center[0], az=z+0.5-nc.center[1], along=ax*nc.dir[0]+az*nc.dir[1], side=Math.abs(ax*nc.perp[0]+az*nc.perp[1]);
+    const ledge=along>0&&near<=FC.R+1&&side<=2.2+Math.max(0,along-(FC.R-19))*0.9; // every cave mouth gets a solid ledge
+    const edge=FC.R+(n1(x/7,z/7)-0.5)*3, plat=near<edge||ledge;
+    const h=plat?FC.TOP+Math.floor(n1(x/10+40,z/10+40)*3):FC.ROCK+1; HM[x+z*W]=h;
+    for(let y=0;y<h;y++){ const depth=h-1-y; let id;
+      if(y===0)id=ID.basalt; else if(plat&&depth===0)id=ID.grass; else if(plat&&depth<=2)id=ID.dirt; else if(y<4)id=ID.granite;
+      else { id=SED[(y+Math.floor(n3(x/9,z/9)*4))%SED.length]; const q=rnd(); if(q<0.012)id=ID.coal; else if(q<0.02)id=ID.quartz; }
+      if(plat&&near>edge-1.6&&y>=FC.ROCK-1&&y<=FC.LAVA+1)id=ID.basalt; // lava cooled into basalt where it touches the cliffs
+      world[idx(x,y,z)]=id; }
+    if(!plat) for(let y=h;y<=FC.LAVA;y++) world[idx(x,y,z)]=ID.lava;
+  }
+  for(let i=0;i<4;i++){ const c=FCC[i];
+    for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+      const px=x+0.5-c.center[0], pz=z+0.5-c.center[1], along=px*c.dir[0]+pz*c.dir[1], side=Math.abs(px*c.perp[0]+pz*c.perp[1]);
+      const room=Math.hypot(px,pz)<=5.2, hall=along>=0&&along<=FC.R-10&&side<=2.2+Math.max(0,along-(FC.R-19))*0.9; // the mouth flares out so caves can see each other if(!room&&!hall)continue;
+      const top=room?FC.FLOOR+4:FC.FLOOR+3; for(let y=FC.FLOOR;y<=top;y++){ const k=idx(x,y,z); if(world[k]!==ID.lava)world[k]=0; } }
+    const b=c.back; world[idx(Math.floor(b[0]),FC.FLOOR,Math.floor(b[1]))]=i===0?ID.bed:ID[FC_SPAWNER[i]];
+    let n=0; for(let a=0;a<30&&n<3;a++){ const r=7+rnd()*15, an=(rnd()-0.5)*1.4, ca=Math.cos(an), sa=Math.sin(an);
+      const x=Math.floor(c.corner[0]+(c.dir[0]*ca-c.dir[1]*sa)*r), z=Math.floor(c.corner[1]+(c.dir[0]*sa+c.dir[1]*ca)*r);
+      if(x<2||z<2||x>=W-2||z>=D-2)continue; const h=HM[x+z*W]; if(h<FC.TOP||world[idx(x,h-1,z)]!==ID.grass)continue; plantTree(x,h,z,rnd); n++; }
+  }
+  for(let i=0;i<N;i++) if(world[i]===ID.lava)lavaSet.add(i);
+  cg={sp:[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:FC.BED_HP,inv:{},wings:0,over:null,spT:[0,3,5,7]};
+}
+function spawnAtBed(){ const c=FCC[0]; pl.p=[c.center[0],FC.FLOOR+0.01,c.center[1]]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=Math.atan2(-c.dir[0],-c.dir[1]); pitch=-0.05; }
+function startCorners(){
+  clearEntities(); mode='corners'; generateCorners((Math.random()*1e9)|0);
+  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  spawnAtBed(); setFly(false,false); applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud(); saveNow();
+  toast('🏰 Four Corners! Break the 3 enemy spawn blocks and keep your bed safe.');
+}
+function refreshInv(){ const fc=mode==='corners'&&!!cg;
+  for(const id in slots){ const sl=slots[id]; let c=sl.querySelector('.cnt'); if(!c){ c=document.createElement('div'); c.className='cnt'; sl.appendChild(c); }
+    const n=fc?(cg.inv[id]||0):0; c.textContent=fc?n:''; c.style.display=fc?'block':'none'; sl.classList.toggle('empty',fc&&!n); } }
+function updateFCHud(){ const el=$('fcHud'); if(mode!=='corners'||!cg){ el.style.display='none'; return; } el.style.display='inline-block';
+  let h='🛏️ '+Math.max(0,cg.bedHP)+'/'+FC.BED_HP+' &nbsp;'; for(let i=1;i<4;i++) h+=FC_ICON[i]+(cg.sp[i]>0?cg.sp[i]:'✖')+' &nbsp;';
+  if(cg.wings>0) h+='🪽 '+Math.ceil(cg.wings)+'s'; if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function damageBed(src){ if(!cg||cg.over||cg.bedHP<=0)return; cg.bedHP--; sfx('hit'); const [bx,by,bz]=bedPos();
+  burst(bx,by,bz,new THREE.Color(.8,.1,.1),10); updateFCHud(); queueSave();
+  if(cg.bedHP>0){ toast('🛏️ '+src+' hit your bed! ('+cg.bedHP+'/'+FC.BED_HP+' left)'); return; }
+  setBlock(bx,by,bz,0); fcEnd(false); }
+function hitSpawner(i,x,y,z){ if(!cg||cg.sp[i]<=0)return; cg.sp[i]--; sfx('hit'); burst(x,y,z,B[ID[FC_SPAWNER[i]]].avg,6); updateFCHud(); queueSave();
+  if(cg.sp[i]>0){ toast(FC_ICON[i]+' Spawn block: '+cg.sp[i]+' more hits'); return; }
+  setBlock(x,y,z,0); burst(x,y,z,new THREE.Color(1,.9,.4),20); sfx('buy');
+  const left=cg.sp.filter((v,k)=>k>0&&v>0).length; toast(FC_ICON[i]+' Spawn block destroyed!'+(left?' '+left+' to go.':'')); if(!left)fcEnd(true); }
+function fcEnd(win){ if(!cg)return; cg.over=win?'win':'lose'; saveNow(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
+  $('mbox').innerHTML='<h2>'+(win?'🏆 You win!':'💥 Your bed was destroyed!')+'</h2>'+(win?'You broke all three spawn blocks. The valley is yours!':'The monsters broke your bed. Try again!')+
+    '<div class="row"><button class="mbtn" id="eAgain">Play Four Corners again</button></div><div class="row"><button class="mbtn gray" id="eSave">💾 Load a save</button><button class="mbtn gray" id="eMenu">Menu</button></div>';
+  $('modal').style.display='flex'; if(win)sfx('buy');
+  onClick($('eAgain'),()=>{ closeMenu(); startCorners(); }); tap($('eSave'),()=>openSaves('corners')); tap($('eMenu'),openMenu); }
+function ballistic(o,tg,v,g){ const dx=tg.x-o.x, dz=tg.z-o.z, h=tg.y-o.y, d=Math.hypot(dx,dz); if(d<0.5)return tg.clone().sub(o).normalize();
+  const v2=v*v, disc=v2*v2-g*(g*d*d+2*h*v2); if(disc<0)return null;
+  const th=Math.atan((v2-Math.sqrt(disc))/(g*d)), c=Math.cos(th); return new THREE.Vector3(dx/d*c,Math.sin(th),dz/d*c); }
+function mobThrow(m,sh){
+  const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*0.8,pl.p[1]+1.0,pl.p[2]+(rand()-.5)*0.8);
+  const d0=tg.clone().sub(o), L=d0.length(), blk=raycast(o,d0.normalize(),Math.max(0.1,L-0.6));
+  // no clear view: don't waste a shot (but trolls throw rocks at walls you built)
+  if(blk&&!(sh.kind==='rock'&&placed.has(idx(blk.x,blk.y,blk.z)))){ m.shootT=1; return; }
+  const d=ballistic(o,tg,sh.spd,sh.g); if(!d){ m.shootT=1; return; }
+  o.addScaledVector(d,0.7); addShot(o,d,sh.spd,sh.g,sh.dmg,sh.kind,true); m.atk=0.4; sfx(sh.kind==='rock'?'rock':sh.kind==='spear'?'spear':'bow'); }
+function safeGround(x,y,z){ x=Math.floor(x); z=Math.floor(z); y=Math.floor(y+0.01); // monsters won't walk into lava or off cliffs
+  for(let k=0;k<=3;k++){ const b=get(x,y-k,z); if(b===ID.lava)return false; if(b&&B[b].solid)return true; } return false; }
+function caveBrain(m,dt,dx,dz,dy,dist){
+  const c=FCC[m.home], sh=SHOT[m.type]; let mx=0,mz=0,chase=false;
+  const pc=FCC[0].center, bp=FCC[0].back, inMyCave=Math.hypot(m.p[0]-pc[0],m.p[2]-pc[1])<12&&Math.abs(m.p[1]-FC.FLOOR)<3;
+  if(!dead&&dist<12&&Math.abs(dy)<4&&!(inMyCave&&dist>3)){ chase=true; const reach=m.hw+pl.hw+0.45; if(dist>reach*0.85){ mx=dx/dist; mz=dz/dist; } }
+  else if(inMyCave&&cg&&cg.bedHP>0){ const bx=bp[0]-m.p[0], bz=bp[1]-m.p[2], bd=Math.hypot(bx,bz)||1;
+    if(bd>1.6){ mx=bx/bd; mz=bz/bd; } else if(m.cd<=0&&!paused){ m.cd=1.5; m.atk=0.3; damageBed(m.type==='orc'?'An Orc':'A '+m.t.name); } }
+  else { if(!m.post||rand()<dt*0.12){ const back=rand()*4, side=(rand()-.5)*(back<2?7:3); m.post=[c.mouth[0]-c.dir[0]*back+c.perp[0]*side, c.mouth[1]-c.dir[1]*back+c.perp[1]*side]; }
+    const px=m.post[0]-m.p[0], pz=m.post[1]-m.p[2], pd=Math.hypot(px,pz); const sp=pd>2?1:0.6; if(pd>0.6){ mx=px/pd*sp; mz=pz/pd*sp; } else m.perched=true; }
+  m.shootT=(m.shootT===undefined?1+rand()*3:m.shootT)-dt;
+  if(m.shootT<=0&&!dead&&!paused&&!chase&&Math.hypot(dist,dy)<95){ m.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0]); mobThrow(m,sh); }
+  return [mx,mz,chase]; }
+let fcHudT=0;
+function updateCorners(dt){ if(mode!=='corners'||!cg)return;
+  if(cg.wings>0){ cg.wings-=dt; if(cg.wings<=0){ cg.wings=0; if(fly)setFly(false,false); toast('🪽 Your griffin wings wore off!'); } }
+  fcHudT-=dt; if(fcHudT<=0){ fcHudT=0.25; updateFCHud(); }
+  if(cg.over)return;
+  for(let i=1;i<4;i++){ if(cg.sp[i]<=0)continue; cg.spT[i]-=dt; if(cg.spT[i]>0)continue; cg.spT[i]=7+rand()*4;
+    if(mobs.filter(m=>m.home===i).length>=3)continue;
+    const c=FCC[i], m=spawnMob(FC_TEAM[i],c.back[0]+c.dir[0]*1.8,FC.FLOOR+0.01,c.back[1]+c.dir[1]*1.8); m.home=i; m.cd=1; }
+}
+
 // ================= UPDATE =================
 const tmp=new THREE.Vector3();
 let waterT=0, lavaT=0, fireT=0, spawnT=2, animT=0, animPh=0;
@@ -1162,7 +1419,7 @@ function updatePlayer(dt){
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
   else { pl.v[1]-=28*dt; if(up&&pl.onGround)pl.v[1]=8.6; if(pl.v[1]<-30)pl.v[1]=-30; }
-  edgeOpen=true; physStep(pl,dt);
+  edgeOpen=mode==='survival'; physStep(pl,dt);
   if(!fly && pl.wall && pl.onGround && m>0.2){
     const dx=(-s*fwd+c*str), dz=(-c*fwd-s*str), l=Math.hypot(dx,dz)||1;
     if(!boxHits(pl.p[0]+dx/l*0.35,pl.p[1]+1.05,pl.p[2]+dz/l*0.35,pl.hw,pl.h)) pl.v[1]=8.6;
@@ -1171,7 +1428,7 @@ function updatePlayer(dt){
   // side view: outside the world edge the player flies so they can look at the rock layers
   pl.p[0]=Math.max(-OUT_MAX,Math.min(W+OUT_MAX,pl.p[0])); pl.p[2]=Math.max(-OUT_MAX,Math.min(D+OUT_MAX,pl.p[2]));
   const out=outsideDist();
-  if(out>0){ if(!fly){ setFly(true,false); toast('🔭 Side view! You\'re outside the world, so you fly. Look at the layers under the topsoil.'); }
+  if(out>0&&mode==='survival'){ if(!fly){ setFly(true,false); toast('🔭 Side view! You\'re outside the world, so you fly. Look at the layers under the topsoil.'); }
     if(pl.p[1]<-30)pl.p[1]=-30; }
   if(pl.p[1]>H+20)pl.p[1]=H+20;
   // environment damage
@@ -1192,7 +1449,7 @@ function updatePlayer(dt){
 function updateMobs(dt){
   for(const m of mobs.slice()){
     const t=m.t, dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dy=pl.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
-    if(dist>(t.flyer?60:48)){ removeMob(m); continue; }
+    if(m.home===undefined&&dist>(t.flyer?60:48)){ removeMob(m); continue; }
     if(!m.climbing&&boxHits(m.p[0],m.p[1],m.p[2],m.hw,m.h)) m.p[1]+=1;
     const env=envAt(m);
     if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
@@ -1200,7 +1457,8 @@ function updateMobs(dt){
     let mx=0,mz=0; let chase=dist<22&&!dead&&Math.abs(dy)<8;
     const reach=m.hw+pl.hw+0.45;
     m.climbing=false; m.perched=false;
-    if(t.legs&&!(chase&&dist<5&&Math.abs(dy)<2)){ const r=spiderTree(m,dt,dist,dx,dz,dy); mx=r[0]; mz=r[1]; chase=r[2]; }
+    if(m.home!==undefined){ const r=caveBrain(m,dt,dx,dz,dy,dist); mx=r[0]; mz=r[1]; chase=r[2]; }
+    else if(t.legs&&!(chase&&dist<5&&Math.abs(dy)<2)){ const r=spiderTree(m,dt,dist,dx,dz,dy); mx=r[0]; mz=r[1]; chase=r[2]; }
     else if(chase&&t.archer){ m.shootT=(m.shootT===undefined?1.5:m.shootT)-dt;
       if(dist>11){ mx=dx/dist; mz=dz/dist; } else if(dist<5){ mx=-dx/dist; mz=-dz/dist; } else { mx=-dz/dist*0.5; mz=dx/dist*0.5; }
       if(m.shootT<=0&&dist<16&&!paused){ m.shootT=2+rand()*1.2;
@@ -1210,6 +1468,7 @@ function updateMobs(dt){
         if(!raycast(o,d,Math.max(0.1,dist-0.6))){ addShot(o,d,22,7,t.dmg,'arrow',true); m.atk=0.3; sfx('bow'); } else m.shootT=0.6; } }
     else if(chase){ if(dist>reach*0.85){ mx=dx/dist; mz=dz/dist; } }
     else { m.wT-=dt; if(m.wT<=0){ m.wT=2+rand()*3; if(rand()<0.4)m.wander=[0,0]; else { const a=rand()*6.28; m.wander=[Math.sin(a)*0.5,Math.cos(a)*0.5]; } } mx=m.wander[0]; mz=m.wander[1]; }
+    if(m.home!==undefined&&(mx||mz)&&!safeGround(m.p[0]+mx*0.9,m.p[1],m.p[2]+mz*0.9)){ mx=0; mz=0; }
     if(t.hop){
       if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=env.water?4:7; m.mv=[mx*t.spd*1.4,mz*t.spd*1.4]; m.hopT=0.5+rand()*0.6; } }
     } else m.mv=[mx*t.spd,mz*t.spd];
@@ -1223,7 +1482,7 @@ function updateMobs(dt){
     if(t.climb && m.wall && (mx||mz)) m.v[1]=4;
     if(t.hop && m.wall && !m.onGround) {}
     m.cd-=dt;
-    if(chase && !t.archer && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
+    if(chase && (!t.archer||m.home!==undefined) && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
     // visuals
     if(chase||m.perched) m.yaw=Math.atan2(-dx,-dz); else if(mx||mz) m.yaw=Math.atan2(-mx,-mz);
     const g=m.g; g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
@@ -1241,8 +1500,8 @@ function updateMobs(dt){
   // spawning
   spawnT-=dt;
   if(spawnT<=0){ spawnT=2.5;
-    if(mobsOn && !dead && mobs.filter(m=>m.t.flyer).length<3 && rand()<0.35) spawnFlyer();
-    if(mobsOn && mobs.filter(m=>!m.t.flyer).length<6 && !dead){
+    if((mobsOn||mode==='corners') && !dead && mobs.filter(m=>m.t.flyer).length<3 && rand()<0.35) spawnFlyer();
+    if(mode==='survival' && mobsOn && mobs.filter(m=>!m.t.flyer).length<6 && !dead){
       for(let a=0;a<8;a++){
         const ang=rand()*6.28, r=14+rand()*14, x=Math.floor(pl.p[0]+Math.sin(ang)*r), z=Math.floor(pl.p[2]+Math.cos(ang)*r);
         if(x<1||z<1||x>=W-1||z>=D-1)continue; if(Math.hypot(x-MX,z-MZ)<12)continue;
@@ -1333,7 +1592,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
 
@@ -1392,15 +1651,13 @@ graniteTex=tileTex('granite'); lavaTex=tileTex('lava');
 { const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d'); const r=mulberry32(7);
   for(let yy=0;yy<16;yy++)for(let xx=0;xx<16;xx++){ const v=0.8+r()*0.35; x.fillStyle='rgb('+cl(120*v)+','+cl(88*v)+','+cl(55*v)+')'; x.fillRect(xx,yy,1,1); }
   mudTex=new THREE.CanvasTexture(c); mudTex.magFilter=mudTex.minFilter=THREE.NearestFilter; mudTex.generateMipmaps=false; }
-if(!load()) generate((Math.random()*1e9)|0);
-edgeOpen=true; unstick(pl); edgeOpen=false; rebuildAll();
-select(sel,false); refreshWeapon(); updateHUD();
+if(!loadCurrent()) startSurvival();
 $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
-if(!seen) openMenu();
+if(!seen) openMenu(); else if(cg&&cg.over) fcEnd(cg.over==='win');
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, startCorners, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
