@@ -139,6 +139,7 @@
 <div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div><div id="tgHud"></div></div>
 <div id="looking" class="ui"></div>
 <div id="top" class="ui">
+  <div class="tbtn" id="bArrow" style="display:none">🏹</div>
   <div class="tbtn" id="bWeapon">✊ Fists</div>
   <div class="tbtn" id="bCam">👁 1st</div>
   <div class="tbtn" id="bFly">🪽</div>
@@ -561,7 +562,8 @@ const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamo
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
 let webbed=0, invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
-let mode='survival', cg=null, tgm=null; // tgm = Targets match state // cg = Four Corners game state
+let mode='survival', cg=null, tgm=null;
+const ARROW_KEYS=['explode','fire','split','seek']; let arrows={explode:0,fire:0,split:0,seek:0}, arrowSel='normal', lastOffer=0; // tgm = Targets match state // cg = Four Corners game state
 const placed=new Set(); // blocks the player built (troll rocks can smash these)
 
 // ================= SAVE =================
@@ -570,13 +572,14 @@ function rleEncode(a){ const out=[]; let v=a[0],n=1; for(let i=1;i<a.length;i++)
 function rleDecode(r){ const a=new Uint8Array(N); let p=0; for(let i=0;i<r.length;i+=2){ a.fill(r[i],p,p+r[i+1]); p+=r[i+1]; } return a; }
 let saveTimer=null;
 const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between survival worlds
-function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,
+function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,arrows,arrowSel,
   cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed],lay:cg.lay||1}:null,
   apples:appleTrees.map(t=>({x:t.x,ty:t.ty,z:t.z,c:t.cand,g:Math.round(t.grow),s:t.slots.map(sl=>[sl.c,sl.st,Math.round(sl.t)])})),
   tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,rs:tgm.rs,wins:tgm.wins,boost:tgm.boost,out:tgm.out,last:tgm.last,rvhp:rv.hp,phase:tgm.phase,rv:rv.p.slice()}:null}; }
-function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon})); }catch(e){} }
+function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon,arrows})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
 function validSave(s){ return !!s&&(s.v===2||s.v===3)&&Array.isArray(s.w)&&Array.isArray(s.m)&&Array.isArray(s.p); }
+function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof a==='object') for(const k of ARROW_KEYS)o[k]=Math.max(0,a[k]|0); return o; }
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
@@ -586,7 +589,7 @@ function applySnapshot(s){
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
   hp=Math.max(1,Math.min(MAXHP,s.hp|0)); coins=s.coins|0; owned=cleanOwned(s.owned);
   const sw=s.weapon==='flint'||s.weapon==='slingshot'?'boomerang':s.weapon; weapon=owned.includes(sw)?sw:'fists'; mobsOn=s.mobsOn!==false;
-  webbed=0; dead=false; burning=0; invuln=0;
+  webbed=0; dead=false; burning=0; invuln=0; arrows=cleanArrows(s.arrows); arrowSel=ARROW_KEYS.includes(s.arrowSel)&&arrows[s.arrowSel]>0?s.arrowSel:'normal';
   if(mode==='corners'){ const c=s.cg||{}; cg={sp:Array.isArray(c.sp)?c.sp.slice(0,4):[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:c.bedHP===undefined?FC.BED_HP:c.bedHP,
       inv:c.inv||{},wings:+c.wings||0,over:c.over||null,spT:[0,4,6,8],lay:c.lay===2?2:1}; setLayout(cg.lay); for(const i of (c.placed||[]))placed.add(i); }
   else cg=null;
@@ -822,6 +825,7 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='throw'){ tone('triangle',500,180,0.1,0.12); noise(1800,0.06,0.15,'highpass'); }
   else if(k==='web'){ noise(5000,0.25,0.12,'highpass'); tone('sine',900,500,0.15,0.05); }
   else if(k==='screech'){ tone('sawtooth',1500,900,0.25,0.07); tone('square',1800,1100,0.2,0.04,0.05); }
+  else if(k==='boom'){ noise(200,0.6,0.7,'lowpass'); tone('sawtooth',90,30,0.5,0.25); }
   else if(k==='glass'){ noise(6000,0.35,0.3,'highpass'); tone('triangle',2400,1800,0.12,0.06); tone('triangle',3200,2600,0.1,0.05,0.05); }
   else if(k==='spear'){ noise(1200,0.18,0.12,'bandpass'); tone('triangle',300,150,0.12,0.08); }
   else if(k==='rock'){ tone('sine',140,60,0.25,0.25); noise(300,0.2,0.2,'lowpass'); }
@@ -917,6 +921,7 @@ function shoot(w){
     const aim=aimMob?new THREE.Vector3(aimMob.p[0],aimMob.p[1]+aimMob.h*0.5,aimMob.p[2]):camera.position.clone().addScaledVector(d,30);
     d.copy(aim.sub(o).normalize()); }
   if(w.boomer){ throwBoomerang(o,d,w); return; }
+  if(weapon==='bow'&&mode!=='targets'&&arrowSel!=='normal'&&arrows[arrowSel]>0){ fireSpecial(arrowSel,o,d,w); return; }
   const sh=addShot(o,d,w.spd,w.grav,w.dmg,'arrow',false); if(mode==='targets')sh.owner='you';
   sfx('bow');
 }
@@ -953,6 +958,8 @@ function boxHit(e,x,y,z,pad){ return x>e.p[0]-e.hw-pad&&x<e.p[0]+e.hw+pad&&z>e.p
 function updateShots(dt){
   for(const s of shots.slice()){
     s.life-=dt; if(s.life<=0){ freeShot(s); continue; }
+    if(s.sp==='seek')steerSeek(s,dt);
+    if(s.sp==='fire'&&rand()<0.6) burst(s.p[0]-0.5,s.p[1]-0.5,s.p[2]-0.5,new THREE.Color(1,.5,.1),1);
     s.v[1]-=s.grav*dt; let hit=false;
     const steps=4; for(let k=0;k<steps&&!hit;k++){
       const px0=s.p[0],py0=s.p[1],pz0=s.p[2];
@@ -960,17 +967,17 @@ function updateShots(dt){
       const [x,y,z]=s.p;
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
-      if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); break; }
+      if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
         if(bid===ID.bed&&(s.kind==='rock'||s.kind==='spear')) damageBed(s.kind==='rock'?'A Troll\'s rock':'An Orc\'s spear');
         else if(s.kind==='rock'&&placed.has(idx(bx,by,bz))){ setBlock(bx,by,bz,0); burst(bx,by,bz,B[bid].avg,10); sfx('break'); } }
-      if(solidAt(bx,by,bz)){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
+      if(solidAt(bx,by,bz)){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); if(s.sp&&!s.fromMob)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(s.owner) continue; // Targets arrows pass through bodies: only a bullseye, the ground or a wall stops them
       if(s.fromMob&&mode==='targets'&&tgm&&boxHit(rv,x,y,z,0.15)){ hit=true; const l=Math.hypot(s.v[0],s.v[2])||1; hurtVictim(rv,1,s.v[0]/l*0.6,s.v[2]/l*0.6,'monster'); break; }
       if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.15)){ hit=true;
         if(s.kind==='web'&&mode==='targets') hurtPlayer(1,0,0,'A Spider web');
         else if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,s.kind==='spear'?'An Orc\'s spear':s.kind==='rock'?'A Troll\'s rock':'A Skeleton\'s arrow'); } } }
-      else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
+      else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); if(s.sp)specialImpact(s,m,x,y,z,px0,py0,pz0); break; } }
     }
     if(hit){ freeShot(s); continue; }
     s.mesh.position.set(s.p[0],s.p[1],s.p[2]);
@@ -992,6 +999,7 @@ function damageMob(m,dmg,dx,dz,kb){
 function killMob(m){
   const c=m.t.coins, n=c[0]+Math.floor(rand()*(c[1]-c[0]+1));
   if(mode==='survival')dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
+  if(mode==='corners'){ const c=FC_COIN[m.type]||0; if(c){ coins+=c; updateHUD(); sfx('coin'); toast('🪙 +'+c+' coins for the '+m.t.name+'!'); queueSave(); checkArrowOffer(); } }
   if(mode==='corners'&&m.type==='griffin'&&cg){ cg.wings=FC.WINGS; setFly(true,false); updateFCHud(); toast('🪽 You won griffin wings! Fly for 90 seconds. Go attack a cave!'); }
   const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):m.type==='orc'?new THREE.Color(.37,.6,.23):m.type==='troll'?new THREE.Color(.5,.54,.42):new THREE.Color(.45,.32,.2);
   burst(m.p[0]-0.5,m.p[1],m.p[2]-0.5,col,14);
@@ -1123,7 +1131,7 @@ bindHold($('bPlace'),()=>{ if(paused)return; placeHeld=!aimNPC; placeAction(); r
 bindHold($('bJump'),()=>upHeld=true,()=>upHeld=false);
 bindHold($('bDown'),()=>downHeld=true,()=>downHeld=false);
 function tap(el,fn){ el.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();audioInit();fn();},{passive:false}); el.addEventListener('click',fn); }
-tap($('bCam'),toggleCam); tap($('bFly'),toggleFly); tap($('bWeapon'),cycleWeapon);
+tap($('bCam'),toggleCam); tap($('bFly'),toggleFly); tap($('bWeapon'),cycleWeapon); tap($('bArrow'),()=>openArrows(false));
 tap($('bInfo'),()=>showCard(sel,true)); tap($('bMenu'),openMenu); tap($('bTalk'),openShop);
 $('card').addEventListener('click',()=>$('card').style.display='none');
 $('card').addEventListener('touchstart',e=>{e.preventDefault();$('card').style.display='none';},{passive:false});
@@ -1131,7 +1139,7 @@ $('card').addEventListener('touchstart',e=>{e.preventDefault();$('card').style.d
 window.addEventListener('keydown',e=>{
   if(paused)return; keys[e.code]=true;
   if(e.code==='KeyV')toggleCam(); if(e.code==='KeyF')toggleFly(); if(e.code==='KeyI')showCard(sel,true);
-  if(e.code==='KeyQ')cycleWeapon(); if(e.code==='KeyE'&&nearMerchant())openShop();
+  if(e.code==='KeyQ')cycleWeapon(); if(e.code==='KeyR'&&arrowsAllowed())openArrows(false); if(e.code==='KeyE'&&nearMerchant())openShop();
   if(e.code.startsWith('Digit')){ const n=parseInt(e.code.slice(5)); const list=order(); if(n>=1&&n<=9&&list[n-1])select(list[n-1]); }
   if(e.code==='Space')e.preventDefault();
 });
@@ -1189,7 +1197,7 @@ function updateViewRange(dt){ // fog thins out as you fly away so the whole land
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
   const fc=mode==='corners'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+function cycleWeapon(){ if(mode==='targets'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1203,6 +1211,7 @@ function helpHTML(){
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
   '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
+  '<h3>🏹 Special arrows</h3><ul><li>With the Bow & Arrow you can buy special arrows from Flint, or tap the 🏹 button any time: 💥 Exploding (25 coins for 1), 🔥 Fire (10 for 3), 🔱 Splitting (5 for 5), 🎯 Auto-aim (5 for 3)</li><li>Every time you pass another 5 coins, you get offered arrows</li></ul>'+
   '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +1 heart</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
@@ -1215,6 +1224,7 @@ function cornersHelp(){
   '<h3>How to lose</h3><ul><li>Monsters that reach your cave attack your <b>🛏️ bed</b>, and troll rocks and orc spears can hit it too. If your bed breaks, you lose</li><li>If you die, you come back at your bed</li></ul>'+
   '<h3>Their attacks</h3><ul><li>💀 Skeletons shoot fast arrows · 👹 Orcs throw slower spears that hurt more · 🧌 Trolls throw slow, heavy rocks that smash the blocks you build</li><li>Watch them fly toward you and dodge!</li></ul>'+
   '<h3>Building</h3><ul><li>Every block you mine goes in your hotbar (the number is how many you have). Build walls to hide behind, or a bridge across the lava. Careful: monsters can walk over your bridge too!</li><li>Under the lava is solid rock. Dig down in your cave and tunnel under the lava to come up inside an enemy cave from behind</li></ul>'+
+  '<h3>Coins and special arrows</h3><ul><li>Defeat monsters for coins: 🦅 eagle 2 · 💀 skeleton 2 · 👹 orc 3 · 🧌 troll 5 · 🦁 griffin 5</li><li>Every time you pass another 5 coins, you get offered special arrows. Or tap the 🏹 button any time: 💥 Exploding (25 coins for 1), 🔥 Fire (10 for 3), 🔱 Splitting (5 for 5), 🎯 Auto-aim (5 for 3)</li><li>An exploding arrow on a spawn block counts as 2 hits</li></ul>'+
   '<h3>Around the valley</h3><ul><li>Black obsidian trails wind across the lava (lava that cooled fast). You can walk on them, but none of them reaches all the way to another corner</li><li>Every corner is a little different. Look for 🍎 apple trees: aim at an apple and tap ⛏ or 🧱 to eat it and heal</li></ul>'+
   '<h3>The sky</h3><ul><li>Defeat a 🦁 griffin to get <b>wings for 90 seconds</b>. Fly over and attack a cave! When the wings wear off, you fall</li><li>Hit an 🦅 eagle and it comes after you</li></ul>'+
   '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit shoots or mines · 🧱 Place builds · the weapon button swaps bow and fists</li><li>Keyboard: WASD, Space, left click hits, right click places, Q swaps weapons</li></ul>';
@@ -1255,14 +1265,16 @@ function openShop(){
       '<button class="ibtn'+(coins<w.price?' dis':'')+'" data-buy="'+w.id+'">🪙 '+w.price+'</button>';
     h+='<div class="item"><div class="ic">'+w.icon+'</div><div class="tx"><b>'+w.name+'</b> <span class="st">⚔ '+w.dmg+' dmg · '+(w.ranged?'ranged':w.cd<0.4?'fast':w.cd>0.7?'slow':'normal')+'</span><div class="fx">'+w.fact+'</div></div>'+btn+'</div>'; }
   h+='<div class="item"><div class="ic">🌿</div><div class="tx"><b>Healing Herbs</b> <span class="st">refills all hearts</span><div class="fx">Aloe and other plants have been used on wounds for thousands of years.</div></div><button class="ibtn'+(coins<6||hp>=MAXHP?' dis':'')+'" data-heal="1">🪙 6</button></div>';
+  h+='<h3>🏹 Special arrows'+(owned.includes('bow')?'':' (you need the Bow & Arrow first)')+'</h3>'+arrowRows();
   h+='<div class="row"><button class="mbtn" id="mBye">Thanks, Flint!</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   tap($('mBye'),closeMenu);
   $('mbox').querySelectorAll('[data-buy]').forEach(b=>tap(b,()=>{ const w=WP[b.dataset.buy];
     if(coins<w.price){ toast('Not enough coins. Go fight some monsters!'); return; }
-    coins-=w.price; owned.push(w.id); weapon=w.id; refreshWeapon(); updateHUD(); sfx('buy'); queueSave(); openShop(); }));
+    coins-=w.price; owned.push(w.id); weapon=w.id; refreshWeapon(); refreshArrowBtn(); updateHUD(); sfx('buy'); queueSave(); openShop(); }));
   $('mbox').querySelectorAll('[data-eq]').forEach(b=>tap(b,()=>{ weapon=b.dataset.eq; refreshWeapon(); queueSave(); openShop(); }));
   $('mbox').querySelectorAll('[data-heal]').forEach(b=>tap(b,()=>{ if(coins<6||hp>=MAXHP)return; coins-=6; hp=MAXHP; updateHUD(); sfx('buy'); queueSave(); openShop(); }));
+  bindArrowRows(openShop);
 }
 
 // ================= SAVE SLOTS & FILES =================
@@ -1336,15 +1348,16 @@ function openNewGame(){
 // ================= GAME MODES =================
 function clearEntities(){ clearApples(); clearGlass(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='survival'?'':'none';
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='targets'?'none':'';
+  lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); document.body.classList.toggle('tg',mode==='targets'); viewF=-1; updateViewRange(0); updateFCHud(); }
-function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists'}; } }catch(e){}
-  return {coins:0,owned:['fists'],weapon:'fists'}; }
+function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists',arrows:cleanArrows(k.arrows)}; } }catch(e){}
+  return {coins:0,owned:['fists'],weapon:'fists',arrows:cleanArrows()}; }
 function startSurvival(){
-  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon}:loadKit();
+  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon,arrows:{...arrows}}:loadKit();
   clearEntities(); mode='survival'; cg=null; placed.clear(); generate((Math.random()*1e9)|0);
-  coins=kit.coins; owned=kit.owned; weapon=kit.weapon; hp=MAXHP; webbed=0; dead=false; burning=0;
+  coins=kit.coins; owned=kit.owned; weapon=kit.weapon; arrows=cleanArrows(kit.arrows); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0;
   pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.2; setFly(false,false); unstick(pl);
   applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow();
 }
@@ -1434,7 +1447,7 @@ function generateCorners(s){
 function spawnAtBed(){ const c=FCC[0]; pl.p=[c.center[0],FC.FLOOR+0.01,c.center[1]]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=Math.atan2(-c.dir[0],-c.dir[1]); pitch=-0.05; }
 function startCorners(){
   clearEntities(); mode='corners'; generateCorners((Math.random()*1e9)|0);
-  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0; coins=0; arrows=cleanArrows(); arrowSel='normal';
   spawnAtBed(); setFly(false,false); applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud(); saveNow();
   toast('🏰 Four Corners! Break the 3 enemy spawn blocks and keep your bed safe.');
 }
@@ -1489,6 +1502,59 @@ function updateCorners(dt){ if(mode!=='corners'||!cg)return;
     if(mobs.filter(m=>m.home===i).length>=3)continue;
     const c=FCC[i], m=spawnMob(FC_TEAM[i],c.back[0]+c.dir[0]*1.8,FC.FLOOR+0.01,c.back[1]+c.dir[1]*1.8); m.home=i; m.cd=1; }
 }
+
+// ================= SPECIAL ARROWS =================
+const FC_COIN={eagle:2,skeleton:2,orc:3,troll:5,griffin:5};
+const ARROWS={explode:{name:'Exploding arrow',icon:'💥',price:25,qty:1,desc:'Blows up where it lands, hurting every monster nearby and blasting a hole.'},
+  fire:{name:'Fire arrow',icon:'🔥',price:10,qty:3,desc:'Sets a monster on fire so it keeps burning, and lights up wood and grass.'},
+  split:{name:'Splitting arrow',icon:'🔱',price:5,qty:5,desc:'Splits into 3 arrows as it leaves your bow.'},
+  seek:{name:'Auto-aim arrow',icon:'🎯',price:5,qty:3,desc:'Curves toward the nearest monster in front of you.'}};
+const arrowsAllowed=()=>mode!=='targets'&&owned.includes('bow');
+function refreshArrowBtn(){ const b=$('bArrow'); if(!arrowsAllowed()){ b.style.display='none'; return; } b.style.display='';
+  const t=arrowSel==='normal'?'🏹':ARROWS[arrowSel].icon+arrows[arrowSel]; if(b.textContent!==t)b.textContent=t; b.classList.toggle('on',arrowSel!=='normal'); }
+function arrowRows(){ let h='';
+  h+='<div class="item"><div class="ic">🏹</div><div class="tx"><b>Normal arrows</b><div class="fx">Never run out.</div></div><div class="sbtns">'+(arrowSel==='normal'?'<button class="ibtn eq" disabled>Using</button>':'<button class="ibtn eq" data-ause="normal">Use</button>')+'</div></div>';
+  for(const k of ARROW_KEYS){ const a=ARROWS[k], n=arrows[k];
+    h+='<div class="item"><div class="ic">'+a.icon+'</div><div class="tx"><b>'+a.name+'</b> <span class="st">you have '+n+'</span><div class="fx">'+a.desc+'</div></div><div class="sbtns">'+
+      (n>0?(arrowSel===k?'<button class="ibtn eq" disabled>Using</button>':'<button class="ibtn eq" data-ause="'+k+'">Use</button>'):'')+
+      '<button class="ibtn'+(coins<a.price||!owned.includes('bow')?' dis':'')+'" data-abuy="'+k+'">🪙 '+a.price+' → '+a.qty+'</button></div></div>'; }
+  return h; }
+function bindArrowRows(again){
+  $('mbox').querySelectorAll('[data-abuy]').forEach(b=>tap(b,()=>{ const k=b.dataset.abuy, a=ARROWS[k];
+    if(!owned.includes('bow')){ toast('You need the Bow & Arrow first!'); return; }
+    if(coins<a.price){ toast('Not enough coins yet!'); return; }
+    coins-=a.price; arrows[k]+=a.qty; arrowSel=k; lastOffer=Math.floor(coins/5); weapon='bow'; refreshWeapon();
+    updateHUD(); refreshArrowBtn(); sfx('buy'); toast(a.icon+' +'+a.qty+' '+a.name+(a.qty>1?'s':'')+'! Ready on your bow.'); queueSave(); again(); }));
+  $('mbox').querySelectorAll('[data-ause]').forEach(b=>tap(b,()=>{ arrowSel=b.dataset.ause; if(arrowSel!=='normal'){ weapon='bow'; refreshWeapon(); } refreshArrowBtn(); queueSave(); again(); })); }
+function openArrows(offer){ if(!arrowsAllowed())return; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
+  $('mbox').innerHTML='<h2>'+(offer?'🪙 You have '+coins+' coins!':'🏹 Arrows')+'</h2><div class="say">'+(offer?'Want to trade them for better arrows?':'Pick which arrows your bow shoots, or buy more. You have 🪙 '+coins+'.')+'</div>'+arrowRows()+
+    '<div class="row"><button class="mbtn'+(offer?' gray':'')+'" id="aClose">'+(offer?'Later':'Back to the game')+'</button></div>';
+  $('modal').style.display='flex'; bindArrowRows(()=>openArrows(offer)); tap($('aClose'),closeMenu); }
+function checkArrowOffer(){ const lvl=Math.floor(coins/5); if(lvl<=lastOffer){ return; } lastOffer=lvl;
+  if(!arrowsAllowed()||dead||paused||$('modal').style.display==='flex')return; if(!ARROW_KEYS.some(k=>coins>=ARROWS[k].price))return; openArrows(true); }
+function fireSpecial(k,o,d,w){ arrows[k]--; const tint={explode:0xff3322,fire:0xff8a1a,split:0xe0e0ff,seek:0x33e0ff}[k];
+  const mk=(dir)=>{ const sh=addShot(o.clone(),dir,w.spd,w.grav,w.dmg,'arrow',false); sh.sp=k; sh.mesh.traverse(x=>{ if(x.material&&x!==sh.mesh.children[0])x.material=new THREE.MeshBasicMaterial({color:tint}); }); if(k==='seek')sh.grav=2; return sh; };
+  if(k==='split'){ for(const a of [-0.12,0,0.12]){ const c=Math.cos(a), s2=Math.sin(a); mk(new THREE.Vector3(d.x*c-d.z*s2,d.y,d.x*s2+d.z*c).normalize()); } }
+  else mk(d);
+  sfx('bow'); if(arrows[k]<=0){ arrowSel='normal'; toast('That was your last '+ARROWS[k].name+'. Back to normal arrows.'); }
+  refreshArrowBtn(); queueSave(); }
+function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
+  if(!s.tgt||!mobs.includes(s.tgt)){ s.tgt=null; let best=1e9; for(const m of mobs){ const dx=m.p[0]-s.p[0], dy=m.p[1]+m.h*0.5-s.p[1], dz=m.p[2]-s.p[2], d=Math.hypot(dx,dy,dz);
+      if(d>35)continue; if((dx*s.v[0]+dy*s.v[1]+dz*s.v[2])/(d*sp)<0.35)continue; if(d<best){ best=d; s.tgt=m; } } }
+  if(!s.tgt)return; const m=s.tgt, dx=m.p[0]-s.p[0], dy=m.p[1]+m.h*0.5-s.p[1], dz=m.p[2]-s.p[2], d=Math.hypot(dx,dy,dz)||1, k=Math.min(1,dt*7);
+  s.v[0]+=(dx/d*sp-s.v[0])*k; s.v[1]+=(dy/d*sp-s.v[1])*k; s.v[2]+=(dz/d*sp-s.v[2])*k; }
+function specialImpact(s,m,x,y,z,x0,y0,z0){
+  if(s.sp==='fire'){ if(m){ if(!m.t.fireproof){ m.fireT=4; m.burnT=0; } } else { const fx=Math.floor(x0),fy=Math.floor(y0),fz=Math.floor(z0); if(get(fx,fy,fz)===0)tryIgnite(fx,fy,fz); } sfx('sizzle'); }
+  else if(s.sp==='explode') explodeAt(x,y,z); }
+function explodeAt(x,y,z){ sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
+  for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<3.4&&mobs.includes(m)) damageMob(m,Math.round(2+9*(1-d/3.4)),m.p[0]-x,m.p[2]-z,9); }
+  const pd=Math.hypot(pl.p[0]-x,pl.p[1]+0.9-y,pl.p[2]-z); if(pd<2.2){ const l=Math.hypot(pl.p[0]-x,pl.p[2]-z)||1; hurtPlayer(1,(pl.p[0]-x)/l,(pl.p[2]-z)/l,'Your own explosion'); }
+  const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z);
+  for(let dx=-2;dx<=2;dx++)for(let dy=-2;dy<=2;dy++)for(let dz=-2;dz<=2;dz++){ if(dx*dx+dy*dy+dz*dz>3.2)continue; const bx=cx+dx,by=cy+dy,bz=cz+dz; if(by<=0||!inB(bx,by,bz))continue;
+    const id=get(bx,by,bz); if(!id||B[id].fluid||id===ID.fire)continue;
+    if(mode==='corners'){ const si=FC_SPAWNER.indexOf(B[id].key); if(si>0){ hitSpawner(si,bx,by,bz); if(cg&&cg.sp[si]>0)hitSpawner(si,bx,by,bz); continue; } if(id===ID.bed)continue; }
+    if(B[id].hidden)continue; setBlock(bx,by,bz,0); }
+  queueSave(); }
 
 // ================= APPLE TREES =================
 // Blossoms appear one at a time (every 30 s, up to 5 per tree) and ripen into apples you can pick to heal.
@@ -1643,9 +1709,9 @@ function rivalSkill(){ const d=TG_DIFF[tgm.diff], b=Math.min(2,tgm.boost||0); le
   if(tgm.round===5){ err+=0.7; wait*=1.7; } // gives you a fair shot at the glass
   return {err,wait}; }
 function startTargets(diff,len){
-  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon}:null; if(kit)try{ localStorage.setItem(KIT_KEY,JSON.stringify(kit)); }catch(e){}
+  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon,arrows:{...arrows}}:null; if(kit)try{ localStorage.setItem(KIT_KEY,JSON.stringify(kit)); }catch(e){}
   clearEntities(); mode='targets'; cg=null; placed.clear(); generate((Math.random()*1e9)|0);
-  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0; arrows=cleanArrows(); arrowSel='normal';
   pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.1; unstick(pl);
   tgm=newTgm(diff,len);
   rv.p=[CX+3.5,SPAWN_H,CZ+2.5]; rv.v=[0,0,0]; rv.kb=[0,0,0]; edgeOpen=false; unstick(rv);
@@ -1814,7 +1880,8 @@ function updateMobs(dt){
     if(m.home===undefined&&Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2])>(t.flyer?60:48)){ removeMob(m); continue; }
     if(!m.climbing&&boxHits(m.p[0],m.p[1],m.p[2],m.hw,m.h)) m.p[1]+=1;
     const env=envAt(m);
-    if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
+    if(m.fireT>0){ m.fireT-=dt; if(rand()<0.3)burst(m.p[0]-0.5,m.p[1]+m.h*0.5-0.5,m.p[2]-0.5,new THREE.Color(1,.45,.05),1); }
+    if(!t.fireproof && (env.lava||env.fire||m.fireT>0)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
     if(t.flyer){ updateFlyer(m,dt); continue; }
     const fights=mode!=='targets'||(tgm&&tgm.round===3&&tgm.phase==='play'&&!victimOut);
     let mx=0,mz=0; let chase=fights&&dist<22&&!dead&&Math.abs(dy)<8;
@@ -1946,7 +2013,7 @@ function updateDrops(dt){
   for(let i=drops.length-1;i>=0;i--){ const c=drops[i];
     c.life-=dt; if(c.life<=0){ scene.remove(c.m); drops.splice(i,1); continue; }
     const dx=pl.p[0]-c.p[0], dy=(pl.p[1]+0.8)-c.p[1], dz=pl.p[2]-c.p[2], d=Math.hypot(dx,dy,dz);
-    if(d<0.9&&!dead){ coins++; updateHUD(); sfx('coin'); scene.remove(c.m); drops.splice(i,1); queueSave(); continue; }
+    if(d<0.9&&!dead){ coins++; updateHUD(); sfx('coin'); scene.remove(c.m); drops.splice(i,1); queueSave(); checkArrowOffer(); continue; }
     if(d<5&&c.life<59.4){ c.p[0]+=dx/d*8*dt; c.p[1]+=dy/d*8*dt; c.p[2]+=dz/d*8*dt; }
     else { c.v[1]-=20*dt; c.p[0]+=c.v[0]*dt; c.p[2]+=c.v[2]*dt; c.p[1]+=c.v[1]*dt; c.v[0]*=0.96; c.v[2]*=0.96;
       if(c.v[1]<0 && solidAt(Math.floor(c.p[0]),Math.floor(c.p[1]-0.2),Math.floor(c.p[2]))){ c.p[1]=Math.floor(c.p[1]-0.2)+1.2; c.v=[0,0,0]; }
@@ -2021,7 +2088,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
