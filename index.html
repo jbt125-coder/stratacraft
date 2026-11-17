@@ -21,6 +21,13 @@
   #web{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background-size:cover;background-position:center}
   #webCount{display:none;margin-top:5px;margin-left:6px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:15px;color:#eee}
   #fcHud{display:none;margin-top:5px;background:rgba(20,24,32,.6);padding:3px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff}
+  #tgHud{display:none;margin-top:5px;background:rgba(20,24,32,.7);padding:4px 10px;border-radius:10px;font-weight:800;font-size:14px;color:#fff;line-height:1.35}
+  #tgHud .you{color:#7fe3cf}#tgHud .ai{color:#ff9d8a}#tgHud .tm{color:#ffd84a}
+  .seg{display:flex;gap:6px;margin-top:6px}.seg button{flex:1;height:38px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#232a39;color:#fff;font-weight:800;font-size:14px}
+  .seg button.on{background:#ffcf4a;color:#111;border-color:#ffcf4a}
+  .board{display:flex;gap:10px;margin-top:10px}.board div{flex:1;background:#232a39;border-radius:12px;padding:8px;text-align:center;font-weight:800}
+  .board .n{font-size:30px}
+  body.tg #looking{display:none!important}
   .slot .cnt{position:absolute;top:1px;left:4px;font-size:12px;font-weight:900;text-shadow:0 1px 2px #000,0 0 3px #000}
   .slot.empty canvas{opacity:.3}
   .ibtn.gray{background:#c9ced8}
@@ -129,7 +136,7 @@
 <div id="tint"></div><div id="hurt"></div><div id="web"></div><div id="burn"></div>
 <div id="touch"></div>
 <div id="cross" class="ui"></div>
-<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div></div>
+<div id="hud" class="ui"><div id="hearts"></div><div id="coins">🪙 0</div><div id="webCount"></div><div id="fcHud"></div><div id="tgHud"></div></div>
 <div id="looking" class="ui"></div>
 <div id="top" class="ui">
   <div class="tbtn" id="bWeapon">✊ Fists</div>
@@ -553,7 +560,7 @@ const WEAPON_IDS=['fists','boomerang','obsidian','bow','granite','quartz','diamo
 const MAXHP=10; let hp=MAXHP, coins=0, owned=['fists'], weapon='fists', mobsOn=true;
 let webbed=0, invuln=0, sinceHurt=99, regenT=0, burning=0, burnT=0, envT=0, dead=false, paused=false;
 const EYE=1.62;
-let mode='survival', cg=null; // cg = Four Corners game state
+let mode='survival', cg=null, tgm=null; // tgm = Targets match state // cg = Four Corners game state
 const placed=new Set(); // blocks the player built (troll rocks can smash these)
 
 // ================= SAVE =================
@@ -563,14 +570,15 @@ function rleDecode(r){ const a=new Uint8Array(N); let p=0; for(let i=0;i<r.lengt
 let saveTimer=null;
 const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between survival worlds
 function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,
-  cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed]}:null}; }
+  cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed]}:null,
+  tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,phase:tgm.phase,rv:rv.p.slice()}:null}; }
 function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
 function validSave(s){ return !!s&&(s.v===2||s.v===3)&&Array.isArray(s.w)&&Array.isArray(s.m)&&Array.isArray(s.p); }
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=s.mode==='corners'?'corners':'survival';
+  mode=s.mode==='corners'?'corners':s.mode==='targets'?'targets':'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -580,8 +588,11 @@ function applySnapshot(s){
   if(mode==='corners'){ const c=s.cg||{}; cg={sp:Array.isArray(c.sp)?c.sp.slice(0,4):[0,FC.SPAWN_HP,FC.SPAWN_HP,FC.SPAWN_HP],bedHP:c.bedHP===undefined?FC.BED_HP:c.bedHP,
       inv:c.inv||{},wings:+c.wings||0,over:c.over||null,spT:[0,4,6,8]}; for(const i of (c.placed||[]))placed.add(i); }
   else cg=null;
+  if(mode==='targets'){ const t=s.tgm||{}; tgm={round:Math.min(5,Math.max(1,t.round|0||1)),len:t.len||120,time:t.time===undefined?(t.len||120):t.time,diff:TG_DIFF[t.diff]?t.diff:'medium',
+      score:Array.isArray(t.score)?t.score.slice(0,2):[0,0],phase:t.phase==='done'?'done':'intro'}; rv.p=Array.isArray(t.rv)?t.rv.slice():[CX+3.5,SPAWN_H,CZ+2.5]; }
+  else tgm=null;
   for(let i=0;i<N;i++){ const id=world[i]; if(id===ID.fire)world[i]=0; else if(id===ID.lava)lavaSet.add(i); }
-  setFly(!!s.fly&&(mode==='survival'||cg.wings>0),false);
+  setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&tgm.round===2)),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
@@ -765,7 +776,7 @@ function mobModel(type){
 const mobs=[];
 function spawnMob(type,x,y,z){ const t=MOBT[type]; let made;
   const m={type,t,p:[x,y,z],v:[0,0,0],kb:[0,0,0],hw:t.hw,h:t.h,hp:t.hp,cd:0.8,hopT:rand(),flash:0,yaw:rand()*6,wander:[0,0],wT:0,burnT:0,atk:0,phase:0,onGround:false,mv:[0,0],g:mobModel(type)};
-  scene.add(m.g.root); mobs.push(m); made=m; return made; }
+  scene.add(m.g.root); mobs.push(m); made=m; if(mode==='targets')addTarget(m); return made; }
 function removeMob(m){ scene.remove(m.g.root); m.g.root.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); mobs.splice(mobs.indexOf(m),1); }
 
 // --- coins
@@ -862,6 +873,8 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
+  if(mode==='targets'){ // bow only, one arrow in the air at a time
+    if(!tgm||tgm.phase!=='play'||atkCd>0||shots.some(s=>s.owner==='you'))return; if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); return; }
   const w=WP[weapon];
   if(w.ranged){ if((aimMob||!target)){ if(atkCd<=0&&!(w.boomer&&boom))shoot(w); return; } }
   else if(aimMob){ if(atkCd<=0) attackMob(aimMob); return; }
@@ -883,7 +896,7 @@ function rockMesh(){ const g=new THREE.Group(); g.add(box(0.44,0.4,0.42,rockMat)
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function addShot(o,d,spd,grav,dmg,kind,fromMob){
   const mesh=kind==='web'?webMesh():kind==='spear'?spearMesh():kind==='rock'?rockMesh():arrowMesh(fromMob); scene.add(mesh);
-  shots.push({p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}); }
+  const sh={p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}; shots.push(sh); return sh; }
 function shoot(w){
   atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
   if(camMode===3){ o.set(pl.p[0],pl.p[1]+EYE-0.1,pl.p[2]).addScaledVector(d,0.5);
@@ -891,7 +904,7 @@ function shoot(w){
     const aim=aimMob?new THREE.Vector3(aimMob.p[0],aimMob.p[1]+aimMob.h*0.5,aimMob.p[2]):camera.position.clone().addScaledVector(d,30);
     d.copy(aim.sub(o).normalize()); }
   if(w.boomer){ throwBoomerang(o,d,w); return; }
-  addShot(o,d,w.spd,w.grav,w.dmg,'arrow',false);
+  const sh=addShot(o,d,w.spd,w.grav,w.dmg,'arrow',false); if(mode==='targets')sh.owner='you';
   sfx('bow');
 }
 // --- boomerang: flies out, curves, comes back to the player's hand
@@ -921,23 +934,29 @@ function updateBoomerang(dt){
   b.wT-=dt; if(b.wT<=0){ b.wT=0.18; sfx('whoosh'); }
 }
 function refreshHeld(){ const away=!!boom&&weapon==='boomerang'; tpWeapon.visible=!away; fpWeapon.visible=!away; }
-function freeShot(s){ scene.remove(s.mesh); s.mesh.traverse(o=>{ if(o.userData.own)o.geometry.dispose(); }); shots.splice(shots.indexOf(s),1); }
+function freeShot(s){ if(s.owner&&!s.scored&&mode==='targets'&&tgm&&tgm.phase==='play') tgPopup('Miss',s.owner==='you'?'#cfd6e4':'#ffb3a6',s.p);
+  scene.remove(s.mesh); s.mesh.traverse(o=>{ if(o.userData.own)o.geometry.dispose(); }); shots.splice(shots.indexOf(s),1); }
 function boxHit(e,x,y,z,pad){ return x>e.p[0]-e.hw-pad&&x<e.p[0]+e.hw+pad&&z>e.p[2]-e.hw-pad&&z<e.p[2]+e.hw+pad&&y>e.p[1]-pad&&y<e.p[1]+e.h+pad; }
 function updateShots(dt){
   for(const s of shots.slice()){
     s.life-=dt; if(s.life<=0){ freeShot(s); continue; }
     s.v[1]-=s.grav*dt; let hit=false;
     const steps=4; for(let k=0;k<steps&&!hit;k++){
+      const px0=s.p[0],py0=s.p[1],pz0=s.p[2];
       s.p[0]+=s.v[0]*dt/steps; s.p[1]+=s.v[1]*dt/steps; s.p[2]+=s.v[2]*dt/steps;
       const [x,y,z]=s.p;
+      if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
         if(bid===ID.bed&&(s.kind==='rock'||s.kind==='spear')) damageBed(s.kind==='rock'?'A Troll\'s rock':'An Orc\'s spear');
         else if(s.kind==='rock'&&placed.has(idx(bx,by,bz))){ setBlock(bx,by,bz,0); burst(bx,by,bz,B[bid].avg,10); sfx('break'); } }
       if(solidAt(bx,by,bz)){ hit=true; burst(x-0.5,y-0.5,z-0.5,new THREE.Color(.8,.65,.4),4); sfx('thunk'); break; }
+      if(s.owner) continue; // Targets arrows pass through bodies: only a bullseye, the ground or a wall stops them
+      if(s.fromMob&&mode==='targets'&&tgm&&boxHit(rv,x,y,z,0.15)){ hit=true; const l=Math.hypot(s.v[0],s.v[2])||1; hurtVictim(rv,1,s.v[0]/l*0.6,s.v[2]/l*0.6,'monster'); break; }
       if(s.fromMob){ if(!dead&&boxHit(pl,x,y,z,0.15)){ hit=true;
-        if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,s.kind==='spear'?'An Orc\'s spear':s.kind==='rock'?'A Troll\'s rock':'A Skeleton\'s arrow'); } } }
+        if(s.kind==='web'&&mode==='targets') hurtPlayer(1,0,0,'A Spider web');
+        else if(s.kind==='web') addWeb(); else { const l=Math.hypot(s.v[0],s.v[2])||1; hurtPlayer(s.dmg,s.v[0]/l*0.6,s.v[2]/l*0.6,s.kind==='spear'?'An Orc\'s spear':s.kind==='rock'?'A Troll\'s rock':'A Skeleton\'s arrow'); } } }
       else for(const m of mobs){ if(boxHit(m,x,y,z,0.12)){ hit=true; damageMob(m,s.dmg,s.v[0],s.v[2],4); break; } }
     }
     if(hit){ freeShot(s); continue; }
@@ -951,6 +970,7 @@ function attackMob(m){
   const w=WP[weapon]; atkCd=w.cd; damageMob(m,w.dmg,m.p[0]-pl.p[0],m.p[2]-pl.p[2],weapon==='granite'?9:6);
 }
 function damageMob(m,dmg,dx,dz,kb){
+  if(mode==='targets')return; // in Targets the monsters are only moving targets
   if(m.t.flyer)m.angry=12; m.hp-=dmg; m.flash=0.15; m.g.bar.visible=true; const l=Math.hypot(dx,dz)||1;
   m.kb[0]=dx/l*kb; m.kb[2]=dz/l*kb; if(m.onGround)m.v[1]=4.5;
   sfx('hit'); burst(m.p[0]-0.5,m.p[1]+m.h*0.3,m.p[2]-0.5,new THREE.Color(1,0.3,0.3),5);
@@ -1008,12 +1028,15 @@ function updateWebHUD(){ const c=$('webCount'); c.style.display=webbed?'inline-b
 // ================= PLAYER DAMAGE =================
 let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
-  if(dead||invuln>0)return; hp-=n; invuln=0.45; sinceHurt=0; hurtFlash=0.35; sfx('hurt');
+  if(dead||invuln>0)return;
+  if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point instead of health
+    invuln=0.8; hurtFlash=0.35; sfx('hurt'); if(kx!==undefined){ pl.kb[0]=kx*7; pl.kb[2]=kz*7; if(pl.onGround)pl.v[1]=5; }
+    if(tgm.phase==='play')tgScore(0,-1,[pl.p[0],pl.p[1]+2,pl.p[2]]); return; } hp-=n; invuln=0.45; sinceHurt=0; hurtFlash=0.35; sfx('hurt');
   if(kx!==undefined){ pl.kb[0]=kx*7; pl.kb[2]=kz*7; if(pl.onGround)pl.v[1]=5; }
   updateHUD(); if(hp<=0) die(src||'danger');
 }
 function die(src){
-  dead=true; paused=true; hp=0; updateHUD(); const fc=mode==='corners'; const lost=fc?0:Math.floor(coins/2); coins-=lost; updateHUD(); burning=0;
+  dead=true; paused=true; hp=0; updateHUD(); const fc=mode==='corners'; const lost=mode==='survival'?Math.floor(coins/2):0; coins-=lost; updateHUD(); burning=0;
   if(document.pointerLockElement)document.exitPointerLock();
   $('mbox').innerHTML='<h2>💀 You were defeated!</h2>'+src+' got you.'+(lost?'<br>You dropped <b>'+lost+'</b> coins.':'')+
     (fc?'<br>You will come back at your bed.':'')+'<div class="row"><button class="mbtn" id="mResp">Respawn</button></div>';
@@ -1140,7 +1163,8 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
+function toggleFly(){ if(mode==='targets'&&!fly&&!(tgm&&tgm.round===2)){ toast('🪽 Wings are only on in Round 2!'); return; }
+  if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
 const OUT_MAX=70;
@@ -1181,13 +1205,13 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
-    '<div class="row">'+(fc?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
+    '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),closeMenu); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
-  if(!fc) tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
 
@@ -1225,14 +1249,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1251,14 +1275,14 @@ const fileIn=document.createElement('input'); fileIn.type='file'; fileIn.accept=
 fileIn.addEventListener('change',()=>{ const f=fileIn.files&&fileIn.files[0]; fileIn.value=''; if(!f)return;
   f.text().then(t=>{ let d=null; try{ d=JSON.parse(t); }catch(e){} if(d&&d.data&&validSave(d.data))d=d.data;
     if(!validSave(d)){ toast('That file isn\'t a StrataCraft game.'); return; }
-    applySnapshot(d); saveNow(); closeMenu(); toast('📂 Loaded '+f.name); if(cg&&cg.over)fcEnd(cg.over==='win'); }); });
+    applySnapshot(d); saveNow(); closeMenu(); toast('📂 Loaded '+f.name); afterLoad(); }); });
 const onClick=(el,fn)=>el.addEventListener('click',e=>{ e.preventDefault(); audioInit(); fn(); });
 function openSaves(tab){
   tab=tab||mode; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1274,7 +1298,7 @@ function openSaves(tab){
     if(r&&!confirm('Replace "'+r.name+'" in slot '+(i+1)+'?'))return; if(writeSlot(i,saveName))openSaves(tab); }));
   $('mbox').querySelectorAll('[data-load]').forEach(b=>onClick(b,()=>{ const r=recs[+b.dataset.load];
     if(!confirm('Load "'+r.name+'"? The game you are playing now will be replaced, so save it first if you want to keep it.'))return;
-    applySnapshot(r.data); saveNow(); closeMenu(); toast('📂 Loaded "'+r.name+'"'); if(cg&&cg.over)fcEnd(cg.over==='win'); }));
+    applySnapshot(r.data); saveNow(); closeMenu(); toast('📂 Loaded "'+r.name+'"'); afterLoad(); }));
   $('mbox').querySelectorAll('[data-file]').forEach(b=>onClick(b,()=>{ const r=recs[+b.dataset.file]; exportGame(r.data,r.name); }));
   onClick($('sExport'),()=>exportGame(snapshot(),saveName)); onClick($('sImport'),()=>fileIn.click()); tap($('sBack'),openMenu);
 }
@@ -1282,9 +1306,11 @@ function openNewGame(){
   let h='<h2>🎮 New Game</h2><div class="say">A new game replaces the one you are playing now. <b>Save it first</b> if you want to come back to it.</div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Survival</b><div class="fx">Free mode. Build with real rocks, fight monsters for coins and shop at Flint\'s. Your coins and weapons carry over.</div></div><button class="ibtn" data-new="survival">Start</button></div>'+
     '<div class="item"><div class="ic">🏰</div><div class="tx"><b>Four Corners</b><div class="fx">Four cliff caves around a lava valley. Shoot across with your bow, mine blocks to build walls and bridges, and break the skeleton, orc and troll spawn blocks. Keep your bed safe!</div></div><button class="ibtn" data-new="corners">Start</button></div>'+
+    '<div class="item"><div class="ic">🎯</div><div class="tx"><b>Targets</b><div class="fx">Every monster carries a bullseye. Out-shoot an AI archer over 4 rounds: on foot, with wings, attack mode and a shield duel.</div></div><button class="ibtn" data-new="targets">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
+    if(md==='targets'){ openTargetsSetup(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
     closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
   tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),openMenu);
@@ -1293,8 +1319,9 @@ function openNewGame(){
 // ================= GAME MODES =================
 function clearEntities(){ for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=!fc; $('coins').style.display=fc?'none':'';
-  document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=mode==='survival'?'':'none';
+  rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
+  document.body.classList.toggle('fc',fc); document.body.classList.toggle('tg',mode==='targets'); viewF=-1; updateViewRange(0); updateFCHud(); }
 function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists'}; } }catch(e){}
   return {coins:0,owned:['fists'],weapon:'fists'}; }
 function startSurvival(){
@@ -1404,6 +1431,167 @@ function updateCorners(dt){ if(mode!=='corners'||!cg)return;
     const c=FCC[i], m=spawnMob(FC_TEAM[i],c.back[0]+c.dir[0]*1.8,FC.FLOOR+0.01,c.back[1]+c.dir[1]*1.8); m.home=i; m.cd=1; }
 }
 
+// ================= TARGETS MODE =================
+const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
+  {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
+  {name:'⚔️ Attack mode',tip:'The monsters fight back now. Every hit costs 1 point, for you and for your rival.'},
+  {name:'🛡️ Shield duel',tip:'The monsters are gone. You both wear a bullseye shield. Shoot your rival\'s shield!'}];
+const TG_DIFF={easy:{name:'Easy',err:0.6,wait:2.6},medium:{name:'Medium',err:0.4,wait:2.0},hard:{name:'Hard',err:0.22,wait:1.3}};
+const TG_SPOT={slime:[0,0.45,-0.42,0.36,0],magma:[0,0.45,-0.42,0.36,0],golem:[0,1.15,-0.29,0.42,0],skeleton:[0,1.2,-0.13,0.3,0],
+  spider:[0,1.0,0.3,0.34,0],eagle:[0,0.05,0,0.34,1],griffin:[0,0.08,0,0.5,1]};
+const tgTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
+  const ring=(r,col)=>{ x.beginPath(); x.arc(64,64,r,0,Math.PI*2); x.fillStyle=col; x.fill(); x.lineWidth=2; x.strokeStyle='#fff'; x.stroke(); };
+  ring(63,'#3fbf4a'); ring(63*0.72,'#ffd23a'); ring(63*0.45,'#2f7be0'); ring(63*0.2,'#e8322c');
+  const t=new THREE.CanvasTexture(c); return t; })();
+const tgMat=new THREE.MeshBasicMaterial({map:tgTex,transparent:true,alphaTest:0.5,side:THREE.DoubleSide});
+function tgDisc(R){ const m=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),tgMat); m.userData.R=R; return m; }
+function addTarget(m){ const sp=TG_SPOT[m.type]; if(!sp)return; const d=tgDisc(sp[3]); d.position.set(sp[0],sp[1],sp[2]); if(sp[4])d.rotation.x=Math.PI/2; m.g.body.add(d); m.tdisc=d; m.tdiscs=[d];
+  if(!sp[4]&&m.type!=='spider'){ const b=tgDisc(sp[3]); b.position.set(sp[0],sp[1],-sp[2]); m.g.body.add(b); m.tdiscs.push(b); } } // a matching target on the back
+function ringPoints(f){ return f<=0.2?25:f<=0.45?5:f<=0.72?2:f<=1?1:0; }
+// --- the AI rival archer
+const rv={p:[CX+3.5,SPAWN_H,CZ+2.5],v:[0,0,0],kb:[0,0,0],hw:0.3,h:1.8,onGround:false,wall:false,yaw:0,phase:0,shotT:2,retarget:0,target:null,orbit:rand()*6.28,invuln:0,g:new THREE.Group()};
+(function(){ const g=rv.g; scene.add(g); g.visible=false;
+  const sk=lm(0xc89a72), sh=lm(0xc0392b), pa=lm(0x2b2b33), hr=lm(0xd8b04a);
+  rv.legL=limbOn(g,-0.125,0.72,0.24,0.72,pa,lm(0x222222)); rv.legR=limbOn(g,0.125,0.72,0.24,0.72,pa,lm(0x222222));
+  const b=box(0.5,0.72,0.26,sh); b.position.y=1.08; g.add(b);
+  rv.armL=limbOn(g,-0.37,1.42,0.22,0.7,sh,sk); rv.armR=limbOn(g,0.37,1.42,0.22,0.7,sh,sk);
+  const hd=box(0.46,0.46,0.46,sk); hd.position.y=1.67; g.add(hd); const hair=box(0.48,0.14,0.48,hr); hair.position.y=1.86; g.add(hair);
+  for(const ex of [-0.1,0.1]){ const e=box(0.08,0.08,0.02,bm(0x111111)); e.position.set(ex,1.7,-0.235); g.add(e); }
+  const bow=weaponMesh('bow',false); bow.position.set(0,-0.62,-0.08); bow.rotation.x=-Math.PI/2; rv.armL.add(bow);
+  const lc=document.createElement('canvas'); lc.width=256; lc.height=64; const lx=lc.getContext('2d');
+  lx.fillStyle='rgba(20,24,32,.75)'; lx.fillRect(28,8,200,48); lx.fillStyle='#ff9d8a'; lx.font='bold 28px sans-serif'; lx.textAlign='center'; lx.fillText('🤖 Rival',128,42);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(lc)})); sp.scale.set(1.4,0.35,1); sp.position.y=2.3; g.add(sp);
+  rv.shield=tgDisc(0.42); rv.shield.position.set(0,1.1,-0.17); g.add(rv.shield);
+})();
+const plShield=tgDisc(0.42); plShield.position.set(0,1.1,-0.17); model.add(plShield);
+function tgShields(){ const on=mode==='targets'&&tgm&&tgm.round===4; rv.shield.visible=on; plShield.visible=on; }
+let mobVictim=null;
+function victimFor(m){ if(mode==='targets'&&tgm&&tgm.round===3&&rv.g.visible){ const a=Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2]), b=Math.hypot(rv.p[0]-m.p[0],rv.p[2]-m.p[2]); if(b<a)return rv; } return pl; }
+function hurtVictim(V,n,kx,kz,src){ if(V===pl){ hurtPlayer(n,kx,kz,src); return; }
+  if(rv.invuln>0)return; rv.invuln=0.8; rv.kb[0]=kx*7; rv.kb[2]=kz*7; if(rv.onGround)rv.v[1]=5; rv.flash=0.25;
+  if(tgm&&tgm.phase==='play')tgScore(1,-1,[rv.p[0],rv.p[1]+2.2,rv.p[2]]); }
+const tmpA=new THREE.Vector3(), tmpN=new THREE.Vector3();
+function tgCheckRings(s,x0,y0,z0){ // did this arrow pass through a bullseye this step?
+  if(!tgm||tgm.phase!=='play')return false;
+  const list=[]; for(const m of mobs) if(m.tdiscs)list.push(...m.tdiscs);
+  if(tgm.round===4) list.push(s.owner==='you'?rv.shield:plShield);
+  for(const d of list){ d.updateWorldMatrix(true,false); d.getWorldPosition(tmpA); d.getWorldDirection(tmpN);
+    const a=(x0-tmpA.x)*tmpN.x+(y0-tmpA.y)*tmpN.y+(z0-tmpA.z)*tmpN.z, b=(s.p[0]-tmpA.x)*tmpN.x+(s.p[1]-tmpA.y)*tmpN.y+(s.p[2]-tmpA.z)*tmpN.z;
+    if((a>0)===(b>0)||a===b)continue; const f=a/(a-b), hx=x0+(s.p[0]-x0)*f, hy=y0+(s.p[1]-y0)*f, hz=z0+(s.p[2]-z0)*f;
+    const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z), pts=ringPoints(r/d.userData.R); if(!pts)continue;
+    s.scored=true; tgScore(s.owner==='you'?0:1,pts,[hx,hy+0.4,hz]); sfx(pts===25?'buy':'coin'); burst(hx-0.5,hy-0.5,hz-0.5,new THREE.Color(pts===25?1:1,pts===25?.2:.85,pts===25?.2:.3),pts===25?16:6);
+    if(s.owner==='you')toast(pts===25?'🎯 BULLSEYE! +25':pts===5?'🔵 Blue ring! +5':pts===2?'🟡 Yellow ring! +2':'🟢 Green ring! +1');
+    return true; }
+  return false; }
+function tgScore(who,pts,pos){ tgm.score[who]+=pts; updateTGHud(); queueSave();
+  tgPopup((pts>0?'+':'')+pts,who===0?(pts>0?'#7fe3cf':'#ff6b5b'):(pts>0?'#ff9d8a':'#ff6b5b'),pos,who===1?'🤖 ':''); }
+const popups=[];
+function tgPopup(text,col,pos,prefix){ const c=document.createElement('canvas'); c.width=256; c.height=96; const x=c.getContext('2d');
+  x.font='bold 64px sans-serif'; x.textAlign='center'; x.lineWidth=8; x.strokeStyle='rgba(0,0,0,.7)'; const t=(prefix||'')+text; x.strokeText(t,128,70); x.fillStyle=col; x.fillText(t,128,70);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true})); sp.renderOrder=1000;
+  sp.scale.set(1.6,0.6,1); sp.position.set(pos[0],pos[1],pos[2]); scene.add(sp); popups.push({sp,life:1.4}); }
+function updateTGHud(){ const el=$('tgHud'); if(mode!=='targets'||!tgm){ el.style.display='none'; return; } el.style.display='inline-block';
+  const r=Math.min(4,tgm.round), t=Math.max(0,Math.ceil(tgm.time)), mm=Math.floor(t/60), ss=('0'+(t%60)).slice(-2);
+  const h='Round '+r+'/4 '+TG_ROUNDS[r].name+' &nbsp;<span class="tm">⏱ '+mm+':'+ss+'</span><br><span class="you">🧑 You '+tgm.score[0]+'</span> &nbsp;·&nbsp; <span class="ai">🤖 Rival '+tgm.score[1]+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function targetsHelp(){
+  return '<h2>🎯 Targets</h2>Every monster carries a bullseye target. You and an AI rival archer both shoot at them. Hit closer to the middle for more points!'+
+  '<div class="board" style="margin-top:8px"><div style="color:#3fbf4a">Green<br>1</div><div style="color:#ffd23a">Yellow<br>2</div><div style="color:#2f7be0">Blue<br>5</div><div style="color:#e8322c">Red<br>25</div></div>'+
+  '<h3>Rounds</h3><ul><li><b>1 🚶 On foot</b>: walk and shoot</li><li><b>2 🪽 Wings on</b>: fly while you shoot</li><li><b>3 ⚔️ Attack mode</b>: monsters fight back. Every hit costs 1 point (for you and your rival)</li><li><b>4 🛡️ Shield duel</b>: no monsters. You both wear a bullseye shield, so shoot each other\'s shield</li></ul>'+
+  '<h3>Rules</h3><ul><li>You can only have one arrow in the air. When it scores or misses, you can shoot again</li><li>Arrows drop over distance, so aim a little high for far targets</li><li>Highest total after Round 4 wins</li></ul>';
+}
+let tgPickDiff='medium', tgPickLen=120;
+function openTargetsSetup(){
+  const seg=(attr,opts,cur)=>'<div class="seg">'+opts.map(([v,l])=>'<button data-'+attr+'="'+v+'" class="'+(String(v)===String(cur)?'on':'')+'">'+l+'</button>').join('')+'</div>';
+  $('mbox').innerHTML='<h2>🎯 Targets</h2><div class="say">Shoot the bullseyes the monsters carry and beat the AI rival over 4 rounds.</div>'+
+    '<h3>Rival skill</h3>'+seg('diff',[['easy','Easy'],['medium','Medium'],['hard','Hard']],tgPickDiff)+
+    '<h3>Round length</h3>'+seg('len',[[60,'1 min'],[120,'2 min'],[180,'3 min']],tgPickLen)+
+    '<div class="row"><button class="mbtn" id="tStart">Start match</button><button class="mbtn gray" id="tBack">Back</button></div>';
+  $('modal').style.display='flex'; paused=true;
+  $('mbox').querySelectorAll('[data-diff]').forEach(b=>tap(b,()=>{ tgPickDiff=b.dataset.diff; openTargetsSetup(); }));
+  $('mbox').querySelectorAll('[data-len]').forEach(b=>tap(b,()=>{ tgPickLen=+b.dataset.len; openTargetsSetup(); }));
+  onClick($('tStart'),()=>{ if(!confirm('Start a new Targets match? The game you are playing now will be replaced.'))return; startTargets(tgPickDiff,tgPickLen); });
+  tap($('tBack'),openNewGame); }
+function startTargets(diff,len){
+  const kit=mode==='survival'?{coins,owned:owned.slice(),weapon}:null; if(kit)try{ localStorage.setItem(KIT_KEY,JSON.stringify(kit)); }catch(e){}
+  clearEntities(); mode='targets'; cg=null; placed.clear(); generate((Math.random()*1e9)|0);
+  owned=['fists','bow']; weapon='bow'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  pl.p=[CX+0.5,SPAWN_H,CZ+2.5]; pl.v=[0,0,0]; pl.kb=[0,0,0]; yaw=0; pitch=-0.1; unstick(pl);
+  tgm={round:1,len:len||120,time:len||120,diff:TG_DIFF[diff]?diff:'medium',score:[0,0],phase:'intro'};
+  rv.p=[CX+3.5,SPAWN_H,CZ+2.5]; rv.v=[0,0,0]; rv.kb=[0,0,0]; edgeOpen=false; unstick(rv);
+  setFly(false,false); applyMode(); rebuildAll(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); tgIntro(); }
+function tgRoundSetup(){ const r=tgm.round;
+  for(const s of shots.slice())freeShot(s);
+  if(r===4){ for(const m of mobs.slice())removeMob(m); const a=rand()*6.28; rv.p=[pl.p[0]+Math.sin(a)*12,pl.p[1]+2,pl.p[2]+Math.cos(a)*12];
+    rv.p[0]=Math.max(3,Math.min(W-3,rv.p[0])); rv.p[2]=Math.max(3,Math.min(D-3,rv.p[2])); const s=surfaceAt(Math.floor(rv.p[0]),Math.floor(rv.p[2])); rv.p[1]=s.y+1.01; unstick(rv); }
+  setFly(r===2,false); rv.v=[0,0,0]; tgShields(); updateTGHud(); }
+function tgIntro(){ if(!tgm)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
+  if(tgm.phase==='done'||tgm.round>4){ tgFinal(); return; }
+  const r=tgm.round, resume=tgm.time<tgm.len-0.5;
+  $('mbox').innerHTML='<h2>Round '+r+' of 4: '+TG_ROUNDS[r].name+'</h2><div class="say">'+TG_ROUNDS[r].tip+'</div>'+
+    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+tgm.score[0]+'</div></div><div>🤖 Rival ('+TG_DIFF[tgm.diff].name+')<div class="n" style="color:#ff9d8a">'+tgm.score[1]+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="tGo">'+(resume?'Keep playing':'Start round '+r)+'</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('tGo'),()=>{ if(!resume)tgRoundSetup(); tgm.phase='play'; if(tgm.round===2&&!fly)setFly(true,false); closeMenu(); });
+  tap($('tMenu'),openMenu); }
+function tgEndRound(){ tgm.round++; tgm.time=tgm.len; tgm.phase=tgm.round>4?'done':'intro'; for(const s of shots.slice()){ s.scored=true; freeShot(s); } saveNow(); tgIntro(); }
+function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score; paused=true;
+  $('mbox').innerHTML='<h2>'+(a>b?'🏆 You win!':a<b?'🤖 The rival wins!':'🤝 It\'s a tie!')+'</h2>'+
+    '<div class="board"><div>🧑 You<div class="n" style="color:#7fe3cf">'+a+'</div></div><div>🤖 Rival ('+TG_DIFF[tgm.diff].name+')<div class="n" style="color:#ff9d8a">'+b+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
+  $('modal').style.display='flex'; if(a>b)sfx('buy');
+  onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); }
+function rivalPick(){ if(tgm.round===4)return 'player';
+  let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
+    const sc=d+rand()*8; if(sc<bd){ bd=sc; best=m; } } return best; }
+function updateRival(dt){
+  const flying=tgm.round===2, df=TG_DIFF[tgm.diff];
+  rv.retarget-=dt; rv.shotT-=dt; rv.invuln-=dt;
+  if(rv.target&&rv.target!=='player'&&!mobs.includes(rv.target))rv.target=null;
+  if(!rv.target||rv.retarget<=0){ rv.retarget=3+rand()*3; rv.target=rivalPick(); rv.orbit+=(rand()-.5)*2; }
+  const T=rv.target==='player'?pl:rv.target;
+  // where to stand: circle the target at a comfortable range
+  let gx,gz,gy=null; const want=tgm.round===4?13:10;
+  if(T){ gx=T.p[0]+Math.sin(rv.orbit)*want; gz=T.p[2]+Math.cos(rv.orbit)*want; rv.orbit+=dt*0.15; if(flying)gy=Math.max(T.p[1]+4,surfaceAt(Math.floor(rv.p[0]),Math.floor(rv.p[2])).y+5); }
+  else { gx=CX+Math.sin(rv.orbit)*20; gz=CZ+Math.cos(rv.orbit)*20; rv.orbit+=dt*0.05; if(flying)gy=SPAWN_H+10; }
+  gx=Math.max(3,Math.min(W-3,gx)); gz=Math.max(3,Math.min(D-3,gz));
+  let mx=gx-rv.p[0], mz=gz-rv.p[2]; const ml=Math.hypot(mx,mz); if(ml<1.5){ mx=0; mz=0; } else { mx/=ml; mz/=ml; }
+  const spd=flying?7:4;
+  if(!flying&&(mx||mz)&&!safeGround(rv.p[0]+mx*0.9,rv.p[1],rv.p[2]+mz*0.9)){ mx=0; mz=0; rv.orbit+=1.3; }
+  rv.v[0]=mx*spd; rv.v[2]=mz*spd;
+  if(flying){ rv.v[1]=Math.max(-6,Math.min(6,((gy||rv.p[1])-rv.p[1])*1.5)); }
+  else { const env=envAt(rv); if(env.water){ rv.v[1]-=8*dt; if(rv.v[1]<1.5)rv.v[1]=1.5; } else rv.v[1]-=28*dt; if(rv.v[1]<-30)rv.v[1]=-30; }
+  physStep(rv,dt);
+  if(!flying&&rv.wall&&rv.onGround&&(mx||mz))rv.v[1]=8.6;
+  if(boxHits(rv.p[0],rv.p[1],rv.p[2],rv.hw,rv.h))rv.p[1]+=1;
+  const env=envAt(rv); if(env.lava||rv.p[1]<-5){ rv.p=[CX+3.5,SPAWN_H+1,CZ+2.5]; unstick(rv); }
+  // shoot: one arrow at a time, with skill-based aim
+  let aimYaw=null;
+  if(T&&tgm.phase==='play'&&rv.shotT<=0&&!shots.some(s=>s.owner==='rival')){
+    const disc=T===pl?plShield:T.tdisc; disc.updateWorldMatrix(true,false); disc.getWorldPosition(tmpA);
+    const o=new THREE.Vector3(rv.p[0],rv.p[1]+1.5,rv.p[2]), dist=o.distanceTo(tmpA), ft=dist/42;
+    const tv=T===pl?pl.v:T.v; const aim=tmpA.clone().add(new THREE.Vector3(tv[0]*ft,(tv[1]||0)*ft*0.5,tv[2]*ft));
+    aim.x+=(rand()-.5)*2*df.err; aim.y+=(rand()-.5)*2*df.err; aim.z+=(rand()-.5)*2*df.err;
+    const straight=aim.clone().sub(o).normalize(); o.addScaledVector(straight,0.5);
+    const blocked=raycast(o,straight,Math.max(0.1,dist-0.8)); const d=ballistic(o,aim,42,7);
+    if(!blocked&&d&&dist<40){ const sh=addShot(o,d,42,7,0,'arrow',false); sh.owner='rival'; rv.shotT=df.wait*(0.8+rand()*0.4); rv.aimT=0.4; sfx('bow'); }
+    else { rv.shotT=0.5; rv.retarget-=1; } }
+  if(T){ aimYaw=Math.atan2(-(T.p[0]-rv.p[0]),-(T.p[2]-rv.p[2])); }
+  // visuals
+  rv.yaw=aimYaw!==null?aimYaw:(mx||mz?Math.atan2(-mx,-mz):rv.yaw);
+  const g=rv.g; g.position.set(rv.p[0],rv.p[1],rv.p[2]); g.rotation.y=rv.yaw;
+  rv.phase+=dt*Math.hypot(rv.v[0],rv.v[2])*2.2; const a=flying?0.15:Math.sin(rv.phase)*0.6; rv.legL.rotation.x=a; rv.legR.rotation.x=-a;
+  rv.aimT=Math.max(0,(rv.aimT||0)-dt); rv.armL.rotation.x=T?-1.45:-a*0.8; rv.armR.rotation.x=T?(rv.aimT>0?-1.1:-1.4):a*0.8;
+}
+function updateTargets(dt){
+  for(let i=popups.length-1;i>=0;i--){ const p=popups[i]; p.life-=dt; p.sp.position.y+=dt*1.2; p.sp.material.opacity=Math.min(1,p.life/0.5);
+    if(p.life<=0){ scene.remove(p.sp); p.sp.material.map.dispose(); p.sp.material.dispose(); popups.splice(i,1); } }
+  if(mode!=='targets'||!tgm)return;
+  if(tgm.phase==='play'){ tgm.time-=dt; if(tgm.time<=0){ tgm.time=0; updateTGHud(); tgEndRound(); return; } }
+  updateRival(dt); updateTGHud();
+}
+
 // ================= UPDATE =================
 const tmp=new THREE.Vector3();
 let waterT=0, lavaT=0, fireT=0, spawnT=2, animT=0, animPh=0;
@@ -1448,21 +1636,23 @@ function updatePlayer(dt){
 }
 function updateMobs(dt){
   for(const m of mobs.slice()){
-    const t=m.t, dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dy=pl.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
-    if(m.home===undefined&&dist>(t.flyer?60:48)){ removeMob(m); continue; }
+    const V=victimFor(m); mobVictim=V;
+    const t=m.t, dx=V.p[0]-m.p[0], dz=V.p[2]-m.p[2], dy=V.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
+    if(m.home===undefined&&Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2])>(t.flyer?60:48)){ removeMob(m); continue; }
     if(!m.climbing&&boxHits(m.p[0],m.p[1],m.p[2],m.hw,m.h)) m.p[1]+=1;
     const env=envAt(m);
     if(!t.fireproof && (env.lava||env.fire)){ m.burnT-=dt; if(m.burnT<=0){ m.burnT=0.5; m.hp-=1; m.flash=0.1; m.g.bar.visible=true; if(m.hp<=0){ killMob(m); continue; } } }
     if(t.flyer){ updateFlyer(m,dt); continue; }
-    let mx=0,mz=0; let chase=dist<22&&!dead&&Math.abs(dy)<8;
+    const fights=mode!=='targets'||(tgm&&tgm.round===3&&tgm.phase==='play');
+    let mx=0,mz=0; let chase=fights&&dist<22&&!dead&&Math.abs(dy)<8;
     const reach=m.hw+pl.hw+0.45;
     m.climbing=false; m.perched=false;
     if(m.home!==undefined){ const r=caveBrain(m,dt,dx,dz,dy,dist); mx=r[0]; mz=r[1]; chase=r[2]; }
-    else if(t.legs&&!(chase&&dist<5&&Math.abs(dy)<2)){ const r=spiderTree(m,dt,dist,dx,dz,dy); mx=r[0]; mz=r[1]; chase=r[2]; }
+    else if(t.legs&&!(chase&&dist<5&&Math.abs(dy)<2)){ const r=spiderTree(m,dt,dist,dx,dz,dy); mx=r[0]; mz=r[1]; chase=r[2]&&fights; }
     else if(chase&&t.archer){ m.shootT=(m.shootT===undefined?1.5:m.shootT)-dt;
       if(dist>11){ mx=dx/dist; mz=dz/dist; } else if(dist<5){ mx=-dx/dist; mz=-dz/dist; } else { mx=-dz/dist*0.5; mz=dx/dist*0.5; }
       if(m.shootT<=0&&dist<16&&!paused){ m.shootT=2+rand()*1.2;
-        const o=new THREE.Vector3(m.p[0],m.p[1]+1.5,m.p[2]), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1.1,pl.p[2]);
+        const o=new THREE.Vector3(m.p[0],m.p[1]+1.5,m.p[2]), tg=new THREE.Vector3(V.p[0],V.p[1]+1.1,V.p[2]);
         const fl=o.distanceTo(tg)/22; tg.y+=0.5*7*fl*fl; tg.x+=(rand()-.5)*0.8; tg.z+=(rand()-.5)*0.8;
         const d=tg.sub(o).normalize(); o.addScaledVector(d,0.5);
         if(!raycast(o,d,Math.max(0.1,dist-0.6))){ addShot(o,d,22,7,t.dmg,'arrow',true); m.atk=0.3; sfx('bow'); } else m.shootT=0.6; } }
@@ -1482,7 +1672,7 @@ function updateMobs(dt){
     if(t.climb && m.wall && (mx||mz)) m.v[1]=4;
     if(t.hop && m.wall && !m.onGround) {}
     m.cd-=dt;
-    if(chase && (!t.archer||m.home!==undefined) && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtPlayer(t.dmg,dx/dist,dz/dist,'A '+t.name); }
+    if(chase && (!t.archer||m.home!==undefined) && dist<reach && dy>-1.8 && dy<m.h+0.2 && m.cd<=0 && !paused){ m.cd=1.1; m.atk=0.3; hurtVictim(V,t.dmg,dx/dist,dz/dist,'A '+t.name); }
     // visuals
     if(chase||m.perched) m.yaw=Math.atan2(-dx,-dz); else if(mx||mz) m.yaw=Math.atan2(-mx,-mz);
     const g=m.g; g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
@@ -1500,8 +1690,9 @@ function updateMobs(dt){
   // spawning
   spawnT-=dt;
   if(spawnT<=0){ spawnT=2.5;
-    if((mobsOn||mode==='corners') && !dead && mobs.filter(m=>m.t.flyer).length<3 && rand()<0.35) spawnFlyer();
-    if(mode==='survival' && mobsOn && mobs.filter(m=>!m.t.flyer).length<6 && !dead){
+    if((mode==='corners'||(mode==='survival'&&mobsOn)||(mode==='targets'&&tgm&&tgm.round<4)) && !dead && mobs.filter(m=>m.t.flyer).length<3 && rand()<(mode==='targets'?0.6:0.35)) spawnFlyer();
+    const tgSpawn=mode==='targets'&&tgm&&tgm.round<4&&tgm.phase==='play';
+    if(((mode==='survival'&&mobsOn)||tgSpawn) && mobs.filter(m=>!m.t.flyer).length<(tgSpawn?8:6) && !dead){
       for(let a=0;a<8;a++){
         const ang=rand()*6.28, r=14+rand()*14, x=Math.floor(pl.p[0]+Math.sin(ang)*r), z=Math.floor(pl.p[2]+Math.cos(ang)*r);
         if(x<1||z<1||x>=W-1||z>=D-1)continue; if(Math.hypot(x-MX,z-MZ)<12)continue;
@@ -1525,7 +1716,7 @@ function spiderTree(m,dt,dist,dx,dz,dy){
     if(m.p[1]>=tr.top-0.05&&td<2.5){ // on top of the tree
       m.perched=true; m.shootT=(m.shootT===undefined?1:m.shootT)-dt;
       const d3=Math.hypot(dist,dy);
-      if(!dead&&!paused&&m.shootT<=0&&d3<20){ m.shootT=2.2+rand()*1.5; spiderSpit(m); }
+      if(!dead&&!paused&&m.shootT<=0&&d3<20&&(mode!=='targets'||(tgm&&tgm.round===3))){ m.shootT=2.2+rand()*1.5; spiderSpit(m); }
       return [td>0.6?tx/td*0.4:0, td>0.6?tz/td*0.4:0, false]; }
     if(td<1.7){ m.climbing=true; return [td>0.3?tx/td*0.5:0, td>0.3?tz/td*0.5:0, false]; }
     if(m.treeTime>12){ m.tree=null; m.treeT=4; return [0,0,false]; }
@@ -1534,10 +1725,10 @@ function spiderTree(m,dt,dist,dx,dz,dy){
   if(dist<22&&!dead&&Math.abs(dy)<8){ const reach=m.hw+pl.hw+0.45; return dist>reach*0.85?[dx/dist,dz/dist,true]:[0,0,true]; }
   return [0,0,false];
 }
-function spiderSpit(m){
-  const o=new THREE.Vector3(m.p[0],m.p[1]+0.45,m.p[2]), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1.0,pl.p[2]);
+function spiderSpit(m){ const V=mobVictim||pl;
+  const o=new THREE.Vector3(m.p[0],m.p[1]+0.45,m.p[2]), tg=new THREE.Vector3(V.p[0],V.p[1]+1.0,V.p[2]);
   const fl=o.distanceTo(tg)/18; tg.y+=0.5*5*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.7);
-  if(raycast(o,d,Math.max(0.1,o.distanceTo(new THREE.Vector3(pl.p[0],pl.p[1]+1,pl.p[2]))-0.6))){ m.shootT=0.8; return; }
+  if(raycast(o,d,Math.max(0.1,o.distanceTo(new THREE.Vector3(V.p[0],V.p[1]+1,V.p[2]))-0.6))){ m.shootT=0.8; return; }
   addShot(o,d,18,5,0,'web',true); m.atk=0.3; sfx('web'); }
 
 // --- eagles and griffins: glide around the sky; they only attack if you bump into them or hit them
@@ -1551,7 +1742,7 @@ function updateFlyer(m,dt){
   const t=m.t, g=m.g; if(!m.goal)m.goal=skyTarget(m);
   const cx=pl.p[0]-m.p[0], cy=(pl.p[1]+1.1)-(m.p[1]+m.h*0.5), cz=pl.p[2]-m.p[2], cd=Math.hypot(cx,cy,cz)||0.001;
   // bumping into one makes it angry
-  if(!dead&&cd<m.hw+pl.hw+0.6){ if(!(m.angry>0)){ m.angry=12; sfx('screech'); toast('⚠️ You bumped into '+(m.type==='eagle'?'an Eagle':'a Griffin')+'! It\'s angry!'); } }
+  if(!dead&&cd<m.hw+pl.hw+0.6&&(mode!=='targets'||(tgm&&tgm.round===3))){ if(!(m.angry>0)){ m.angry=12; sfx('screech'); toast('⚠️ You bumped into '+(m.type==='eagle'?'an Eagle':'a Griffin')+'! It\'s angry!'); } }
   m.angry=Math.max(0,(m.angry||0)-dt); if(cd>34)m.angry=0;
   m.cd-=dt; m.retreat=Math.max(0,(m.retreat||0)-dt);
   let tx,ty,tz,spd=t.spd;
@@ -1592,7 +1783,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
 
@@ -1655,9 +1846,9 @@ if(!loadCurrent()) startSurvival();
 $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
-if(!seen) openMenu(); else if(cg&&cg.over) fcEnd(cg.over==='win');
+if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, startCorners, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
