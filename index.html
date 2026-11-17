@@ -1611,10 +1611,14 @@ const TRK=(()=>{ const P=CART_CP, n=P.length, raw=[];
   raw.push(raw[0]); const X=[],Y=[],Z=[],C=[]; let carry=0;
   for(let i=0;i<raw.length-1;i++){ const a=raw[i],b=raw[i+1], seg=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]); let t=carry;
     while(t<seg){ const f=t/seg; X.push(a[0]+(b[0]-a[0])*f); Z.push(a[1]+(b[1]-a[1])*f); Y.push(a[2]+(b[2]-a[2])*f); C.push(a[3]+(b[3]-a[3])*f); t+=TSTEP; } carry=t-seg; }
+  // iron out little kinks and bumps so the ride is smooth (a few passes of a rolling average around the loop)
+  const smooth=(A,w,passes)=>{ const n=A.length; for(let p=0;p<passes;p++){ const B=A.slice(); for(let i=0;i<n;i++){ let t=0; for(let k=-w;k<=w;k++)t+=B[(i+k+n)%n]; A[i]=t/(2*w+1); } } };
+  smooth(X,3,3); smooth(Z,3,3); smooth(Y,8,3);
   return {X,Y,Z,C,n:X.length,L:X.length*TSTEP}; })();
-function trackAt(s){ const L=TRK.L; s=((s%L)+L)%L; const f=s/TSTEP, i=Math.floor(f)%TRK.n, j=(i+1)%TRK.n, u=f-Math.floor(f);
-  const x=TRK.X[i]+(TRK.X[j]-TRK.X[i])*u, y=TRK.Y[i]+(TRK.Y[j]-TRK.Y[i])*u, z=TRK.Z[i]+(TRK.Z[j]-TRK.Z[i])*u;
-  return {x,y,z,dx:(TRK.X[j]-TRK.X[i])/TSTEP,dy:(TRK.Y[j]-TRK.Y[i])/TSTEP,dz:(TRK.Z[j]-TRK.Z[i])/TSTEP,c:TRK.C[i]}; }
+function trackPos(s){ const L=TRK.L; s=((s%L)+L)%L; const f=s/TSTEP, i=Math.floor(f)%TRK.n, j=(i+1)%TRK.n, u=f-Math.floor(f);
+  return {x:TRK.X[i]+(TRK.X[j]-TRK.X[i])*u, y:TRK.Y[i]+(TRK.Y[j]-TRK.Y[i])*u, z:TRK.Z[i]+(TRK.Z[j]-TRK.Z[i])*u, c:TRK.C[i]+(TRK.C[j]-TRK.C[i])*u}; }
+function trackAt(s){ const p=trackPos(s), a=trackPos(s-1), b=trackPos(s+1); // direction from 1 block behind to 1 block ahead: no snapping between points
+  return {x:p.x,y:p.y,z:p.z,dx:(b.x-a.x)/2,dy:(b.y-a.y)/2,dz:(b.z-a.z)/2,c:p.c}; }
 function generateCart(s){
   seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
   const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), appleSpots=[];
@@ -1726,10 +1730,13 @@ let crt=null;
 function newCrt(){ return {phase:'intro',dist:0,v:0,lap:1,score:0,counts:{},t:0,glassT:4,fountT:3,volcT:5,dragonDone:false,lastYaw:null,lapSet:0}; }
 const CART_BEST='stratacraft_cart_best';
 function cartBest(){ try{ return +localStorage.getItem(CART_BEST)||0; }catch(e){ return 0; } }
-function placeCart(){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz); const c=cartObjs.cart; if(!c)return;
-  c.position.set(p.x,p.y,p.z); c.rotation.y=cy; c.rotation.x=Math.atan2(p.dy,Math.hypot(p.dx,p.dz));
-  if(crt.lastYaw===null){ yaw=cy; pitch=-0.1; } else { let dy=cy-crt.lastYaw; while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI; yaw+=dy; } crt.lastYaw=cy;
-  pl.p=[p.x,p.y+0.3,p.z]; pl.v=[0,0,0]; pl.kb=[0,0,0]; }
+function placeCart(dt){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), cp=Math.atan2(p.dy,Math.hypot(p.dx,p.dz)); const c=cartObjs.cart; if(!c)return;
+  // ease the heading, height and tilt toward the track so turns and bumps feel gentle
+  if(!dt||crt.hy===undefined){ crt.hy=cy; crt.sy=p.y; crt.sp=cp; }
+  else { let d=cy-crt.hy; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; crt.hy+=d*(1-Math.exp(-dt*5)); crt.sy+=(p.y-crt.sy)*(1-Math.exp(-dt*8)); crt.sp+=(cp-crt.sp)*(1-Math.exp(-dt*5)); }
+  c.position.set(p.x,crt.sy,p.z); c.rotation.y=crt.hy; c.rotation.x=crt.sp;
+  if(crt.lastYaw===null){ yaw=crt.hy; pitch=-0.1; } else { let dy=crt.hy-crt.lastYaw; while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI; yaw+=dy; } crt.lastYaw=crt.hy;
+  pl.p=[p.x,crt.sy+0.3,p.z]; pl.v=[0,0,0]; pl.kb=[0,0,0]; }
 function startCart(){ clearEntities(); mode='cart'; cg=null; tgm=null; generateCart((Math.random()*1e9)|0);
   owned=['fists','bow']; weapon='bow'; arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
   setFly(false,false); applyMode(); rebuildAll(); buildCartScene(); crt=newCrt(); placeCart(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); cartIntro(); }
@@ -1752,12 +1759,12 @@ function cartNewLap(){ // fresh posts, fresh sunflower heads, and fresh targets 
   for(const f of cartObjs.flowers)f.head.visible=true; for(const a of cartObjs.animals){ a.hidden=0; for(const d of a.discs)d.visible=true; } for(const c of cartObjs.clouds){ c.off=0; c.disc.visible=true; } }
 function ridePlayer(dt){ if(!crt)return;
   if(crt.phase==='count'){ const before=Math.ceil(crt.t); crt.t-=dt; const now=Math.ceil(crt.t); if(now!==before){ if(now>0){ toast('🛤️ '+now+'…'); sfx('place'); } else { toast('🛤️ GO!'); sfx('buy'); crt.phase='ride'; crt.v=3; } } }
-  else if(crt.phase==='ride'){ const p=trackAt(crt.dist), slope=p.dy/Math.max(0.01,Math.hypot(p.dx,p.dy,p.dz));
-    crt.v+=(-9.8*0.75*slope+(p.c-crt.v)*0.6)*dt; crt.v=Math.max(2.5,Math.min(15,crt.v)); crt.dist+=crt.v*dt;
+  else if(crt.phase==='ride'){ const p=trackPos(crt.dist), a=trackPos(crt.dist-2), b=trackPos(crt.dist+2), slope=(b.y-a.y)/4; // slope averaged over 4 blocks
+    const acc=Math.max(-4,Math.min(4,-9.8*0.75*slope+(p.c-crt.v)*0.6)); crt.v+=acc*dt; crt.v=Math.max(2.5,Math.min(15,crt.v)); crt.dist+=crt.v*dt;
     const lap=Math.floor(crt.dist/TRK.L)+1;
     if(lap>CART_LAPS){ crt.dist=TRK.L*CART_LAPS; cartFinish(); }
     else if(lap!==crt.lap){ crt.lap=lap; cartNewLap(); toast(lap===CART_LAPS?'🛤️ Final lap! Watch the sky…':'🛤️ Lap '+lap+' of '+CART_LAPS); } }
-  placeCart(); }
+  placeCart(dt); }
 function cartFinish(){ crt.phase='done'; crt.v=0; const best=cartBest(), rec=crt.score>best; if(rec)try{ localStorage.setItem(CART_BEST,String(crt.score)); }catch(e){}
   if(document.pointerLockElement)document.exitPointerLock(); paused=true; const C=crt.counts;
   const rows=[['🎯','Posts','post'],['🌻','Sunflowers','sunflower'],['🦌','Animals','animal'],['🍎','Apples','apple'],['🪟','Glass','glass'],['☁️','Clouds','cloud'],['⛲','Fountain','fountain'],['🌋','Volcano','volcano'],['🐉','Dragon','dragon']]
@@ -2359,7 +2366,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), get yaw(){return yaw;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
