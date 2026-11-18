@@ -1713,7 +1713,7 @@ function buildCartScene(){ clearCart(); wfX=null; const wst=CART_STOPS.find(x=>x
   for(let k=0;k<10;k++){ const type=['deer','sheep','rabbit'][k%3], h=homes[k]; const a=makeAnimal(type); a.home=h; a.p=[h[0],0,h[1]]; a.goal=null; cartObjs.animals.push(a); }
   // a skeleton next to the orchard that juggles bullseyes up into the air
   { const st=CART_STOPS.find(x=>x.fx==='skeleton'), p=trackAt(st.s), yaw2=Math.atan2(-p.dx,-p.dz), rx=Math.cos(yaw2), rz=-Math.sin(yaw2);
-    for(const side of [-1,1]){ const x=p.x+rx*side*5.5, z=p.z+rz*side*5.5, su=surfaceAt(Math.floor(x),Math.floor(z)); if(su.id!==ID.grass&&side<0)continue;
+    for(const side of [-1,1]){ const x=p.x+rx*side*11, z=p.z+rz*side*11, su=surfaceAt(Math.floor(x),Math.floor(z)); if(su.id!==ID.grass&&side<0)continue;
       const r=mobModel('skeleton'); r.root.position.set(x,su.y+1,z); r.root.rotation.y=Math.atan2(p.x-x,p.z-z); cartRoot.add(r.root);
       cartObjs.skel={r,p:[x,su.y+1,z],t:1,atk:0}; st.focus=[x,su.y+3.5,z];
       for(let t=0;t<=1.05;t+=0.05){ const cx=p.x+(x-p.x)*t, cz=p.z+(z-p.z)*t; // clear the orchard trees out of the way so you can see it
@@ -1744,10 +1744,10 @@ function makeAnimal(type){ const g=new THREE.Group(), body=new THREE.Group(); g.
   const discs=[]; for(const sx of [-1,1]){ const d=discMesh(R); d.rotation.y=Math.PI/2; d.position.set(sx*(w/2+0.02),y,type==='deer'?0.05:0); body.add(d); discs.push(d); }
   return {type,g,body,legs,discs,yaw:rand()*6,phase:0,flee:0,hidden:0,hop:0,vy:0,y:0,mult:type==='rabbit'?2:1}; }
 // --- stops along the ride: the cart brakes, waits, and turns your view toward the action
-const CART_STOPS=[{name:'🦌 Animal meadow',at:[70,80],focus:[73,12.5,70],dur:6,fx:'meadow'},
-  {name:'💦 Waterfall',at:[63,32],focus:[70,17,30],dur:7,fx:'waterfall'},
-  {name:'🌋 Volcano',at:[38,36],focus:[18,23,26],dur:7,fx:'volcano'},
-  {name:'💀 Skeleton juggler',at:[27,51],focus:[22,14,50],dur:6,fx:'skeleton'}];
+const CART_STOPS=[{name:'🦌 Animal meadow',at:[70,80],focus:[73,12.5,70],dur:11,fx:'meadow'},
+  {name:'💦 Waterfall',at:[63,32],focus:[70,17,30],dur:12,fx:'waterfall'},
+  {name:'🌋 Volcano',at:[38,36],focus:[18,23,26],dur:12,fx:'volcano'},
+  {name:'💀 Skeleton juggler',at:[27,51],focus:[22,14,50],dur:11,fx:'skeleton'}];
 for(const st of CART_STOPS){ let bi=0,bd=1e9; for(let i=0;i<TRK.n;i++){ const d=Math.hypot(TRK.X[i]-st.at[0],TRK.Z[i]-st.at[1]); if(d<bd){ bd=d; bi=i; } } st.s=bi*TSTEP; }
 CART_STOPS.sort((a,b)=>a.s-b.s);
 function nextStop(){ const lapBase=(crt.lap-1)*TRK.L; for(let k=crt.stopIdx||0;k<CART_STOPS.length;k++){ const a=lapBase+CART_STOPS[k].s; if(a>=crt.dist-0.01){ crt.stopIdx=k; return {st:CART_STOPS[k],abs:a}; } } crt.stopIdx=CART_STOPS.length; return null; }
@@ -1801,7 +1801,7 @@ function ridePlayer(dt){ if(!crt)return;
     const acc=Math.max(-4,Math.min(4,-9.8*0.75*slope+(p.c-crt.v)*0.6)); crt.v+=acc*dt; crt.vFloor=Math.min(1.5,(crt.vFloor===undefined?1.5:crt.vFloor)+0.8*dt); crt.v=Math.max(crt.vFloor,Math.min(15,crt.v)); // pull away gently after a stop
     const dEnd=TRK.L*CART_LAPS-crt.dist; if(dEnd<20)crt.v=Math.min(crt.v,Math.sqrt(2*3*Math.max(0,dEnd))+0.2); // roll gently into the station at the end
     const ns=nextStop(); if(ns){ const d=ns.abs-crt.dist; if(d<=0.03){ crt.dist=ns.abs; crt.v=0; stopStart(ns.st); } else crt.v=Math.min(crt.v,Math.sqrt(2*2.5*d)+0.08); } // brake gently
-    const dr=cartObjs.dragon; if(dr&&dr.t<17){ crt.v=Math.max(0,crt.v-3*dt); crt.vFloor=0; if(!crt.dragonStopSaid&&crt.v<0.2){ crt.dragonStopSaid=true; lookToward([dr.g.position.x,dr.g.position.y,dr.g.position.z],0.9); } }
+    const dr=cartObjs.dragon; if(dr&&dr.t<DRAGON_HOVER){ crt.v=Math.max(0,crt.v-3*dt); crt.vFloor=0; if(!crt.dragonStopSaid&&crt.v<0.2){ crt.dragonStopSaid=true; lookToward([dr.g.position.x,dr.g.position.y,dr.g.position.z],0.9); } }
     crt.dist+=crt.v*dt;
     const lap=Math.floor(crt.dist/TRK.L)+1;
     if(lap>CART_LAPS){ crt.dist=TRK.L*CART_LAPS; cartFinish(); }
@@ -1856,17 +1856,22 @@ function makeDragon(){ const g=new THREE.Group(), sc=lm(0x6a2a8a), bel=lm(0xc79a
   const tl=box(0.5,0.5,2.6,sc); tl.position.set(0,0.1,2.8); g.add(tl); const tl2=box(0.3,0.3,1.8,sc); tl2.position.set(0,0.0,4.8); g.add(tl2);
   const wings=[]; for(const sx of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sx*0.7,0.5,-0.2); g.add(piv); const w=box(3.4,0.08,2.2,wingM); w.position.x=sx*1.7; piv.add(w); piv.userData.sd=sx; wings.push(piv); }
   const chest=discMesh(0.75); chest.position.set(0,0,-1.62); g.add(chest);
-  return {g,wings,chest,t:0,breathT:0,chestT:0}; }
+  const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), rx=Math.cos(cy), rz=-Math.sin(cy); // pick the side toward the middle of the map
+  const side=Math.hypot(p.x+rx*9-CX,p.z+rz*9-CZ)<Math.hypot(p.x-rx*9-CX,p.z-rz*9-CZ)?1:-1;
+  return {g,wings,chest,t:0,breathT:0,chestT:0,side}; }
+const DRAGON_HOVER=22;
 function cartToWorld(off){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), fx=-Math.sin(cy), fz=-Math.cos(cy), rx=Math.cos(cy), rz=-Math.sin(cy);
   return new THREE.Vector3(p.x+rx*off[0]+fx*off[2],p.y+off[1],p.z+rz*off[0]+fz*off[2]); }
 function updateDragon(dt){ const dr=cartObjs.dragon; dr.t+=dt; const T=dr.t; let off;
   const lerp=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u), ease=u=>u*u*(3-2*u);
-  if(T<3) off=lerp([30,26,45],[8,6,14],ease(T/3)); else if(T<17) off=[8+Math.sin(T*0.8)*2,6+Math.sin(T*1.3)*1.2,14+Math.sin(T*0.5)*3]; else if(T<20) off=lerp([8,6,14],[-30,32,55],ease((T-17)/3));
+  const sd=dr.side, H=DRAGON_HOVER;
+  if(T<3) off=lerp([30*sd,26,45],[8*sd,6,12],ease(T/3)); else if(T<H) off=[(8+Math.sin(T*0.8)*1.5)*sd,6+Math.sin(T*1.3)*1.2,12+Math.sin(T*0.5)*2.5]; else if(T<H+3) off=lerp([8*sd,6,12],[30*sd,32,55],ease((T-H)/3));
   else { cartRoot.remove(dr.g); dr.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); cartObjs.dragon=null; return; }
-  const w=cartToWorld(off), prev=dr.g.position.clone(); dr.g.position.copy(w); const look=cartToWorld([0,1.5,0]); dr.g.lookAt(look); dr.g.rotateY(Math.PI);
+  const w=cartToWorld(off), prev=dr.g.position.clone();
+  if(T>=2&&T<H+1){ w.x=Math.max(6,Math.min(W-6,w.x)); w.z=Math.max(6,Math.min(D-6,w.z)); const gy=surfaceAt(Math.floor(w.x),Math.floor(w.z)).y; if(w.y<gy+4)w.y=gy+4; } /* keep it over the map, above the ground */ dr.g.position.copy(w); const look=cartToWorld([0,1.5,0]); dr.g.lookAt(look); dr.g.rotateY(Math.PI);
   for(const wg of dr.wings) wg.rotation.z=Math.sin(T*6)*0.5*wg.userData.sd;
   if(dr.chestT>0){ dr.chestT-=dt; if(dr.chestT<=0)dr.chest.visible=true; }
-  if(T>3&&T<17){ dr.breathT-=dt; if(dr.breathT<=0){ dr.breathT=0.45; // fire breath made of bullseyes
+  if(T>3&&T<H){ dr.breathT-=dt; if(dr.breathT<=0){ dr.breathT=0.45; // fire breath made of bullseyes
       const mouth=new THREE.Vector3(0,0.8,-4.2).applyMatrix4(dr.g.matrixWorld), aim=cartToWorld([(rand()-.5)*4,2.2+rand()*1.5,3+rand()*4]);
       const v=aim.sub(mouth).normalize().multiplyScalar(5.5); const m=discMesh(0.42); m.position.copy(mouth); cartRoot.add(m);
       cartObjs.flying.push({m,v:[v.x,v.y,v.z],g:0,life:3,mult:2,kind:'dragon'}); puff(mouth.x,mouth.y,mouth.z,[0xff8a1a,0xffd84a],4,2,0.5,0,0.4); } } }
