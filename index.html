@@ -890,7 +890,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
-  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); atkCd=0.15; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
+  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
     if(tgm&&tgm.out[0]){ toast('💤 You\'re out until this round ends.'); return; }
@@ -1544,7 +1544,7 @@ function fireSpecial(k,o,d,w){ arrows[k]--; const tint={explode:0xff3322,fire:0x
   const mk=(dir)=>{ const sh=addShot(o.clone(),dir,w.spd,w.grav,w.dmg,'arrow',false); sh.sp=k; sh.mesh.traverse(x=>{ if(x.material&&x!==sh.mesh.children[0])x.material=new THREE.MeshBasicMaterial({color:tint}); }); if(k==='seek')sh.grav=2; return sh; };
   if(k==='split'){ for(const a of [-0.12,0,0.12]){ const c=Math.cos(a), s2=Math.sin(a); mk(new THREE.Vector3(d.x*c-d.z*s2,d.y,d.x*s2+d.z*c).normalize()); } }
   else mk(d);
-  sfx('bow'); if(arrows[k]<=0){ arrowSel='normal'; toast('That was your last '+ARROWS[k].name+'. Back to normal arrows.'); }
+  sfx('bow'); if(arrows[k]<=0){ const other=ARROW_KEYS.find(x=>arrows[x]>0); arrowSel=other||'normal'; toast('That was your last '+ARROWS[k].name+'.'+(other?'':' Back to normal arrows.')); }
   refreshArrowBtn(); queueSave(); }
 function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
   if(!s.tgt||!mobs.includes(s.tgt)){ s.tgt=null; let best=1e9; for(const m of mobs){ const dx=m.p[0]-s.p[0], dy=m.p[1]+m.h*0.5-s.p[1], dz=m.p[2]-s.p[2], d=Math.hypot(dx,dy,dz);
@@ -1554,7 +1554,7 @@ function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
 function specialImpact(s,m,x,y,z,x0,y0,z0){
   if(s.sp==='fire'){ if(m){ if(!m.t.fireproof){ m.fireT=4; m.burnT=0; } } else { const fx=Math.floor(x0),fy=Math.floor(y0),fz=Math.floor(z0); if(get(fx,fy,fz)===0)tryIgnite(fx,fy,fz); } sfx('sizzle'); }
   else if(s.sp==='explode') explodeAt(x,y,z); }
-function explodeAt(x,y,z){ sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
+function explodeAt(x,y,z){ if(mode==='cart'){ cartBlast(x,y,z); return; } sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
   for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<3.4&&mobs.includes(m)) damageMob(m,Math.round(2+9*(1-d/3.4)),m.p[0]-x,m.p[2]-z,9); }
   const pd=Math.hypot(pl.p[0]-x,pl.p[1]+0.9-y,pl.p[2]-z); if(pd<2.2){ const l=Math.hypot(pl.p[0]-x,pl.p[2]-z)||1; hurtPlayer(1,(pl.p[0]-x)/l,(pl.p[2]-z)/l,'Your own explosion'); }
   const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z);
@@ -1679,6 +1679,13 @@ const sunTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=1
   x.beginPath(); x.arc(64,64,30,0,Math.PI*2); x.fillStyle='#6a3b12'; x.fill(); x.fillStyle='#3d2208'; for(let i=0;i<40;i++){ const a=rand()*6.28, r=rand()*26; x.fillRect(64+Math.cos(a)*r,64+Math.sin(a)*r,3,3); }
   return new THREE.CanvasTexture(c); })();
 const sunMat=new THREE.MeshBasicMaterial({map:sunTex,transparent:true,alphaTest:0.4,side:THREE.DoubleSide});
+const goldMat=new THREE.MeshBasicMaterial({color:0xffc81a,side:THREE.DoubleSide});
+function powerTag(m,kind){ // a gold ring and an icon mark a bullseye that gives special arrows
+  const ring=new THREE.Mesh(new THREE.CircleGeometry(m.userData.R*1.28,24),goldMat); ring.position.z=-0.015; m.add(ring);
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'); x.font='48px sans-serif'; x.textAlign='center'; x.fillText(kind==='split'?'🔱':'💥',32,48);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)})); sp.scale.set(0.7,0.7,1); sp.position.y=m.userData.R+0.55; m.add(sp); return m; }
+function grantPower(kind){ const n=kind==='split'?10:3; arrows[kind]=Math.max(arrows[kind]||0,n); arrowSel=kind; sfx('buy');
+  toast(kind==='split'?'🔱 Split arrows for your next 10 shots!':'💥 Exploding arrows for your next 3 shots!'); updateCartHud(); }
 function discMesh(R,mat){ const m=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),mat||tgMat); m.userData.R=R; return m; }
 function clearCart(){ cartRoot.traverse(o=>{ if(o.geometry&&o.geometry!==cfxGeo)o.geometry.dispose(); }); cartRoot.clear(); cfx.length=0;
   cartObjs.cart=null; for(const k of ['posts','flowers','animals','clouds','glass','flying','volc','mush'])cartObjs[k].length=0; cartObjs.dragon=null; cartObjs.skel=null; }
@@ -1719,13 +1726,18 @@ function buildCartScene(){ clearCart(); wfX=null; const wst=CART_STOPS.find(x=>x
       for(let t=0;t<=1.05;t+=0.05){ const cx=p.x+(x-p.x)*t, cz=p.z+(z-p.z)*t; // clear the orchard trees out of the way so you can see it
         for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=0;dy<=7;dy++){ const bx=Math.floor(cx)+dx,bz=Math.floor(cz)+dz,by=su.y+1+dy, b=get(bx,by,bz); if(b===ID.leaves||b===ID.log)setBlock(bx,by,bz,0); } }
       break; } }
+  { const st=CART_STOPS.find(x=>x.fx==='skeleton'), sp=trackAt(st.s), sk=cartObjs.skel; if(sk){ // move sunflowers that block the view of the skeleton off to the sides
+    const ax=sp.x, az=sp.z, bx=sk.p[0], bz=sk.p[2], L=Math.hypot(bx-ax,bz-az)||1, ux=(bx-ax)/L, uz=(bz-az)/L;
+    for(const f of cartObjs.flowers){ const fx=f.g.position.x-ax, fz=f.g.position.z-az, t=fx*ux+fz*uz, perp=fx*-uz+fz*ux; if(t<-1||t>L+2||Math.abs(perp)>3)continue;
+      const side=perp>=0?1:-1, nx=f.g.position.x+(-uz)*side*(4-Math.abs(perp)), nz=f.g.position.z+ux*side*(4-Math.abs(perp)), su=surfaceAt(Math.floor(nx),Math.floor(nz));
+      f.g.position.set(nx,su.y+1,nz); faceTrack(f.g,nx,nz); } } }
   // mushrooms with bullseye caps along the walls of the cave shaft
   { const roofed=[]; for(let i=0;i<TRK.n;i+=2){ const x=Math.floor(TRK.X[i]),z=Math.floor(TRK.Z[i]),y=Math.round(TRK.Y[i]); if(get(x,y+4,z)&&get(x,y+5,z))roofed.push(i); }
     const pick=[0.15,0.4,0.62,0.85].map(f=>roofed[Math.floor(f*(roofed.length-1))]).filter(i=>i!==undefined);
     pick.forEach((i,k)=>{ const p=trackAt(i*TSTEP), yaw2=Math.atan2(-p.dx,-p.dz), side=k%2?1:-1, x=p.x+Math.cos(yaw2)*side*1.15, z=p.z-Math.sin(yaw2)*side*1.15;
       const g=new THREE.Group(), st=box(0.16,0.5,0.16,lm(0xf2ead8)); st.position.y=0.25; g.add(st); const cap=box(0.6,0.22,0.6,lm(0xd8232a)); cap.position.y=0.6; g.add(cap);
       for(const [sx,sz] of [[-0.15,-0.31],[0.12,-0.31],[0.31,0.1]]){ const d=box(0.1,0.1,0.02,bm(0xffffff)); d.position.set(sx,0.64,sz); g.add(d); }
-      const disc=discMesh(0.32); disc.position.set(0,0.95,0); g.add(disc); g.position.set(x,Math.round(p.y),z); g.rotation.y=Math.atan2(p.x-x,p.z-z); cartRoot.add(g); cartObjs.mush.push({g,disc}); }); }
+      const disc=discMesh(0.32); disc.position.set(0,0.95,0); g.add(disc); g.position.set(x,Math.round(p.y),z); g.rotation.y=Math.atan2(-p.dx,-p.dz); cartRoot.add(g); cartObjs.mush.push({g,disc}); }); }
   // clouds carrying bullseyes
   for(let k=0;k<3;k++){ const p=trackAt(TRK.L*(k+0.3)/3), side=k%2?1:-1, yaw=Math.atan2(-p.dx,-p.dz), px=Math.cos(yaw)*side, pz=-Math.sin(yaw)*side;
     const g=new THREE.Group(); const cl=box(8,2.2,4.5,cMat); g.add(cl); const dsc=discMesh(1.3); dsc.position.set(0,0,0); g.add(dsc);
@@ -1746,6 +1758,7 @@ function makeAnimal(type){ const g=new THREE.Group(), body=new THREE.Group(); g.
 // --- stops along the ride: the cart brakes, waits, and turns your view toward the action
 const CART_STOPS=[{name:'🦌 Animal meadow',at:[70,80],focus:[73,12.5,70],dur:11,fx:'meadow'},
   {name:'💦 Waterfall',at:[63,32],focus:[70,17,30],dur:12,fx:'waterfall'},
+  {name:'⛲ Fountain',at:[55,31],focus:[61,13,24],dur:10,fx:'fountain'},
   {name:'🌋 Volcano',at:[38,36],focus:[18,23,26],dur:12,fx:'volcano'},
   {name:'💀 Skeleton juggler',at:[27,51],focus:[22,14,50],dur:11,fx:'skeleton'}];
 for(const st of CART_STOPS){ let bi=0,bd=1e9; for(let i=0;i<TRK.n;i++){ const d=Math.hypot(TRK.X[i]-st.at[0],TRK.Z[i]-st.at[1]); if(d<bd){ bd=d; bi=i; } } st.s=bi*TSTEP; }
@@ -1754,7 +1767,7 @@ function nextStop(){ const lapBase=(crt.lap-1)*TRK.L; for(let k=crt.stopIdx||0;k
 function lookToward(f,dur){ const dx=f[0]-pl.p[0], dz=f[2]-pl.p[2], dy=f[1]-(pl.p[1]+EYE); let ty=Math.atan2(-dx,-dz), d=ty-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
   crt.turn={from:yaw,to:yaw+d,pf:pitch,pt:Math.max(-0.8,Math.min(0.8,Math.atan2(dy,Math.hypot(dx,dz)))),t:0,dur}; }
 function stopStart(st){ crt.stopT=st.dur; crt.cur=st; lookToward(st.focus,0.9); toast('⏸ '+st.name+' stop! Shoot!'); sfx('place');
-  if(st.fx==='volcano'){ crt.volcT=0.3; } if(st.fx==='meadow'){ for(const a of cartObjs.animals){ a.goal=[st.focus[0]+(rand()-.5)*10,st.focus[2]+(rand()-.5)*10]; } } }
+  if(st.fx==='volcano'){ crt.volcT=0.3; } if(st.fx==='skeleton'){ crt.skelPow=2; crt.skelThrow=0; } if(st.fx==='fountain'){ crt.fountT=0.6; crt.fountPow=1; } if(st.fx==='meadow'){ for(const a of cartObjs.animals){ a.goal=[st.focus[0]+(rand()-.5)*10,st.focus[2]+(rand()-.5)*10]; } } }
 let wfX=null; function waterfallX(){ if(wfX!==null)return wfX; wfX=70; for(let x=60;x<=82;x++){ if(get(x,19,28)===ID.water||get(x,19,33)===ID.water){ wfX=x; break; } } return wfX; }
 function waterfallDrop(){ const m=discMesh(0.45); const z=rand()<0.5?27.3+rand()*2:32.7+rand()*2; m.position.set(waterfallX()+0.2,22,z); cartRoot.add(m); cartObjs.flying.push({m,v:[0,-2.2-rand()*1.2,0],g:0.4,life:9,mult:2,kind:'waterfall'}); }
 // --- ride state
@@ -1779,7 +1792,7 @@ function cartIntro(){ if(!crt)return; if(document.pointerLockElement)document.ex
   $('modal').style.display='flex';
   tap($('cGo'),()=>{ closeMenu(); if(crt.phase!=='ride'){ cartReset(); crt.phase='count'; crt.t=3.99; } });
   tap($('cMenu'),openMenu); }
-function cartReset(){ const keep=crt; crt=newCrt(); crt.lastYaw=keep?keep.lastYaw:null; for(const o of cartObjs.glass)cartRoot.remove(o.m); cartObjs.glass.length=0;
+function cartReset(){ const keep=crt; crt=newCrt(); arrows=cleanArrows(); arrowSel='normal'; crt.lastYaw=keep?keep.lastYaw:null; for(const o of cartObjs.glass)cartRoot.remove(o.m); cartObjs.glass.length=0;
   for(const o of cartObjs.flying)cartRoot.remove(o.m); cartObjs.flying.length=0; if(cartObjs.dragon){ cartRoot.remove(cartObjs.dragon.g); cartObjs.dragon=null; }
   cartNewLap(); placeCart(); updateCartHud(); }
 function cartNewLap(){ // fresh posts, fresh sunflower heads, and fresh targets on the animals and clouds
@@ -1791,7 +1804,7 @@ function cartNewLap(){ // fresh posts, fresh sunflower heads, and fresh targets 
   for(const o of cartObjs.volc){ cartRoot.remove(o.m); o.m.geometry.dispose(); } cartObjs.volc.length=0;
   { const st=CART_STOPS.find(x=>x.fx==='volcano'), base=Math.atan2(st.at[1]-CART_VOLC[1],st.at[0]-CART_VOLC[0]); // bullseyes on the side of the volcano facing the track
     for(let k=0;k<4;k++){ const an=base+(k-1.5)*0.32, r=6+rand()*4.5, x=CART_VOLC[0]+Math.cos(an)*r, z=CART_VOLC[1]+Math.sin(an)*r, su=surfaceAt(Math.floor(x),Math.floor(z));
-      const m=discMesh(0.6); m.position.set(x,su.y+1.6,z); m.lookAt(st.at[0],su.y+1.6,st.at[1]); cartRoot.add(m); cartObjs.volc.push({m}); } }
+      const m=discMesh(0.6); m.position.set(x,su.y+1.6,z); m.lookAt(st.at[0],su.y+1.6,st.at[1]); cartRoot.add(m); const power=k===1?'split':null; if(power)powerTag(m,power); cartObjs.volc.push({m,power}); } }
   for(const o of cartObjs.mush)o.disc.visible=true;
   for(const f of cartObjs.flowers)f.head.visible=true; for(const a of cartObjs.animals){ a.hidden=0; for(const d of a.discs)d.visible=true; } for(const c of cartObjs.clouds){ c.off=0; c.disc.visible=true; } }
 function ridePlayer(dt){ if(!crt)return;
@@ -1818,10 +1831,13 @@ function cartFinish(){ crt.phase='done'; crt.v=0; const best=cartBest(), rec=crt
   $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
   tap($('cAgain'),()=>{ closeMenu(); cartReset(); crt.phase='count'; crt.t=3.99; }); tap($('cMenu'),openMenu); }
 function updateCartHud(){ const el=$('cartHud'); if(mode!=='cart'||!crt){ el.style.display='none'; return; } el.style.display='inline-block';
-  const h='🛤️ Lap '+Math.min(crt.lap,CART_LAPS)+'/'+CART_LAPS+' &nbsp;'+(crt.stopT>0?'⏸ '+crt.cur.name+' '+Math.ceil(crt.stopT)+'s':'💨 '+Math.round(crt.v*3.6)+' km/h')+'<br><span style="color:#7fe3cf">⭐ '+crt.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(cartBest(),crt.score)+'</span>';
+  const h='🛤️ Lap '+Math.min(crt.lap,CART_LAPS)+'/'+CART_LAPS+' &nbsp;'+(crt.stopT>0?'⏸ '+crt.cur.name+' '+Math.ceil(crt.stopT)+'s':'💨 '+Math.round(crt.v*3.6)+' km/h')+'<br><span style="color:#7fe3cf">⭐ '+crt.score+'</span>'+(arrowSel!=='normal'&&arrows[arrowSel]>0?' &nbsp;<span style="color:#ffc81a">'+ARROWS[arrowSel].icon+'×'+arrows[arrowSel]+'</span>':'')+' &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(cartBest(),crt.score)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 function cartScore(pts,pos,kind,ring){ crt.score+=pts; crt.counts[kind]=(crt.counts[kind]||0)+1; if(ring===25)crt.counts.bull=(crt.counts.bull||0)+1;
   tgPopup('+'+pts,ring===25?'#ff5a4a':'#7fe3cf',pos); sfx(ring===25?'buy':'coin'); updateCartHud(); }
+function cartBlast(x,y,z){ sfx('boom'); puff(x,y,z,[0xff3a10,0xff8a1a,0xffd84a],40,9,6,8,1.0); let total=0; // an exploding arrow scores every target in the blast
+  for(const e of cartTargets()){ const w=new THREE.Vector3(); e.m.getWorldPosition(w); if(w.distanceTo(new THREE.Vector3(x,y,z))>3.5)continue; const pts=5*e.mult; total+=pts; crt.score+=pts; crt.counts[e.kind]=(crt.counts[e.kind]||0)+1; e.hit(); }
+  if(total){ tgPopup('💥+'+total,'#ffb347',[x,y+1,z]); toast('💥 Blast! +'+total); updateCartHud(); } }
 // all the bullseyes an arrow can hit right now
 function cartTargets(){ const L=[];
   for(const o of cartObjs.posts) if(o.disc.visible)L.push({m:o.disc,mult:1,kind:'post',hit:()=>{ o.disc.visible=false; }});
@@ -1829,8 +1845,8 @@ function cartTargets(){ const L=[];
   for(const a of cartObjs.animals) if(!a.hidden) for(const d of a.discs) L.push({m:d,mult:a.mult,kind:'animal',hit:()=>{ a.hidden=6; a.flee=2.5; for(const x of a.discs)x.visible=false; }});
   for(const c of cartObjs.clouds) if(c.disc.visible)L.push({m:c.disc,mult:2,kind:'cloud',hit:()=>{ c.disc.visible=false; c.off=12; const w=new THREE.Vector3(); c.g.getWorldPosition(w); puff(w.x,w.y,w.z,[0xffffff,0xeeeeee],20,6,2,1,1.2); }});
   for(const o of cartObjs.glass)L.push({m:o.m,mult:2,kind:'glass',hit:()=>{ o.life=0; o.hit=true; sfx('glass'); puff(o.m.position.x,o.m.position.y,o.m.position.z,[0xcfefff,0xffffff,0x9fd8ff],26,8,4,12,1.2); }});
-  for(const o of cartObjs.flying)L.push({m:o.m,mult:o.mult,kind:o.kind,hit:()=>{ o.life=0; puff(o.m.position.x,o.m.position.y,o.m.position.z,[0xffffff,0xff5a4a],10,5,3,8,0.8); }});
-  for(const o of cartObjs.volc) if(o.m.visible)L.push({m:o.m,mult:2,kind:'volcano',hit:()=>{ o.m.visible=false; puff(o.m.position.x,o.m.position.y,o.m.position.z,[0x333333,0xff8a1a],12,4,3,9,0.8); }});
+  for(const o of cartObjs.flying) if(o.life>0)L.push({m:o.m,mult:o.mult,kind:o.kind,hit:()=>{ o.life=0; if(o.power)grantPower(o.power); puff(o.m.position.x,o.m.position.y,o.m.position.z,[0xffffff,0xff5a4a],10,5,3,8,0.8); }});
+  for(const o of cartObjs.volc) if(o.m.visible)L.push({m:o.m,mult:2,kind:'volcano',hit:()=>{ o.m.visible=false; if(o.power)grantPower(o.power); puff(o.m.position.x,o.m.position.y,o.m.position.z,[0x333333,0xff8a1a],12,4,3,9,0.8); }});
   for(const o of cartObjs.mush) if(o.disc.visible)L.push({m:o.disc,mult:2,kind:'mushroom',hit:()=>{ o.disc.visible=false; const w=new THREE.Vector3(); o.disc.getWorldPosition(w); puff(w.x,w.y,w.z,[0xd8232a,0xffffff],10,3,2,8,0.7); }});
   const dr=cartObjs.dragon; if(dr&&dr.chest.visible)L.push({m:dr.chest,mult:3,kind:'dragon',hit:()=>{ dr.chest.visible=false; dr.chestT=4; }});
   return L; }
@@ -1840,7 +1856,7 @@ function cartCheck(s,x0,y0,z0){ if(!crt||crt.phase!=='ride')return false;
     if((a>0)===(b>0)||a===b)continue; const f=a/(a-b), hx=x0+(s.p[0]-x0)*f, hy=y0+(s.p[1]-y0)*f, hz=z0+(s.p[2]-z0)*f;
     const sc=new THREE.Vector3(); d.getWorldScale(sc); const r=Math.hypot(hx-tmpA.x,hy-tmpA.y,hz-tmpA.z)/(d.userData.R*sc.x); if(r>1)continue;
     const ring=e.sun?(r<=0.45?10:3):ringPoints(r); if(!ring)continue; const pts=ring*e.mult;
-    cartScore(pts,[hx,hy+0.5,hz],e.kind,e.sun?(ring===10?25:0):ring); e.hit();
+    cartScore(pts,[hx,hy+0.5,hz],e.kind,e.sun?(ring===10?25:0):ring); e.hit(); if(s.sp==='explode')cartBlast(hx,hy,hz);
     if(e.kind==='glass'||e.kind==='cloud'||e.mult>1) toast((e.sun?'🌻':e.kind==='glass'?'🪟':e.kind==='cloud'?'☁️':e.kind==='dragon'?'🐉':e.kind==='volcano'?'🌋':e.kind==='waterfall'?'💦':e.kind==='skeleton'?'💀':e.kind==='mushroom'?'🍄':'🎯')+' +'+pts+(e.mult>1?' (×'+e.mult+')':''));
     return true; }
   for(const tr of appleTrees) for(const sl of tr.slots){ if(sl.st!==2)continue; const c=sl.pos, ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
@@ -1856,19 +1872,21 @@ function makeDragon(){ const g=new THREE.Group(), sc=lm(0x6a2a8a), bel=lm(0xc79a
   const tl=box(0.5,0.5,2.6,sc); tl.position.set(0,0.1,2.8); g.add(tl); const tl2=box(0.3,0.3,1.8,sc); tl2.position.set(0,0.0,4.8); g.add(tl2);
   const wings=[]; for(const sx of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sx*0.7,0.5,-0.2); g.add(piv); const w=box(3.4,0.08,2.2,wingM); w.position.x=sx*1.7; piv.add(w); piv.userData.sd=sx; wings.push(piv); }
   const chest=discMesh(0.75); chest.position.set(0,0,-1.62); g.add(chest);
-  const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), rx=Math.cos(cy), rz=-Math.sin(cy); // pick the side toward the middle of the map
-  const side=Math.hypot(p.x+rx*9-CX,p.z+rz*9-CZ)<Math.hypot(p.x-rx*9-CX,p.z-rz*9-CZ)?1:-1;
-  return {g,wings,chest,t:0,breathT:0,chestT:0,side}; }
+  // hover out over the open middle of the map, high enough that no rocks block the view
+  const p=trackAt(crt.dist), tx=CX-p.x, tz=CZ-p.z, l=Math.hypot(tx,tz)||1, ux=tx/l, uz=tz/l, d=Math.min(15,l*0.7);
+  const hx=p.x+ux*d, hz=p.z+uz*d; let hy=Math.max(p.y+5,surfaceAt(Math.floor(hx),Math.floor(hz)).y+7);
+  const eye=new THREE.Vector3(p.x,p.y+2,p.z); for(let k=0;k<20;k++){ const dir=new THREE.Vector3(hx,hy,hz).sub(eye), L=dir.length(); dir.normalize(); if(!raycast(eye,dir,Math.max(0.5,L-2.5)))break; hy+=1.5; }
+  const home=[hx,hy,hz], far=[hx+ux*30,hy+22,hz+uz*30]; g.position.set(...far);
+  return {g,wings,chest,t:0,breathT:0,chestT:0,home,far}; }
 const DRAGON_HOVER=22;
 function cartToWorld(off){ const p=trackAt(crt.dist), cy=Math.atan2(-p.dx,-p.dz), fx=-Math.sin(cy), fz=-Math.cos(cy), rx=Math.cos(cy), rz=-Math.sin(cy);
   return new THREE.Vector3(p.x+rx*off[0]+fx*off[2],p.y+off[1],p.z+rz*off[0]+fz*off[2]); }
 function updateDragon(dt){ const dr=cartObjs.dragon; dr.t+=dt; const T=dr.t; let off;
   const lerp=(a,b,u)=>a.map((v,i)=>v+(b[i]-v)*u), ease=u=>u*u*(3-2*u);
-  const sd=dr.side, H=DRAGON_HOVER;
-  if(T<3) off=lerp([30*sd,26,45],[8*sd,6,12],ease(T/3)); else if(T<H) off=[(8+Math.sin(T*0.8)*1.5)*sd,6+Math.sin(T*1.3)*1.2,12+Math.sin(T*0.5)*2.5]; else if(T<H+3) off=lerp([8*sd,6,12],[30*sd,32,55],ease((T-H)/3));
+  const H=DRAGON_HOVER, hm=dr.home;
+  if(T<3) off=lerp(dr.far,hm,ease(T/3)); else if(T<H) off=[hm[0]+Math.sin(T*0.7)*1.5,hm[1]+Math.sin(T*1.3)*1.0,hm[2]+Math.cos(T*0.6)*1.5]; else if(T<H+3) off=lerp(hm,dr.far,ease((T-H)/3));
   else { cartRoot.remove(dr.g); dr.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); cartObjs.dragon=null; return; }
-  const w=cartToWorld(off), prev=dr.g.position.clone();
-  if(T>=2&&T<H+1){ w.x=Math.max(6,Math.min(W-6,w.x)); w.z=Math.max(6,Math.min(D-6,w.z)); const gy=surfaceAt(Math.floor(w.x),Math.floor(w.z)).y; if(w.y<gy+4)w.y=gy+4; } /* keep it over the map, above the ground */ dr.g.position.copy(w); const look=cartToWorld([0,1.5,0]); dr.g.lookAt(look); dr.g.rotateY(Math.PI);
+  const w=new THREE.Vector3(off[0],off[1],off[2]); dr.g.position.copy(w); const look=cartToWorld([0,1.5,0]); dr.g.lookAt(look); dr.g.rotateY(Math.PI);
   for(const wg of dr.wings) wg.rotation.z=Math.sin(T*6)*0.5*wg.userData.sd;
   if(dr.chestT>0){ dr.chestT-=dt; if(dr.chestT<=0)dr.chest.visible=true; }
   if(T>3&&T<H){ dr.breathT-=dt; if(dr.breathT<=0){ dr.breathT=0.45; // fire breath made of bullseyes
@@ -1904,14 +1922,17 @@ function updateCart(dt){
   const sk=cartObjs.skel; if(sk){ sk.atk=Math.max(0,sk.atk-dt); const r=sk.r; r.armR.rotation.x=sk.atk>0?-2.6:-0.3; r.armL.rotation.x=sk.atk>0?-0.3:-2.4;
     if(riding&&Math.hypot(sk.p[0]-pl.p[0],sk.p[2]-pl.p[2])<34){ sk.t-=dt; if(sk.t<=0){ const atStop=crt.cur&&crt.cur.fx==='skeleton'; sk.t=atStop?0.75:1.6; sk.atk=0.3;
       const tx=pl.p[0]-sk.p[0], tz=pl.p[2]-sk.p[2], l=Math.hypot(tx,tz)||1; const m=discMesh(0.5); m.position.set(sk.p[0],sk.p[1]+2,sk.p[2]); cartRoot.add(m);
-      cartObjs.flying.push({m,v:[tx/l*1.2+(rand()-.5)*1.5,8.5+rand()*2,tz/l*1.2+(rand()-.5)*1.5],g:6,life:4,mult:2,kind:'skeleton'}); sfx('throw'); } } }
+      let power=null; if(atStop&&crt.skelPow>0){ crt.skelThrow=(crt.skelThrow||0)+1; if(crt.skelThrow===3||crt.skelThrow===7){ power='split'; crt.skelPow--; powerTag(m,'split'); } }
+      cartObjs.flying.push({m,v:[tx/l*1.2+(rand()-.5)*1.5,8.5+rand()*2,tz/l*1.2+(rand()-.5)*1.5],g:6,life:4,mult:2,kind:'skeleton',power}); sfx('throw'); } } }
   if(!riding)return; crt.t+=dt;
   if(Math.hypot(waterfallX()-pl.p[0],30-pl.p[2])<30){ crt.wfT-=dt; if(crt.wfT<=0){ crt.wfT=crt.cur&&crt.cur.fx==='waterfall'?0.5:1.4; waterfallDrop(); } }
   crt.glassT-=dt; if(crt.glassT<=0){ crt.glassT=4+rand()*4; const p=trackAt(crt.dist+14+rand()*10), yaw2=Math.atan2(-p.dx,-p.dz), side=rand()<0.5?-1:1, off=3+rand()*4;
     const m=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),glassMat); m.userData.R=1.1; m.position.set(p.x+Math.cos(yaw2)*side*off,p.y+2+rand()*4,p.z-Math.sin(yaw2)*side*off);
     m.lookAt(p.x,m.position.y,p.z); m.scale.setScalar(0.01); cartRoot.add(m); cartObjs.glass.push({m,age:0,life:8}); }
   // the lake fountain
-  crt.fountT-=dt; if(crt.fountT<=0){ crt.fountT=6+rand()*3; const [fx,fz]=CART_FOUNT; puff(fx,CART_LAKE[2]+0.6,fz,[0xffffff,0xbfe6ff,0x6fb8ff],45,2.5,11,9,1.7); launchBullseyes(fx,CART_LAKE[2]+1,fz,2+Math.floor(rand()*2),8,2.5,4,1,'fountain',0.55); }
+  crt.fountT-=dt; if(crt.fountT<=0){ const atF=crt.cur&&crt.cur.fx==='fountain'; crt.fountT=atF?2.6:6+rand()*3; const [fx,fz]=CART_FOUNT; puff(fx,CART_LAKE[2]+0.6,fz,[0xffffff,0xbfe6ff,0x6fb8ff],45,2.5,11,9,1.7);
+    const n0=cartObjs.flying.length; launchBullseyes(fx,CART_LAKE[2]+1,fz,atF?3:2+Math.floor(rand()*2),8,2.5,4,1,'fountain',0.55);
+    if(atF&&crt.fountPow>0){ crt.fountPow--; const o=cartObjs.flying[n0]; o.power='explode'; powerTag(o.m,'explode'); } }
   // the volcano erupts
   crt.volcT-=dt; if(crt.volcT<=0){ crt.volcT=crt.cur&&crt.cur.fx==='volcano'?2.4:8+rand()*3; const [vx,vz]=CART_VOLC; puff(vx,31,vz,[0xff3a10,0xff8a1a,0xffd84a,0x555555],60,7,15,9,2.5); launchBullseyes(vx,31,vz,3,13,7,5,2,'volcano',0.65); sfx('boom'); }
   // the dragon arrives on the final lap
@@ -1921,7 +1942,8 @@ function updateCart(dt){
 function cartHelp(){
   return '<h2>🛤️ Mine Cart Rush</h2>Ride a mine cart around a scenic track for '+CART_LAPS+' laps. The cart speeds up going downhill and slows down climbing. Shoot as many bullseyes as you can and beat your best score!'+
   '<h3>Targets</h3><ul><li>🎯 Bullseye posts along the track: green 1, yellow 2, blue 5, red 25</li><li>🌻 Sunflowers: the brown middle is 10, the petals 3</li><li>🦌 Deer and 🐑 sheep carry targets, and 🐇 rabbits are worth double. They hop away when hit, but never get hurt</li><li>🍎 Apples in the orchard trees: +10</li><li>🪟 Glass targets that pop up ahead: double points</li><li>☁️ Bullseyes on clouds: double · ⛲ Bullseyes shooting out of the lake fountain · 🌋 Bullseyes blasting out of the volcano: double</li><li>🐉 On the last lap a dragon breathes bullseyes (double), and the target on its chest is triple!</li></ul>'+
-  '<h3>Stops</h3><ul><li>The cart stops for a few seconds at the 🦌 animal meadow, the 💦 waterfall (bullseyes tumble down it), the 🌋 volcano (it erupts, and there are bullseyes on its side) and the 💀 skeleton who juggles bullseyes. It also stops while the 🐉 dragon is breathing</li><li>The track runs through the cliff and right under the waterfall, and there are 🍄 mushroom bullseyes in the cave shaft (all of these are double points)</li></ul>'+
+  '<h3>Stops</h3><ul><li>The cart stops for a few seconds at the 🦌 animal meadow, the 💦 waterfall (bullseyes tumble down it), the 🌋 volcano (it erupts, and there are bullseyes on its side) and the 💀 skeleton who juggles bullseyes. It also stops while the 🐉 dragon is breathing</li><li>The track runs through the cliff and right under the waterfall, and there are 🍄 mushroom bullseyes in the cave shaft (all of these are double points)</li><li>⛲ After the waterfall the cart stops to face the fountain</li></ul>'+
+  '<h3>Power-up bullseyes</h3><ul><li>Bullseyes with a gold ring give special arrows: 🔱 split arrows (3 at once) for 10 shots from 2 of the skeleton\'s bullseyes and 1 on the volcano, and 💥 exploding arrows for 3 shots from 1 fountain bullseye. A blast scores every target nearby!</li></ul>'+
   '<h3>Controls</h3><ul><li>The cart drives itself. Look around and tap ⛏ Hit (or click) to shoot. You can fire again quickly</li><li>Arrows drop over distance, so aim a little high and a little ahead</li></ul>';
 }
 
@@ -2422,7 +2444,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
