@@ -1731,6 +1731,11 @@ function buildCartScene(){ clearCart(); wfX=null; const wst=CART_STOPS.find(x=>x
     for(const f of cartObjs.flowers){ const fx=f.g.position.x-ax, fz=f.g.position.z-az, t=fx*ux+fz*uz, perp=fx*-uz+fz*ux; if(t<-1||t>L+2||Math.abs(perp)>3)continue;
       const side=perp>=0?1:-1, nx=f.g.position.x+(-uz)*side*(4-Math.abs(perp)), nz=f.g.position.z+ux*side*(4-Math.abs(perp)), su=surfaceAt(Math.floor(nx),Math.floor(nz));
       f.g.position.set(nx,su.y+1,nz); faceTrack(f.g,nx,nz); } } }
+  // keep every stop's view open: clear trees between the stop and what it looks at (and around the meadow where the animals gather)
+  for(const st of CART_STOPS){ const sp=trackAt(st.s), f=st.focus, ax=sp.x, az=sp.z, L=Math.hypot(f[0]-ax,f[2]-az)||1, base=Math.round(sp.y);
+    const clearAt=(cx,cz,r)=>{ for(let dx=-r;dx<=r;dx++)for(let dz=-r;dz<=r;dz++){ const bx=Math.floor(cx)+dx,bz=Math.floor(cz)+dz; for(let y=base-3;y<=base+12;y++){ const b=get(bx,y,bz); if(b===ID.leaves||b===ID.log)setBlock(bx,y,bz,0); } } };
+    for(let t=0;t<=1.0001;t+=1/Math.ceil(L)) clearAt(ax+(f[0]-ax)*t,az+(f[2]-az)*t,2);
+    if(st.fx==='meadow') clearAt(f[0],f[2],8); }
   // mushrooms with bullseye caps along the walls of the cave shaft
   { const roofed=[]; for(let i=0;i<TRK.n;i+=2){ const x=Math.floor(TRK.X[i]),z=Math.floor(TRK.Z[i]),y=Math.round(TRK.Y[i]); if(get(x,y+4,z)&&get(x,y+5,z))roofed.push(i); }
     const pick=[0.15,0.4,0.62,0.85].map(f=>roofed[Math.floor(f*(roofed.length-1))]).filter(i=>i!==undefined);
@@ -1767,7 +1772,10 @@ function nextStop(){ const lapBase=(crt.lap-1)*TRK.L; for(let k=crt.stopIdx||0;k
 function lookToward(f,dur){ const dx=f[0]-pl.p[0], dz=f[2]-pl.p[2], dy=f[1]-(pl.p[1]+EYE); let ty=Math.atan2(-dx,-dz), d=ty-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
   crt.turn={from:yaw,to:yaw+d,pf:pitch,pt:Math.max(-0.8,Math.min(0.8,Math.atan2(dy,Math.hypot(dx,dz)))),t:0,dur}; }
 function stopStart(st){ crt.stopT=st.dur; crt.cur=st; lookToward(st.focus,0.9); toast('⏸ '+st.name+' stop! Shoot!'); sfx('place');
-  if(st.fx==='volcano'){ crt.volcT=0.3; } if(st.fx==='skeleton'){ crt.skelPow=2; crt.skelThrow=0; } if(st.fx==='fountain'){ crt.fountT=0.6; crt.fountPow=1; } if(st.fx==='meadow'){ for(const a of cartObjs.animals){ a.goal=[st.focus[0]+(rand()-.5)*10,st.focus[2]+(rand()-.5)*10]; } } }
+  if(st.fx==='volcano'){ crt.volcT=0.3; } if(st.fx==='skeleton'){ crt.skelPow=2; crt.skelThrow=0; } if(st.fx==='fountain'){ crt.fountT=0.6; crt.fountPow=1; } if(st.fx==='meadow'){ const f=st.focus, near=cartObjs.animals.slice().sort((a,b)=>Math.hypot(a.p[0]-f[0],a.p[2]-f[2])-Math.hypot(b.p[0]-f[0],b.p[2]-f[2])).slice(0,5);
+    near.forEach((a,k)=>{ const an=k/5*Math.PI*2, gx=f[0]+Math.cos(an)*3.5, gz=f[2]+Math.sin(an)*3.5; a.goal=[gx,gz]; a.hurry=6;
+      if(Math.hypot(a.p[0]-gx,a.p[2]-gz)>10){ const su=surfaceAt(Math.floor(gx),Math.floor(gz)); if(su.y>=0&&!B[su.id].fluid&&nearestTrack(gx,gz)[3]>1.8){ // far away: hop straight into view
+          puff(a.p[0],a.y+0.5,a.p[2],[0xffffff],8,3,2,6,0.6); a.p[0]=gx; a.p[2]=gz; a.y=su.y+1; puff(gx,a.y+0.5,gz,[0xffffff],8,3,2,6,0.6); } } }); } } // the closest animals come into view
 let wfX=null; function waterfallX(){ if(wfX!==null)return wfX; wfX=70; for(let x=60;x<=82;x++){ if(get(x,19,28)===ID.water||get(x,19,33)===ID.water){ wfX=x; break; } } return wfX; }
 function waterfallDrop(){ const m=discMesh(0.45); const z=rand()<0.5?27.3+rand()*2:32.7+rand()*2; m.position.set(waterfallX()+0.2,22,z); cartRoot.add(m); cartObjs.flying.push({m,v:[0,-2.2-rand()*1.2,0],g:0.4,life:9,mult:2,kind:'waterfall'}); }
 // --- ride state
@@ -1903,7 +1911,8 @@ function updateCart(dt){
   for(const a of cartObjs.animals){ if(a.hidden>0){ a.hidden-=dt; if(a.hidden<=0){ a.hidden=0; for(const d of a.discs)d.visible=true; } }
     let spd=a.type==='sheep'?0.9:a.type==='deer'?1.6:2.2, mx=0,mz=0;
     if(a.flee>0){ a.flee-=dt; const dx=a.p[0]-pl.p[0], dz=a.p[2]-pl.p[2], l=Math.hypot(dx,dz)||1; mx=dx/l; mz=dz/l; spd*=2.6; }
-    else { if(!a.goal||rand()<dt*0.15)a.goal=[a.home[0]+(rand()-.5)*10,a.home[1]+(rand()-.5)*10]; const dx=a.goal[0]-a.p[0], dz=a.goal[1]-a.p[2], l=Math.hypot(dx,dz); if(l>0.6){ mx=dx/l; mz=dz/l; } }
+    else { if(a.hurry>0){ a.hurry-=dt; spd*=3; } if(!a.goal||(!(a.hurry>0)&&rand()<dt*0.15))a.goal=[a.home[0]+(rand()-.5)*10,a.home[1]+(rand()-.5)*10];
+      const dx=a.goal[0]-a.p[0], dz=a.goal[1]-a.p[2], l=Math.hypot(dx,dz); if(l>0.6){ mx=dx/l; mz=dz/l; } }
     const nx=a.p[0]+mx*spd*dt, nz=a.p[2]+mz*spd*dt; const su=surfaceAt(Math.floor(nx),Math.floor(nz));
     if(nx>2&&nz>2&&nx<W-2&&nz<D-2&&su.y>=0&&!B[su.id].fluid&&nearestTrack(nx,nz)[3]>1.8&&Math.abs(su.y+1-a.y)<=1.2){ a.p[0]=nx; a.p[2]=nz; a.y=su.y+1; } else a.goal=null;
     if(!a.y){ const s0=surfaceAt(Math.floor(a.p[0]),Math.floor(a.p[2])); a.y=s0.y+1; }
