@@ -890,7 +890,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
-  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(CART_BOW); atkCd=0.15; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
+  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); atkCd=0.15; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
     if(tgm&&tgm.out[0]){ toast('💤 You\'re out until this round ends.'); return; }
@@ -1604,7 +1604,6 @@ function pickFruit(f){ const {tr,sl}=f; aimFruit=null;
 // One scenic track (meadow → cliff and waterfall → bridge over the lake → past the volcano → orchard → tunnel) ridden 3 times.
 const CART_CP=[[48,80,12,5],[64,82,12,4.5],[78,76,12,4.5],[88,62,14,5],[90,50,19,5],[86,38,22,4],[81,29,21,4],[76,31,18,4],[70,31,14,4],[62,32,13,5],
   [52,31,13,6],[42,33,13,5],[34,40,12,5],[28,50,12,5.5],[20,58,12,5.5],[18,68,13,4],[24,77,13,4],[34,82,12,6]]; // x, z, rail height, cruise speed
-const CART_BOW={...{id:'bow',ranged:true,dmg:5,cd:0.15},spd:60,grav:5}; // faster, flatter arrows on the ride
 const CART_FOUNT=[61,24], CART_LAKE=[62,29,9], CART_PLAT=[84,30,14], CART_VOLC=[18,26,13], CART_HILL=[20,72,10], CART_LAPS=3, TSTEP=0.5;
 const TRK=(()=>{ const P=CART_CP, n=P.length, raw=[];
   const cr=(a,b,c,d,t)=>0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
@@ -2360,7 +2359,7 @@ function update(dt){
   if(paused){ return; }
   const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt);
   atkCd-=dt;
-  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=mode==='cart'?0.15:0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
+  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart')hitAction(); if(placeHeld)placeAction(); } }
 
   // player model
   model.position.set(pl.p[0],pl.p[1],pl.p[2]); model.rotation.y=yaw;
