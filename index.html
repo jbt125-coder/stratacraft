@@ -239,6 +239,19 @@ makeTile('lava',26,lavaFn(0));
 makeTile('bed',27,(x,y,r)=>{ if(y<5)return nz([240,236,226],r,.04); if(y===5||x===0||x===15)return [120,80,50]; return nz(((x>>2)+(y>>2))%2?[200,40,45]:[170,28,35],r,.06); });
 function spawnerTile(name,sd,core){ makeTile(name,sd,(x,y,r)=>{ if(x%5===0||y%5===0)return nz([40,40,46],r,.15); const d=Math.hypot(x-7.5,y-7.5); if(d<4)return nz(core,r,.15); return nz([18,18,22],r,.2); }); }
 spawnerTile('spawn_skel',28,[235,230,210]); spawnerTile('spawn_orc',29,[90,190,60]); spawnerTile('spawn_troll',30,[150,160,175]);
+// town blocks for Rail Rampage
+makeTile('brick',31,(x,y,r)=>{ const off=(y>>2)%2?4:0; if(y%4===3||(x+off)%8===7)return nz([200,196,186],r,.05); return nz(r()<.1?[150,52,40]:[178,64,48],r,.1); });
+makeTile('concrete',32,(x,y,r)=>{ let c=nz([182,182,178],r,.07); if(r()<.04)c=[150,150,146]; if(y===0||y===15)c=[160,160,156]; return c; });
+makeTile('window',33,(x,y,r)=>{ if(x<2||y<2||x>13||y>13||x===7||x===8)return nz([210,210,205],r,.04); return (x-y>3&&x-y<7)?[190,225,250]:nz([70,120,170],r,.06); });
+makeTile('asphalt',34,(x,y,r)=>{ let c=nz([62,64,68],r,.18); if(r()<.05)c=[95,96,100]; return c; });
+{ const paintTile=(name,sd,c)=>makeTile(name,sd,(x,y,r)=>{ let k=nz(c,r,.04); if(y<3)k=mul(k,1.15); if(y>13||x===0||x===15)k=mul(k,0.8); return k; });
+  paintTile('paint_red',35,[205,40,40]); paintTile('paint_blue',36,[40,90,210]); paintTile('paint_yellow',37,[240,196,40]); paintTile('paint_green',38,[50,170,80]); paintTile('paint_white',39,[236,236,232]); }
+makeTile('tire',40,(x,y,r)=>{ const d=Math.hypot(x-7.5,y-7.5); if(d<3)return nz([170,170,175],r,.08); return nz([28,28,30],r,.2); });
+makeTile('gold',41,(x,y,r)=>{ const v=Math.sin(x*0.5+y*0.3); return nz(v>0.7?[255,236,140]:[222,170,40],r,.07); });
+makeTile('barrel_side',42,(x,y,r)=>{ if(y===2||y===13)return nz([90,20,20],r,.1); if(y>=6&&y<=9)return ((x+y)%4<2)?[30,30,30]:[250,200,30]; return nz([200,30,30],r,.08); });
+makeTile('barrel_top',43,(x,y,r)=>{ const d=Math.hypot(x-7.5,y-7.5); if(d>6.5)return nz([110,20,20],r,.1); if(d<2)return [40,40,40]; return nz([190,30,30],r,.08); });
+makeTile('crate',44,(x,y,r)=>{ if(x<2||y<2||x>13||y>13||Math.abs(x-y)<1.5)return nz([130,92,48],r,.1); return nz([196,152,92],r,.08); });
+makeTile('roof',45,(x,y,r)=>{ if(y%4===3)return nz([110,30,24],r,.1); return nz(((x+(y>>2)*3)%6===0)?[150,44,34]:[178,58,42],r,.08); });
 
 // fire texture (4 animation frames stacked)
 const fireC=document.createElement('canvas'); fireC.width=16; fireC.height=64; const fctx=fireC.getContext('2d');
@@ -286,6 +299,16 @@ addBlock('bed','Your Bed','Building','In Four Corners this is your base. If the 
 addBlock('spawn_skel','Skeleton Spawn Block','Building','Skeletons keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_skel'},{hidden:true});
 addBlock('spawn_orc','Orc Spawn Block','Building','Orcs keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_orc'},{hidden:true});
 addBlock('spawn_troll','Troll Spawn Block','Building','Trolls keep coming out of this block. Hit it 10 times to break it.',{t:'spawn_troll'},{hidden:true});
+addBlock('brick','Brick','Building','Bricks are clay baked in a kiln at about 1,000 °C, which turns soft clay into hard ceramic.',{t:'brick'},{hidden:true});
+addBlock('concrete','Concrete','Building','Concrete is cement, sand, gravel and water. Cement is made by heating limestone and clay.',{t:'concrete'},{hidden:true});
+addBlock('window','Window','Building','Window glass is made from melted quartz sand.',{t:'window'},{hidden:true});
+addBlock('asphalt','Asphalt','Building','Road asphalt is gravel glued together with bitumen, a sticky leftover of crude oil.',{t:'asphalt'},{hidden:true});
+for(const [k,n] of [['red','Red'],['blue','Blue'],['yellow','Yellow'],['green','Green'],['white','White']]) addBlock('paint_'+k,n+' Paint','Building','Painted metal.',{t:'paint_'+k},{hidden:true});
+addBlock('tire','Tire','Building','Tires are made of rubber, from the sap of rubber trees or made from oil.',{t:'tire'},{hidden:true});
+addBlock('gold','Gold','Mineral','Gold is so soft that one gram can be hammered into a sheet about 1 square meter.',{t:'gold'},{hidden:true});
+addBlock('barrel','Explosive Barrel','Building','Boom! It blows up everything around it.',{side:'barrel_side',top:'barrel_top',bottom:'barrel_top'},{hidden:true});
+addBlock('crate','Wooden Crate','Building','A crate made of planks.',{t:'crate'},{hidden:true});
+addBlock('roof','Roof Tiles','Building','Clay roof tiles are baked like bricks.',{t:'roof'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
 B.forEach(b=>{ if(!b)return; const id=b.side; const d=actx.getImageData((id%COLS)*T,Math.floor(id/COLS)*T,T,T).data;
@@ -584,7 +607,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=['corners','targets','cart'].includes(s.mode)?s.mode:'survival';
+  mode=['corners','targets','cart','raid'].includes(s.mode)?s.mode:'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -605,6 +628,7 @@ function applySnapshot(s){
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   if(mode==='cart'){ buildCartScene(); crt=newCrt(); placeCart(); }
+  if(mode==='raid'){ owned=['fists','bow']; weapon='bow'; raidSetup(); } // a saved Rail Rampage always starts a fresh run
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 }
@@ -712,6 +736,7 @@ const MOBT={
   orc:{name:'Orc',hp:10,dmg:2,spd:2.4,coins:[3,6],hw:0.35,h:1.95},
   troll:{name:'Troll',hp:20,dmg:3,spd:1.6,coins:[6,10],hw:0.5,h:2.55},
   griffin:{name:'Griffin',hp:14,dmg:2,spd:6.5,coins:[6,10],hw:0.7,h:1.1,flyer:true},
+  zombie:{name:'Zombie',hp:9,dmg:1,spd:1.6,coins:[2,5],hw:0.3,h:1.85},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
 function mobModel(type){
@@ -771,6 +796,13 @@ function mobModel(type){
     r.legs=[];
     for(let i=0;i<4;i++) for(const sd of [-1,1]){ const piv=new THREE.Group(); piv.position.set(sd*0.22,0.4,-0.35+i*0.17); body.add(piv);
       const lg=box(0.7,0.07,0.07,dk); lg.position.x=sd*0.33; lg.rotation.z=sd*-0.55; piv.add(lg); piv.userData.sd=sd; piv.userData.i=i; r.legs.push(piv); }
+  } else if(type==='zombie'){ // a green person with torn clothes, arms held out in front
+    const sk=L({color:0x6fae4a}), sh=L({color:0x3a6a9a}), pa=L({color:0x3b3550}), dk=L({color:0x2a3a22});
+    r.legL=limbOn(body,-0.125,0.72,0.24,0.72,pa,L({color:0x2a2420})); r.legR=limbOn(body,0.125,0.72,0.24,0.72,pa,L({color:0x2a2420}));
+    const b=box(0.5,0.72,0.26,sh); b.position.y=1.08; body.add(b); const rip=box(0.2,0.16,0.27,sk); rip.position.set(0.1,0.82,0); body.add(rip);
+    const hd=box(0.46,0.46,0.46,sk); hd.position.y=1.67; body.add(hd); const hr=box(0.48,0.1,0.48,dk); hr.position.y=1.88; body.add(hr);
+    eye(-0.1,1.7,-0.235,0x111111,0.09,0.07); eye(0.1,1.7,-0.235,0x111111,0.09,0.07); eye(0,1.53,-0.235,0x2a3a1a,0.2,0.05);
+    r.armL=limbOn(body,-0.37,1.42,0.22,0.7,sh,sk); r.armR=limbOn(body,0.37,1.42,0.22,0.7,sh,sk);
   } else {
     const gm=L({map:graniteTex}), dk=L({color:0x5a5250});
     r.legL=limbOn(body,-0.22,0.7,0.3,0.7,dk); r.legR=limbOn(body,0.22,0.7,0.3,0.7,dk);
@@ -890,6 +922,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
+  if(mode==='raid'){ raidShoot(); return; }
   if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
@@ -970,6 +1003,7 @@ function updateShots(dt){
       const [x,y,z]=s.p;
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       if(s.owner&&mode==='cart'&&cartCheck(s,px0,py0,pz0)){ hit=true; break; }
+      if(mode==='raid'&&!s.fromMob&&raidApple(s,px0,py0,pz0)){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
@@ -1005,9 +1039,10 @@ function killMob(m){
   if(mode==='survival')dropCoins(m.p[0],m.p[1]+0.5,m.p[2],n); sfx('die');
   if(mode==='corners'){ const c=FC_COIN[m.type]||0; if(c){ coins+=c; updateHUD(); sfx('coin'); toast('🪙 +'+c+' coins for the '+m.t.name+'!'); queueSave(); checkArrowOffer(); } }
   if(mode==='corners'&&m.type==='griffin'&&cg){ cg.wings=FC.WINGS; setFly(true,false); updateFCHud(); toast('🪽 You won griffin wings! Fly for 90 seconds. Go attack a cave!'); }
-  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):m.type==='orc'?new THREE.Color(.37,.6,.23):m.type==='troll'?new THREE.Color(.5,.54,.42):new THREE.Color(.45,.32,.2);
+  const col=m.type==='golem'?B[ID.granite].avg:m.type==='magma'?new THREE.Color(1,.45,.1):m.type==='skeleton'?new THREE.Color(.92,.9,.84):m.type==='spider'?new THREE.Color(.2,.17,.15):m.type==='eagle'?new THREE.Color(.4,.26,.15):m.type==='griffin'?new THREE.Color(.78,.6,.32):m.type==='orc'?new THREE.Color(.37,.6,.23):m.type==='troll'?new THREE.Color(.5,.54,.42):m.type==='zombie'?new THREE.Color(.43,.68,.29):new THREE.Color(.45,.32,.2);
   burst(m.p[0]-0.5,m.p[1],m.p[2]-0.5,col,14);
   if(m.type==='magma'){ const x=Math.floor(m.p[0]),y=Math.floor(m.p[1]+0.2),z=Math.floor(m.p[2]); if(get(x,y,z)===0)tryIgnite(x,y,z); }
+  if(mode==='raid'&&rd)raidKill(m);
   removeMob(m);
 }
 function doBreak(){
@@ -1022,7 +1057,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
-  if(mode==='cart')return;
+  if(mode==='cart'||mode==='raid')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
@@ -1056,6 +1091,7 @@ function updateWebHUD(){ const c=$('webCount'); c.style.display=webbed?'inline-b
 let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
   if(dead||invuln>0)return;
+  if(mode==='raid'){ if(!rd||rd.phase!=='round')return; hp=Math.max(0,hp-Math.min(2,n)); invuln=0.6; hurtFlash=0.35; sfx('hurt'); updateHUD(); if(hp<=0)raidKO(); return; }
   if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point and a heart
     if(tgm.out[0])return;
     invuln=0.8; hurtFlash=0.35; sfx('hurt'); if(kx!==undefined){ pl.kb[0]=kx*7; pl.kb[2]=kz*7; if(pl.onGround)pl.v[1]=5; }
@@ -1191,7 +1227,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='cart'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
+function toggleFly(){ if(mode==='cart'||mode==='raid'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1202,7 +1238,7 @@ function updateViewRange(dt){ // fog thins out as you fly away so the whole land
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
   const fc=mode==='corners'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ if(mode==='targets'||mode==='cart'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+function cycleWeapon(){ if(mode==='targets'||mode==='cart'||mode==='raid'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1220,7 +1256,7 @@ function helpHTML(){
   '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +1 heart</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
   '<h3>Fire, lava & water</h3><ul><li>Lava flows slowly and sets wood, leaves and grass on fire</li><li>Water flows downhill and puts out fire</li><li>Water + still lava → <b>obsidian</b>. Water + flowing lava → <b>basalt</b> (fast-cooled igneous rock)</li></ul>'+
-  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
+  '<h3>Monsters</h3><ul><li>🟫 Mud Slime: weak (1–3 coins) · 🗿 Rock Golem: tough, hits hard (5–9 coins) · 🟧 Magma Cube: fireproof and leaves fire behind (3–6 coins) · 🧟 Zombie: slow, but it keeps shuffling toward you with its arms out (2–5 coins)</li><li>🕷️ Cave Spider: fast and climbs walls and trees. From a treetop it shoots webs. Get hit by 3 webs and you can\'t fly, so you fall. Land in water to wash the web off (2–5 coins)</li><li>🦅 Eagle (2–4 coins) and 🦁 Griffin (6–10 coins) glide around the sky. They leave you alone unless you bump into them or hit them first</li><li>💀 Skeleton: keeps its distance and shoots arrows, so use cover or a bow (4–7 coins)</li><li>If you fall in battle, you drop half your coins</li></ul>'+
 '';
 }
 function cornersHelp(){
@@ -1237,12 +1273,12 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1283,14 +1319,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1316,7 +1352,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets','cart'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart','raid'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1342,21 +1378,23 @@ function openNewGame(){
     '<div class="item"><div class="ic">🏰</div><div class="tx"><b>Four Corners</b><div class="fx">Four cliff caves around a lava valley. Shoot across with your bow, mine blocks to build walls and bridges, and break the skeleton, orc and troll spawn blocks. Keep your bed safe!</div></div><button class="ibtn" data-new="corners">Start</button></div>'+
     '<div class="item"><div class="ic">🎯</div><div class="tx"><b>Targets</b><div class="fx">Every monster carries a bullseye. Out-shoot an AI archer over 4 rounds: on foot, with wings, attack mode and a shield duel.</div></div><button class="ibtn" data-new="targets">Start</button></div>'+
     '<div class="item"><div class="ic">🛤️</div><div class="tx"><b>Mine Cart Rush</b><div class="fx">Ride a mine cart up hills, down drops and through a tunnel. Shoot targets, animals, sunflowers, apples, glass, a volcano, a fountain and a dragon for a high score!</div></div><button class="ibtn" data-new="cart">Start</button></div>'+
+    '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
+    if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
     closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
   tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),openMenu);
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ rdBan.style.display='none'; clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart')?'none':'';
-  $('cartHud').style.display=mode==='cart'?'inline-block':'none'; document.body.classList.toggle('tg',mode==='targets'||mode==='cart');
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid')?'none':'';
+  $('cartHud').style.display=mode==='cart'||mode==='raid'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
@@ -1544,7 +1582,7 @@ function fireSpecial(k,o,d,w){ arrows[k]--; const tint={explode:0xff3322,fire:0x
   const mk=(dir)=>{ const sh=addShot(o.clone(),dir,w.spd,w.grav,w.dmg,'arrow',false); sh.sp=k; sh.mesh.traverse(x=>{ if(x.material&&x!==sh.mesh.children[0])x.material=new THREE.MeshBasicMaterial({color:tint}); }); if(k==='seek')sh.grav=2; return sh; };
   if(k==='split'){ for(const a of [-0.12,0,0.12]){ const c=Math.cos(a), s2=Math.sin(a); mk(new THREE.Vector3(d.x*c-d.z*s2,d.y,d.x*s2+d.z*c).normalize()); } }
   else mk(d);
-  sfx('bow'); if(arrows[k]<=0){ const other=ARROW_KEYS.find(x=>arrows[x]>0); arrowSel=other||'normal'; toast('That was your last '+ARROWS[k].name+'.'+(other?'':' Back to normal arrows.')); }
+  sfx('bow'); if(arrows[k]<=0){ const other=ARROW_KEYS.find(x=>arrows[x]>0); arrowSel=other||'normal'; if(mode!=='raid')toast('That was your last '+ARROWS[k].name+'.'+(other?'':' Back to normal arrows.')); }
   refreshArrowBtn(); queueSave(); }
 function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
   if(!s.tgt||!mobs.includes(s.tgt)){ s.tgt=null; let best=1e9; for(const m of mobs){ const dx=m.p[0]-s.p[0], dy=m.p[1]+m.h*0.5-s.p[1], dz=m.p[2]-s.p[2], d=Math.hypot(dx,dy,dz);
@@ -1554,7 +1592,7 @@ function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
 function specialImpact(s,m,x,y,z,x0,y0,z0){
   if(s.sp==='fire'){ if(m){ if(!m.t.fireproof){ m.fireT=4; m.burnT=0; } } else { const fx=Math.floor(x0),fy=Math.floor(y0),fz=Math.floor(z0); if(get(fx,fy,fz)===0)tryIgnite(fx,fy,fz); } sfx('sizzle'); }
   else if(s.sp==='explode') explodeAt(x,y,z); }
-function explodeAt(x,y,z){ if(mode==='cart'){ cartBlast(x,y,z); return; } sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
+function explodeAt(x,y,z){ if(mode==='cart'){ cartBlast(x,y,z); return; } if(mode==='raid'){ raidBlast(x,y,z,2.6); return; } sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
   for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<3.4&&mobs.includes(m)) damageMob(m,Math.round(2+9*(1-d/3.4)),m.p[0]-x,m.p[2]-z,9); }
   const pd=Math.hypot(pl.p[0]-x,pl.p[1]+0.9-y,pl.p[2]-z); if(pd<2.2){ const l=Math.hypot(pl.p[0]-x,pl.p[2]-z)||1; hurtPlayer(1,(pl.p[0]-x)/l,(pl.p[2]-z)/l,'Your own explosion'); }
   const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z);
@@ -1701,12 +1739,7 @@ function buildCartScene(){ clearCart(); wfX=null; const wst=CART_STOPS.find(x=>x
     if(i%2===0){ d.position.set(p.x,p.y+0.04,p.z); d.rotation.set(pit,yaw,0,'YXZ'); d.updateMatrix(); sleepers.setMatrixAt(si++,d.matrix); } }
   sleepers.count=si; cartRoot.add(rails,sleepers);
   // the cart
-  const c=new THREE.Group(), iron=lm(0x5a5f6a), trim=lm(0x8a5a3a), dk=lm(0x222222); c.rotation.order='YXZ';
-  const fl=box(1.2,0.12,1.6,iron); fl.position.y=0.3; c.add(fl);
-  for(const [w,h,dd,x,z] of [[0.1,0.7,1.6,-0.6,0],[0.1,0.7,1.6,0.6,0],[1.3,0.7,0.1,0,-0.8],[1.3,0.7,0.1,0,0.8]]){ const b=box(w,h,dd,iron); b.position.set(x,0.65,z); c.add(b); }
-  for(const z of [-0.8,0.8]){ const b=box(1.34,0.1,0.14,trim); b.position.set(0,1.0,z); c.add(b); }
-  for(const x of [-0.5,0.5])for(const z of [-0.55,0.55]){ const wh=box(0.14,0.3,0.3,dk); wh.position.set(x,0.15,z); c.add(wh); }
-  cartRoot.add(c); cartObjs.cart=c;
+  const c=cartMesh(); cartRoot.add(c); cartObjs.cart=c;
   // sunflower patches
   const rnd=mulberry32(seed+7);
   for(const [cx,cz] of [[70,70],[58,88],[84,84],[30,60],[44,72]]) for(let k=0;k<7;k++){ const x=cx+(rnd()-.5)*8, z=cz+(rnd()-.5)*8; if(x<2||z<2||x>W-2||z>D-2)continue;
@@ -1748,6 +1781,12 @@ function buildCartScene(){ clearCart(); wfX=null; const wst=CART_STOPS.find(x=>x
     const g=new THREE.Group(); const cl=box(8,2.2,4.5,cMat); g.add(cl); const dsc=discMesh(1.3); dsc.position.set(0,0,0); g.add(dsc);
     g.position.set(p.x+px*16,31+k*2,p.z+pz*16); faceTrack(g,g.position.x,g.position.z); dsc.position.z=2.3; cartRoot.add(g); cartObjs.clouds.push({g,disc:dsc,off:0}); }
 }
+function cartMesh(){ const c=new THREE.Group(), iron=lm(0x5a5f6a), trim=lm(0x8a5a3a), dk=lm(0x222222); c.rotation.order='YXZ';
+  const fl=box(1.2,0.12,1.6,iron); fl.position.y=0.3; c.add(fl);
+  for(const [w,h,dd,x,z] of [[0.1,0.7,1.6,-0.6,0],[0.1,0.7,1.6,0.6,0],[1.3,0.7,0.1,0,-0.8],[1.3,0.7,0.1,0,0.8]]){ const b=box(w,h,dd,iron); b.position.set(x,0.65,z); c.add(b); }
+  for(const z of [-0.8,0.8]){ const b=box(1.34,0.1,0.14,trim); b.position.set(0,1.0,z); c.add(b); }
+  for(const x of [-0.5,0.5])for(const z of [-0.55,0.55]){ const wh=box(0.14,0.3,0.3,dk); wh.position.set(x,0.15,z); c.add(wh); }
+  return c; }
 function makeAnimal(type){ const g=new THREE.Group(), body=new THREE.Group(); g.add(body); cartRoot.add(g); const legs=[];
   const L=(c)=>lm(c); let R=0.3, w=0.5, y=0.9;
   if(type==='deer'){ const br=L(0x8a5a32); const b=box(0.5,0.55,1.0,br); b.position.y=0.95; body.add(b); const nk=box(0.22,0.5,0.22,br); nk.position.set(0,1.3,-0.45); body.add(nk);
@@ -1956,6 +1995,309 @@ function cartHelp(){
   '<h3>Controls</h3><ul><li>The cart drives itself. Look around and tap ⛏ Hit (or click) to shoot. You can fire again quickly</li><li>Arrows drop over distance, so aim a little high and a little ahead</li></ul>';
 }
 
+
+// ================= RAIL RAMPAGE =================
+// The cart stops at 6 stations, and the action is always off to your right. Monster waves (normal arrows) alternate with
+// bomb rounds (20 bomb arrows to blow up a town built out of real blocks). Big things fall down once they take enough damage.
+const RD_ROUNDS=[{type:'wave',style:'random',name:'🧟 Monster wave'},{type:'bomb',name:'💣 Bomb round'},{type:'wave',style:'lines',name:'🧟 Marching lines'},
+  {type:'bomb',name:'💣 Bomb round'},{type:'wave',style:'mixed',name:'👹 Monster storm'},{type:'bomb',name:'💣 Big bomb finale'}];
+const RD_LEN=60, RD_BOMBS=20, RD_BLOCK=3, RD_BEST='stratacraft_raid_best', RD_ROW1=4, RD_ROW2=91, RD_EAST=91, RD_GY=10;
+const RD_ST=[[16,1],[45,1],[74,1],[74,-1],[45,-1],[16,-1]].map(([x,side])=>({x,side,tz:side>0?RD_ROW1:RD_ROW2})); // station x, which way the arena lies
+const RTRK=(()=>{ const P=[[2,RD_ROW1],[RD_EAST,RD_ROW1],[RD_EAST,RD_ROW2],[2,RD_ROW2]], X=[],Z=[];
+  for(let i=0;i<P.length-1;i++){ const a=P[i],b=P[i+1], n=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])/TSTEP); for(let k=0;k<n;k++){ X.push(a[0]+(b[0]-a[0])*k/n); Z.push(a[1]+(b[1]-a[1])*k/n); } }
+  X.push(P[3][0]); Z.push(P[3][1]);
+  const sm=A=>{ const n=A.length; for(let p=0;p<4;p++){ const S=A.slice(), at=j=>j<0?2*S[0]-S[-j]:j>=n?2*S[n-1]-S[2*n-2-j]:S[j]; // mirror the ends so straight lines stay straight
+      for(let i=0;i<n;i++){ let t=0; for(let k=-6;k<=6;k++)t+=at(i+k); A[i]=t/13; } } };
+  sm(X); sm(Z); const near=(x,z)=>{ let bi=0,bd=1e9; for(let i=0;i<X.length;i++){ const d=Math.hypot(X[i]-x,Z[i]-z); if(d<bd){ bd=d; bi=i; } } return bi*TSTEP; };
+  return {X,Z,n:X.length,L:X.length*TSTEP,near,corners:[near(RD_EAST,RD_ROW1),near(RD_EAST,RD_ROW2)]}; })();
+for(const st of RD_ST) st.s=RTRK.near(st.x,st.tz);
+function rtPos(s){ const T=RTRK; s=Math.max(0,Math.min((T.n-1)*TSTEP-0.001,s)); const f=s/TSTEP, i=Math.floor(f), j=Math.min(T.n-1,i+1), u=f-i;
+  return {x:T.X[i]+(T.X[j]-T.X[i])*u, y:RD_GY, z:T.Z[i]+(T.Z[j]-T.Z[i])*u}; }
+function rtAt(s){ const p=rtPos(s), a=rtPos(s-1), b=rtPos(s+1); return {x:p.x,y:p.y,z:p.z,dx:(b.x-a.x)/2,dy:0,dz:(b.z-a.z)/2}; }
+// monsters: how many arrows they take, how fast they walk, what they are worth
+const RD_MON={zombie:{hits:2,spd:1.3,pts:60},slime:{hits:1,spd:1.7,pts:50},magma:{hits:2,spd:1.6,pts:70},spider:{hits:2,spd:2.5,pts:75},skeleton:{hits:2,spd:1.2,pts:90},
+  orc:{hits:3,spd:1.4,pts:100},golem:{hits:3,spd:0.95,pts:150},troll:{hits:4,spd:0.9,pts:200},eagle:{hits:1,spd:5.5,pts:120},griffin:{hits:3,spd:4.5,pts:180}};
+// --- things to blow up. P(u,y,d,block): u runs along the track, d away from it, y up from the ground
+const RD_GEN={
+  sky:{name:'Skyscraper',icon:'🏢',w:7,d:7,thr:0.25,bonus:1200,weakY:3,weakW:2,build(P,r){ const h=16+Math.floor(r()*6), wall=r()<0.4?ID.brick:ID.concrete;
+    for(let y=0;y<h;y++)for(let u=0;u<7;u++)for(let d=0;d<7;d++){ const eu=u===0||u===6, ed=d===0||d===6; if(d===0&&u===3&&(y===1||y===2))continue;
+      if(eu||ed){ const c=eu?d:u; P(u,y,d,(eu&&ed)||y%4===0||c%2===0?wall:ID.window); } else if(y%4===0)P(u,y,d,ID.concrete); }
+    for(let u=0;u<7;u++)for(let d=0;d<7;d++)P(u,h,d,ID.concrete);
+    for(let y=1;y<=3;y++)P(3,h+y,3,y===3?ID.paint_red:ID.paint_white); }},
+  apt:{name:'Apartment block',icon:'🏬',w:9,d:6,thr:0.28,bonus:800,weakY:2,weakW:2,build(P,r){ const h=8+Math.floor(r()*4);
+    for(let y=0;y<h;y++)for(let u=0;u<9;u++)for(let d=0;d<6;d++){ const eu=u===0||u===8, ed=d===0||d===5; if(d===0&&u===4&&(y===1||y===2))continue;
+      if(eu||ed){ const c=eu?d:u; P(u,y,d,(eu&&ed)||y%3===0||c%3===0?ID.brick:ID.window); } else if(y%3===0)P(u,y,d,ID.concrete); }
+    for(let u=0;u<9;u++)for(let d=0;d<6;d++){ P(u,h,d,ID.concrete); if(u===0||u===8||d===0||d===5)P(u,h+1,d,ID.concrete); } }},
+  castle:{name:'Castle tower',icon:'🏰',w:7,d:7,thr:0.28,bonus:900,weakY:2,weakW:2,build(P,r){ const h=11+Math.floor(r()*3);
+    for(let y=0;y<h;y++)for(let u=0;u<7;u++)for(let d=0;d<7;d++){ const dd=Math.hypot(u-3,d-3); if(d===0&&u===3&&y<=2&&y>=1)continue;
+      if(dd<=3.2&&dd>=2.2)P(u,y,d,y%5===4?ID.slate:ID.limestone); else if(dd<2.2&&y===h-1)P(u,y,d,ID.limestone); }
+    for(let u=0;u<7;u++)for(let d=0;d<7;d++){ const dd=Math.hypot(u-3,d-3); if(dd<=3.2&&dd>=2.2&&(u+d)%2===0)P(u,h,d,ID.limestone); }
+    for(let y=0;y<4;y++)P(3,h+y,3,ID.log); P(4,h+2,3,ID.paint_red); P(5,h+2,3,ID.paint_red); P(4,h+3,3,ID.paint_red); P(5,h+3,3,ID.paint_red); }},
+  house:{name:'House',icon:'🏠',w:6,d:6,thr:0.35,bonus:400,build(P,r){ const wall=r()<0.5?ID.planks:ID.brick;
+    for(let y=0;y<4;y++)for(let u=0;u<6;u++)for(let d=0;d<6;d++){ const eu=u===0||u===5, ed=d===0||d===5; if(!eu&&!ed)continue;
+      if(d===0&&(u===2||u===3)&&y<=1)continue; // the door
+      const win=y===1||y===2?((eu&&(d===2||d===3))||(d===5&&(u===2||u===3))):false;
+      P(u,y,d,eu&&ed?ID.log:win?ID.glass:wall); }
+    for(let i=0;i<3;i++)for(let u=0;u<6;u++)for(let d=i;d<=5-i;d++)P(u,4+i,d,ID.roof);
+    P(4,6,4,ID.brick); P(4,7,4,ID.brick); }},
+  statue:{name:'Gold statue',icon:'🗽',w:5,d:3,thr:0.45,bonus:600,build(P){ const G=ID.gold;
+    for(let u=0;u<5;u++)for(let d=0;d<3;d++)for(let y=0;y<2;y++)P(u,y,d,ID.marble);
+    for(let y=2;y<=4;y++){ P(1,y,1,G); P(3,y,1,G); } P(2,4,1,G);
+    for(let y=5;y<=7;y++)for(let u=1;u<=3;u++)P(u,y,1,G); for(let y=5;y<=7;y++)P(0,y,1,G); for(let y=5;y<=9;y++)P(4,y,1,G);
+    for(let y=8;y<=9;y++)for(let u=1;u<=3;u++)P(u,y,1,G); for(let y=10;y<=12;y++)P(4,y,1,ID.quartz); }},
+  tower:{name:'Water tower',icon:'🗼',w:5,d:5,thr:0.3,bonus:600,weakY:7,weakW:3,splash:true,build(P){
+    for(let y=0;y<7;y++)for(const [u,d] of [[0,0],[4,0],[0,4],[4,4]])P(u,y,d,ID.concrete);
+    for(let y=7;y<11;y++)for(let u=0;u<5;u++)for(let d=0;d<5;d++){ if((u===0||u===4)&&(d===0||d===4))continue; P(u,y,d,y===8?ID.paint_white:ID.paint_blue); }
+    for(let u=1;u<=3;u++)for(let d=1;d<=3;d++)P(u,11,d,ID.roof); P(2,12,2,ID.roof); }},
+  billboard:{name:'Billboard',icon:'🪧',w:7,d:2,thr:0.35,bonus:300,weakY:4,weakW:2,build(P,r){ const C=[ID.paint_red,ID.paint_yellow,ID.paint_blue,ID.paint_green,ID.paint_white];
+    const a=C[Math.floor(r()*5)], b=C[Math.floor(r()*5)]; for(let y=0;y<4;y++){ P(1,y,1,ID.log); P(5,y,1,ID.log); }
+    for(let y=4;y<8;y++)for(let u=0;u<7;u++)P(u,y,0,(y===5||y===6)&&u>0&&u<6&&(u+y)%2?b:a); }},
+  car:{name:'Car',icon:'🚗',w:4,d:2,thr:0.3,bonus:200,boom:2.8,build(P,r){ const C=[ID.paint_red,ID.paint_blue,ID.paint_yellow,ID.paint_green,ID.paint_white], c=C[Math.floor(r()*5)];
+    for(let u=0;u<4;u++)for(let d=0;d<2;d++){ P(u,0,d,u===0||u===3?ID.tire:c); P(u,1,d,c); if(u===1||u===2)P(u,2,d,ID.window); } }},
+  bus:{name:'Bus',icon:'🚌',w:7,d:3,thr:0.3,bonus:400,boom:3.2,build(P,r){ const c=r()<0.6?ID.paint_yellow:ID.paint_red;
+    for(let u=0;u<7;u++)for(let d=0;d<3;d++){ P(u,0,d,(u===1||u===5)&&d!==1?ID.tire:c); P(u,1,d,c); P(u,2,d,u>0&&u<6&&d!==1?ID.window:c); P(u,3,d,c); } }},
+  barrels:{name:'Barrels',icon:'🛢️',w:3,d:3,thr:9,bonus:0,build(P,r){ let n=0; for(let u=0;u<3;u++)for(let d=0;d<3;d++){ if(r()<0.55||n===0&&u===2&&d===2){ P(u,0,d,ID.barrel); n++; if(r()<0.3)P(u,1,d,ID.barrel); } } }},
+  crates:{name:'Crate pile',icon:'📦',w:3,d:2,thr:0.4,bonus:120,crumble:true,build(P){ for(let u=0;u<3;u++)for(let d=0;d<2;d++)P(u,0,d,ID.crate); P(0,1,0,ID.crate); P(1,1,0,ID.crate); P(1,1,1,ID.crate); P(0,1,1,ID.crate); P(0,2,0,ID.crate); }},
+};
+let rdOwn=new Uint8Array(1); const rdS=[]; // rdOwn[block] = structure number + 1
+function rdPut(s,x,y,z,id){ if(!inB(x,y,z))return; const i=idx(x,y,z); if(rdOwn[i]===s.n+1)s.total--; world[i]=id; rdOwn[i]=s.n+1; s.total++;
+  const b=s.box; b[0]=Math.min(b[0],x); b[1]=Math.max(b[1],x); b[2]=Math.min(b[2],z); b[3]=Math.max(b[3],z); s.ymax=Math.max(s.ymax,y); }
+function rdTown(k,rnd){ const st=RD_ST[k], used=new Set(), fin=k===5, views=[]; // views: the direction to the middle of each big building
+  const put=(kind,dmin,dmax,tier)=>{ const G=RD_GEN[kind];
+    for(let a=0;a<50;a++){ const u0=Math.floor(st.x-13+rnd()*(27-G.w)), d0=Math.floor(dmin+rnd()*Math.max(1,dmax-dmin-G.d+1)); let ok=true;
+      for(let u=u0-1;u<=u0+G.w&&ok;u++)for(let d=d0-1;d<=d0+G.d&&ok;d++)if(used.has(u+','+d))ok=false; if(!ok)continue;
+      const ua=u0-st.x, ub=u0+G.w-st.x, an=[Math.atan2(ua,d0),Math.atan2(ua,d0+G.d),Math.atan2(ub,d0),Math.atan2(ub,d0+G.d)], amin=Math.min(...an), amax=Math.max(...an);
+      if(tier!=='small'&&views.some(c=>c>amin&&c<amax))continue; // don't hide the middle of a big building from the cart
+      if(tier==='big')views.push(Math.atan2(u0+G.w/2-st.x,d0+G.d/2));
+      for(let u=u0;u<u0+G.w;u++)for(let d=d0;d<d0+G.d;d++)used.add(u+','+d);
+      const s={n:rdS.length,kind,G,total:0,lost:0,gone:0,state:'ok',box:[1e9,-1e9,1e9,-1e9],ymax:0}; rdS.push(s);
+      G.build((u,y,d,id)=>rdPut(s,u0+u,RD_GY+y,st.tz+st.side*(d0+d),id),rnd); return; } };
+  const pick=L=>L[Math.floor(rnd()*L.length)];
+  for(let i=0;i<(fin?3:2);i++)put(fin&&i===0?'sky':pick(['sky','apt','castle']),23,38,'big');
+  for(let i=0;i<3;i++)put(pick(['house','statue','tower','billboard','house']),13,31,'med');
+  for(let i=0;i<(fin?6:5);i++)put(pick(['car','car','bus','barrels','crates','barrels','car']),8,19,'small'); }
+function generateRaid(s){
+  seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  rdOwn=new Uint8Array(N); rdS.length=0;
+  const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), appleSpots=[];
+  const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
+  const arenaAt=(x,z,m)=>{ for(let k=0;k<6;k++){ const st=RD_ST[k], d=(z-st.tz)*st.side; if(Math.abs(x+0.5-st.x)<=15+m&&d>=1-m&&d<=38+m)return k; } return -1; };
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+    let h=RD_GY; if(z>=43&&z<=52) h=RD_GY+Math.round(Math.sin((z-42.5)/10*Math.PI)*(3+n1(x/8,z/8)*4)); // a wooded ridge splits the two rows
+    const k=arenaAt(x,z,0), city=k>=0&&RD_ROUNDS[k].type==='bomb', d=k>=0?(z-RD_ST[k].tz)*RD_ST[k].side:0;
+    for(let y=0;y<h;y++){ const depth=h-1-y; let id;
+      if(y===0)id=ID.basalt; else if(depth===0)id=city?(d<=2?ID.concrete:d===4&&(x%4<2)?ID.paint_yellow:ID.asphalt):ID.grass;
+      else if(depth<=2)id=ID.dirt; else if(y<4)id=ID.granite; else { id=SED[(y+Math.floor(n3(x/9,z/9)*4))%SED.length]; if(rnd()<0.012)id=ID.coal; }
+      world[idx(x,y,z)]=id; } }
+  // the track bed
+  for(let i=0;i<RTRK.n;i++)for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++){ const x=Math.floor(RTRK.X[i]+dx*0.7), z=Math.floor(RTRK.Z[i]+dz*0.7); if(!inB(x,0,z))continue;
+    world[idx(x,RD_GY-1,z)]=ID.conglomerate; for(let y=RD_GY;y<RD_GY+4;y++)world[idx(x,y,z)]=0; }
+  // gravestones at the back of the monster fields
+  for(let k=0;k<6;k++){ const st=RD_ST[k]; if(RD_ROUNDS[k].type!=='wave')continue;
+    for(let g=0;g<7;g++){ const x=Math.floor(st.x-12+g*3.7+rnd()*2), z=st.tz+st.side*(38+Math.floor(rnd()*2)); for(let y=RD_GY;y<RD_GY+1+(rnd()<0.5?1:0);y++)world[idx(x,y,z)]=ID.slate; } }
+  // trees on the ridge and around the edges (never in an arena or on the track)
+  for(let a=0;a<260;a++){ const x=2+Math.floor(rnd()*(W-4)), z=2+Math.floor(rnd()*(D-4)); if(arenaAt(x,z,2)>=0)continue;
+    if(Math.abs(z-RD_ROW1)<4||Math.abs(z-RD_ROW2)<4||Math.abs(x-RD_EAST)<4)continue; const su=surfaceAt(x,z); if(su.id!==ID.grass||world[idx(x,su.y+1,z)])continue;
+    let near=false; for(let dz=-3;dz<=3&&!near;dz++)for(let dx=-3;dx<=3;dx++) if(inB(x+dx,su.y+1,z+dz)&&world[idx(x+dx,su.y+1,z+dz)]===ID.log){ near=true; break; } if(near)continue;
+    plantTree(x,su.y+1,z,rnd); }
+  // two apple trees beside every monster station: shoot an apple to heal
+  for(let k=0;k<6;k++){ const st=RD_ST[k]; if(RD_ROUNDS[k].type!=='wave')continue;
+    for(const u of [-12,12]){ const x=st.x+u, z=st.tz+st.side*11; plantTree(x,RD_GY,z,rnd); appleSpots.push([x,plantTree.ty,z]); } }
+  for(let k=0;k<6;k++) if(RD_ROUNDS[k].type==='bomb')rdTown(k,rnd);
+  for(const [x,ty,z] of appleSpots) makeAppleTree(x,ty,z);
+}
+// --- scene, cart, ride
+let rd=null, rdCart=null;
+function newRd(){ return {phase:'intro',dist:0,v:0,r:0,t:0,time:RD_LEN,score:0,rs:[0,0,0,0,0,0],kos:[],kills:{},blocks:0,topple:0,rk:0,rb:0,rt:0,booms:[],turn:null,lastYaw:null,shake:0,idle:0}; }
+function raidBest(){ try{ return +localStorage.getItem(RD_BEST)||0; }catch(e){ return 0; } }
+function buildRaidScene(){ clearCart();
+  const n=RTRK.n, rails=new THREE.InstancedMesh(new THREE.BoxGeometry(0.09,0.1,TSTEP+0.02),lm(0x9aa0aa),n*2), sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(1.4,0.1,0.32),lm(0x6b4a2a),Math.ceil(n/2));
+  const d=new THREE.Object3D(); let si=0;
+  for(let i=0;i<n;i++){ const p=rtAt(i*TSTEP+TSTEP/2), yw=Math.atan2(-p.dx,-p.dz), px=Math.cos(yw), pz=-Math.sin(yw);
+    for(const side of [-1,1]){ d.position.set(p.x+px*side*0.5,p.y+0.12,p.z+pz*side*0.5); d.rotation.set(0,yw,0); d.updateMatrix(); rails.setMatrixAt(i*2+(side>0?1:0),d.matrix); }
+    if(i%2===0){ d.position.set(p.x,p.y+0.04,p.z); d.rotation.set(0,yw,0); d.updateMatrix(); sleepers.setMatrixAt(si++,d.matrix); } }
+  sleepers.count=si; cartRoot.add(rails,sleepers); rdCart=cartMesh(); cartRoot.add(rdCart); }
+function raidSetup(){ clearApples(); for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
+  generateRaid((Math.random()*1e9)|0); rebuildAll(); buildRaidScene(); rd=newRd(); raidPlace(); }
+function startRaid(){ clearEntities(); mode='raid'; cg=null; tgm=null; owned=['fists','bow']; weapon='bow'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  setFly(false,false); applyMode(); raidSetup(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); raidIntro(); }
+function raidPlace(dt){ const p=rtAt(rd.dist), cy=Math.atan2(-p.dx,-p.dz), c=rdCart; if(!c)return;
+  if(!dt||rd.hy===undefined)rd.hy=cy; else { let d=cy-rd.hy; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; rd.hy+=d*(1-Math.exp(-dt*5)); }
+  c.position.set(p.x,p.y,p.z); c.rotation.y=rd.hy; c.rotation.x=0;
+  if(rd.lastYaw===null){ yaw=rd.hy-Math.PI/2; pitch=-0.05; } else { let dy=rd.hy-rd.lastYaw; while(dy>Math.PI)dy-=2*Math.PI; while(dy<-Math.PI)dy+=2*Math.PI; yaw+=dy; } rd.lastYaw=rd.hy; // you face out the right side
+  pl.p=[p.x,p.y+0.3,p.z]; pl.v=[0,0,0]; pl.kb=[0,0,0]; }
+function rdLook(f,dur){ const dx=f[0]-pl.p[0], dz=f[2]-pl.p[2], dy=f[1]-(pl.p[1]+EYE); let ty=Math.atan2(-dx,-dz), d=ty-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+  rd.turn={from:yaw,to:yaw+d,pf:pitch,pt:Math.max(-0.8,Math.min(0.8,Math.atan2(dy,Math.hypot(dx,dz)))),t:0,dur}; }
+const rdArena=()=>RD_ST[Math.min(5,rd.r)];
+const rdBan=document.createElement('div'); rdBan.className='ui';
+rdBan.style.cssText='position:fixed;left:50%;top:17%;transform:translateX(-50%);z-index:6;pointer-events:none;text-align:center;color:#fff;font-weight:900;font-size:30px;text-shadow:0 2px 6px #000,0 0 3px #000;display:none;width:92%';
+document.body.appendChild(rdBan);
+function raidBanner(t,sub,dur){ rdBan.innerHTML=t+(sub?'<div style="font-size:17px;font-weight:800;margin-top:6px">'+sub+'</div>':''); rdBan.style.display='block';
+  clearTimeout(rdBan._t); rdBan._t=setTimeout(()=>{ rdBan.style.display='none'; },(dur||3)*1000); }
+function rideRaid(dt){ if(!rd)return;
+  if(rd.phase==='count'){ const before=Math.ceil(rd.t); rd.t-=dt; const now=Math.ceil(rd.t); if(now!==before){ if(now>0){ toast('🚂 '+now+'…'); sfx('place'); } else { toast('🚂 GO!'); sfx('buy'); rd.phase='ride'; } } }
+  else if(rd.phase==='ride'){ const target=RD_ST[rd.r].s, d=target-rd.dist;
+    let lim=Math.sqrt(2*3*Math.max(0,d))+0.15; for(const c of RTRK.corners){ const dc=c-rd.dist; if(dc>-6)lim=Math.min(lim,Math.sqrt(49+2*4*Math.max(0,dc-5))); } // slow down for corners and stations
+    rd.v+=Math.max(-6,Math.min(3,(13-rd.v)*1.2))*dt; rd.v=Math.max(0,Math.min(rd.v,lim)); rd.dist+=rd.v*dt;
+    if(d<=0.05||rd.dist>=target){ rd.dist=target; rd.v=0; raidArrive(); } }
+  else if(rd.phase==='ready'){ rd.t-=dt; if(rd.t<=0)raidStartRound(); }
+  else if(rd.phase==='round'){ rd.time-=dt; if(rd.time<=0){ rd.time=0; raidEndRound(false); } }
+  else if(rd.phase==='post'){ rd.t-=dt; if(rd.t<=0){ if(rd.r>=5)raidFinish(); else { rd.r++; rd.phase='ride'; toast('🚂 Next stop: '+RD_ROUNDS[rd.r].name); } } }
+  raidPlace(dt);
+  if(rd.turn){ const T=rd.turn; T.t+=dt; const u=Math.min(1,T.t/T.dur), e=u*u*(3-2*u); yaw=T.from+(T.to-T.from)*e; pitch=T.pf+(T.pt-T.pf)*e; if(u>=1)rd.turn=null; }
+  invuln-=dt; hurtFlash=Math.max(0,hurtFlash-dt); $('hurt').style.opacity=(hurtFlash/0.35).toFixed(2); }
+function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; rd.t=3;
+  rdLook([A.x,R.type==='bomb'?RD_GY+5:RD_GY+1.2,A.tz+A.side*(R.type==='bomb'?20:17)],0.9); sfx('place');
+  raidBanner('Round '+(rd.r+1)+' of 6: '+R.name, R.type==='bomb'?'You get '+RD_BOMBS+' bomb arrows. Blow up as much as you can!':R.style==='lines'?'Monsters march at you in lines. 🍎 Shoot an apple to heal!':R.style==='mixed'?'Everything at once, and eagles too! 🍎 Shoot an apple to heal!':'Monsters are coming! 🍎 Shoot an apple to heal!',3); }
+function raidStartRound(){ const R=RD_ROUNDS[rd.r]; rd.phase='round'; rd.time=RD_LEN; rd.rk=0; rd.rb=0; rd.rt=0; rd.idle=0; rd.spawnT=0.5; rd.lineT=0.5; rd.eagleT=8; rd.lineN=0; rd.ko=false;
+  if(R.type==='bomb'){ arrows=cleanArrows(); arrows.explode=RD_BOMBS; arrowSel='explode'; toast('💣 GO! Blow it all up!'); } else { arrowSel='normal'; toast('🏹 GO! Here they come!'); }
+  sfx('buy'); }
+function raidEndRound(ko){ const R=RD_ROUNDS[rd.r]; if(rd.phase!=='round')return; rd.phase='post'; rd.t=3.2;
+  for(const m of mobs.slice()){ puff(m.p[0],m.p[1]+0.8,m.p[2],[0x888888,0xcccccc,0x555555],10,3,2,2,0.9); removeMob(m); }
+  for(const sh of shots.slice()) if(sh.fromMob)freeShot(sh);
+  if(R.type==='bomb'){ arrows.explode=0; arrowSel='normal';
+    raidBanner('Round '+(rd.r+1)+' done! +'+rd.rs[rd.r],'🧱 '+rd.rb+' blocks blown up · 🏚️ '+rd.rt+' knocked down',3); }
+  else { let bonus=0; if(ko){ rd.kos[rd.r]=true; hp=MAXHP; updateHUD(); } else { bonus=hp*25; rdAdd(bonus); }
+    raidBanner(ko?'💫 Knocked out!':'Round '+(rd.r+1)+' done! +'+rd.rs[rd.r], '👾 '+rd.rk+' monsters'+(ko?' · your hearts are full again':' · ❤️ survival bonus +'+bonus),3); }
+  sfx(ko?'die':'buy'); saveNow(); }
+function raidKO(){ toast('💫 Out of hearts! On to the next round.'); raidEndRound(true); }
+function rdAdd(p){ rd.score+=p; rd.rs[Math.min(5,rd.r)]+=p; }
+function raidFinish(){ rd.phase='done'; const best=raidBest(), rec=rd.score>best; if(rec)try{ localStorage.setItem(RD_BEST,String(rd.score)); }catch(e){}
+  if(document.pointerLockElement)document.exitPointerLock(); paused=true; rdBan.style.display='none';
+  const kn=Object.values(rd.kills).reduce((a,b)=>a+b,0);
+  const rows=RD_ROUNDS.map((R,i)=>'<li>Round '+(i+1)+' '+R.name+': <b>'+rd.rs[i]+'</b>'+(rd.kos[i]?' 💫':'')+'</li>').join('');
+  $('mbox').innerHTML='<h2>'+(rec?'🏆 NEW HIGH SCORE!':'💣 Rampage complete!')+'</h2><div class="board"><div>⭐ Final score<div class="n" style="color:#7fe3cf">'+rd.score+'</div></div><div>🏆 High score<div class="n" style="color:#ffd84a">'+Math.max(best,rd.score)+'</div></div></div>'+
+    '<ul style="margin-top:10px">'+rows+'</ul><div class="say">👾 Monsters defeated: '+kn+' · 🧱 Blocks blown up: '+rd.blocks+' · 🏚️ Things knocked down: '+rd.topple+'</div>'+
+    '<div class="row"><button class="mbtn" id="rAgain">Play again</button><button class="mbtn gray" id="rMenu">Menu</button></div>';
+  $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
+  tap($('rAgain'),()=>{ closeMenu(); raidGo(true); }); tap($('rMenu'),openMenu); }
+function raidGo(fresh){ if(fresh)raidSetup(); arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; invuln=0; updateHUD(); rd.phase='count'; rd.t=3.99; }
+function raidIntro(){ if(!rd)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const best=raidBest(), mid=rd.phase!=='intro'&&rd.phase!=='done';
+  $('mbox').innerHTML='<h2>💣 Rail Rampage</h2><div class="say">Ride the cart to 6 stations and look out the side. At 🧟 monster stations, shoot the monsters before they reach your cart. At 💣 town stations you get '+RD_BOMBS+' bomb arrows: blow up buildings, cars and statues. Every block you blow up scores, and a building that takes enough damage comes crashing down!</div>'+
+    '<div class="board"><div>🏆 High score<div class="n" style="color:#ffd84a">'+best+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="rGo">'+(mid?'Keep going':'Start!')+'</button><button class="mbtn gray" id="rMenu">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'); }); tap($('rMenu'),openMenu); }
+function updateRaidHud(){ const el=$('cartHud'); el.style.display='inline-block'; const R=RD_ROUNDS[Math.min(5,rd.r)];
+  let h=rd.phase==='ride'||rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
+  if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; }
+  h+='<br><span style="color:#7fe3cf">⭐ '+rd.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(raidBest(),rd.score)+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+// --- shooting
+function raidShoot(){ if(!rd||rd.phase!=='round'||atkCd>0)return; const bomb=RD_ROUNDS[rd.r].type==='bomb';
+  if(bomb&&arrows.explode<=0){ toast('💣 Out of bomb arrows!'); return; }
+  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb?'explode':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
+function raidApple(s,x0,y0,z0){ // shooting a ripe apple heals you
+  for(const tr of appleTrees) for(const sl of tr.slots){ if(sl.st!==2)continue; const c=sl.pos, ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
+    let t=((c[0]-x0)*ex+(c[1]-y0)*ey+(c[2]-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-c[0], dy=y0+ey*t-c[1], dz=z0+ez*t-c[2];
+    if(dx*dx+dy*dy+dz*dz<0.4*0.4){ dropFruit(tr,sl); puff(c[0],c[1],c[2],[0xd8232a,0xff6655],10,4,3,9,0.8); const before=hp; hp=Math.min(MAXHP,hp+2); updateHUD(); sfx('coin');
+      tgPopup(hp>before?'+'+(hp-before)+'♥':'♥','#ff6b6b',[c[0],c[1]+0.5,c[2]]); toast(hp>before?'🍎 Apple! +'+(hp-before)+' hearts':'🍎 Apple! (your hearts were already full)'); return true; } }
+  return false; }
+// --- explosions
+function rdQueueBoom(x,y,z,R,t){ rd.booms.push({x,y,z,R,t}); }
+function rdCells(s){ const [x0,x1,z0,z1]=s.box, tag=s.n+1, out=[]; for(let y=RD_GY;y<=s.ymax;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++){ const i=idx(x,y,z); if(rdOwn[i]===tag)out.push(i); } return out; }
+function raidBlast(x,y,z,R){ R=R||2.6; sfx('boom'); if(rd)rd.shake=Math.max(rd.shake,0.4);
+  puff(x,y,z,[0xff3a10,0xff8a1a,0xffd84a,0x555555],30,9,6,8,1.0);
+  for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<R+0.8&&mobs.includes(m))damageMob(m,15,m.p[0]-x,m.p[2]-z,9); }
+  if(!rd)return; const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z), r=Math.ceil(R), R2=R*R, hitS=new Set(), cols=[]; let n=0, extra=0;
+  for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++)for(let dz=-r;dz<=r;dz++){ if(dx*dx+dy*dy+dz*dz>R2)continue; const bx=cx+dx,by=cy+dy,bz=cz+dz; if(!inB(bx,by,bz))continue;
+    const i=idx(bx,by,bz), o=rdOwn[i]; if(!o)continue; const id=world[i], s=rdS[o-1]; if(!id||s.state!=='ok')continue;
+    setBlock(bx,by,bz,0); rdOwn[i]=0; s.gone++; s.lost+=(s.G.weakY&&by-RD_GY<s.G.weakY)?s.G.weakW:1; n++; hitS.add(s); if(cols.length<5)cols.push(B[id].avg.getHex());
+    if(id===ID.barrel){ extra+=25; rdQueueBoom(bx+0.5,by+0.5,bz+0.5,2.8,0.12+rand()*0.18); } }
+  if(n){ const p=n*RD_BLOCK+extra; rdAdd(p); rd.blocks+=n; rd.rb+=n; puff(x,y,z,cols,Math.min(30,n),7,6,14,1.4); tgPopup('+'+p,'#ffb347',[x,y+1.2,z]); }
+  for(const s of hitS) rdCheckFall(s); }
+function rdCheckFall(s){ const G=s.G; if(s.state!=='ok'||s.lost<s.total*G.thr)return;
+  const left=s.total-s.gone, pts=left*RD_BLOCK+G.bonus; rdAdd(pts); rd.blocks+=left; rd.rb+=left; rd.topple++; rd.rt++;
+  const [x0,x1,z0,z1]=s.box, mx=(x0+x1+1)/2, mz=(z0+z1+1)/2;
+  tgPopup('+'+pts,'#ffd84a',[mx,s.ymax+2,mz]);
+  if(G.boom||G.crumble){ s.state='gone'; const cols=[];
+    for(const i of rdCells(s)){ const id=world[i]; if(cols.length<5)cols.push(B[id].avg.getHex()); setBlock(ix_(i),iy_(i),iz_(i),0); rdOwn[i]=0; }
+    puff(mx,RD_GY+1,mz,cols.length?cols:[0x777777],30,8,7,12,1.5);
+    if(G.boom){ rdQueueBoom(mx,RD_GY+1,mz,G.boom,0.08); puff(mx,RD_GY+1.5,mz,[0xff3a10,0xff8a1a,0xffd84a],40,10,9,8,1.2); toast(G.icon+' '+G.name+' exploded! +'+pts); }
+    else { sfx('break'); toast(G.icon+' '+G.name+' smashed! +'+pts); } return; }
+  s.state='sinking'; s.sinkT=0.25; sfx('rock'); rd.shake=Math.max(rd.shake,0.9);
+  if(G.splash)puff(mx,s.ymax-2,mz,[0x6fb8ff,0xbfe6ff,0xffffff],60,9,6,9,1.6);
+  toast(G.icon+' The '+G.name.toLowerCase()+' is coming down! +'+pts); }
+function rdSink(s){ const cells=rdCells(s), tag=s.n+1; if(!cells.length){ s.state='gone'; return; }
+  for(const i of cells){ const x=ix_(i),y=iy_(i),z=iz_(i), id=world[i]; setBlock(x,y,z,0); rdOwn[i]=0; if(y>RD_GY){ setBlock(x,y-1,z,id); rdOwn[idx(x,y-1,z)]=tag; } }
+  s.ymax--; rd.shake=Math.max(rd.shake,0.5); const [x0,x1,z0,z1]=s.box;
+  for(let k=0;k<3;k++) puff(x0+rand()*(x1-x0+1),RD_GY+0.4,z0+rand()*(z1-z0+1),[0x9a9a96,0xc8c4b8,0x77776f],7,6,2.5,3,1.3);
+  if(rand()<0.4)sfx('break'); }
+// --- monster waves
+function rdSpawn(type,u,d,o){ const A=rdArena(), info=RD_MON[type], t=MOBT[type], x=A.x+u, z=A.tz+A.side*d;
+  const y=t.flyer?RD_GY+9+rand()*4:surfaceAt(Math.floor(x),Math.floor(z)).y+1;
+  const m=spawnMob(type,x,y+0.01,z); m.hp=m.mhp=info.hits*WP.bow.dmg; m.yaw=A.side>0?0:Math.PI;
+  m.rdi={spd:(o&&o.spd)||info.spd*(0.9+rand()*0.2),line:!!(o&&o.line),cd:0.6,shootT:1.5+rand()*3,pts:info.pts,keep:type==='skeleton'?8+rand()*4:0};
+  if(!t.flyer)puff(x,y+0.3,z,[0x5a4a3a,0x7a6a5a],6,2,2,4,0.6); return m; }
+const RD_PAT=[['zombie'],['zombie','skeleton'],['slime'],['golem','zombie'],['skeleton'],['spider'],['orc','zombie']];
+const RD_PAT2=[['zombie','orc'],['golem','skeleton'],['troll','zombie'],['spider','magma'],['orc','skeleton'],['zombie','troll','zombie']];
+function rdLine(big){ const pat=big?RD_PAT2[rd.lineN%RD_PAT2.length]:RD_PAT[rd.lineN%RD_PAT.length], n=big?7:6; rd.lineN++;
+  const sp=Math.min(...pat.map(k=>RD_MON[k].spd))*(1+rd.lineN*0.04);
+  for(let i=0;i<n;i++) rdSpawn(pat[i%pat.length],-9+i*18/(n-1),36,{spd:sp,line:true});
+  toast('⚠️ A line of monsters is coming!'); }
+function raidWave(dt,style){ const prog=1-rd.time/RD_LEN, alive=mobs.length, pick=L=>L[Math.floor(rand()*L.length)];
+  if(style!=='lines'){ rd.spawnT-=dt; if(rd.spawnT<=0&&rd.time>6&&alive<(style==='mixed'?16:12)){ rd.spawnT=(style==='mixed'?2.6:2.3)-prog*1.0;
+      const L=style==='mixed'?['zombie','zombie','slime','spider','magma','skeleton','orc']:['zombie','zombie','zombie','slime','slime','spider','skeleton','skeleton'];
+      const n=1+(rand()<0.2+prog*0.5?1:0); for(let k=0;k<n;k++)rdSpawn(pick(L),(rand()-.5)*18,29+rand()*7); } }
+  if(style!=='random'){ rd.lineT-=dt; if(rd.lineT<=0&&rd.time>10&&alive<18){ rd.lineT=style==='mixed'?11:8.5; rdLine(style==='mixed'); } }
+  if(style==='mixed'){ rd.eagleT-=dt; if(rd.eagleT<=0&&rd.time>6){ rd.eagleT=8+rand()*4; rdSpawn(rand()<0.7?'eagle':'griffin',(rand()-.5)*24,34); toast('🦅 Look up!'); } } }
+function raidKill(m){ const p=(m.rdi&&m.rdi.pts)||50; rdAdd(p); rd.kills[m.type]=(rd.kills[m.type]||0)+1; rd.rk++; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
+function rdThrow(m,sh){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.6,pl.p[1]+1.0+(rand()-.5)*0.8,pl.p[2]+(rand()-.5)*1.6);
+  const fl=o.distanceTo(tg)/sh.spd; tg.y+=0.5*sh.g*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.6);
+  addShot(o,d,sh.spd,sh.g,sh.dmg,sh.kind,true); m.atk=0.3; sfx(sh.kind==='arrow'?'bow':'throw'); }
+function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shootT:3,pts:50,keep:0}); if(!rd)return;
+  const A=rdArena(), active=rd.phase==='round'; m.flash=Math.max(0,m.flash-dt); m.atk=Math.max(0,m.atk-dt);
+  const dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dist=Math.hypot(dx,dz)||0.001;
+  if(t.flyer){ if(!R.st){ R.st='out'; R.t=1.5; } R.t+=dt; let tx,ty,tz,spd=R.spd;
+    if(!R.home||R.st==='out'&&R.t<0.05)R.home=[A.x+(rand()-.5)*22,RD_GY+8+rand()*4,A.tz+A.side*(14+rand()*10)];
+    if(R.st==='in'&&active){ tx=pl.p[0]; ty=pl.p[1]+1.1; tz=pl.p[2];
+      if(Math.hypot(tx-m.p[0],ty-(m.p[1]+m.h*0.5),tz-m.p[2])<1.4){ hurtPlayer(1,dx/dist,dz/dist,'An '+t.name); m.atk=0.3; sfx('screech'); R.st='out'; R.t=0; R.home=null; } }
+    else { if(!R.home)R.home=[A.x+(rand()-.5)*22,RD_GY+8+rand()*4,A.tz+A.side*(14+rand()*10)]; tx=R.home[0]; ty=R.home[1]; tz=R.home[2]; if(R.st==='out'&&R.t>3.5&&active){ R.st='in'; sfx('screech'); } }
+    const vx=tx-m.p[0], vy=ty-m.p[1], vz=tz-m.p[2], vl=Math.hypot(vx,vy,vz)||1, k=Math.min(1,dt*2.5);
+    m.v[0]+=(vx/vl*spd-m.v[0])*k; m.v[1]+=(vy/vl*spd*0.8-m.v[1])*k; m.v[2]+=(vz/vl*spd-m.v[2])*k;
+    m.p[0]+=(m.v[0]+m.kb[0])*dt; m.p[1]+=m.v[1]*dt; m.p[2]+=(m.v[2]+m.kb[2])*dt; m.p[1]=Math.max(RD_GY+0.3,m.p[1]); const kd=Math.exp(-5*dt); m.kb[0]*=kd; m.kb[2]*=kd;
+    if(Math.hypot(m.v[0],m.v[2])>0.3)m.yaw=Math.atan2(-m.v[0],-m.v[2]);
+    g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw; g.body.rotation.x=Math.max(-0.5,Math.min(0.5,m.v[1]*0.08));
+    m.phase+=dt*(R.st==='in'?14:6); for(const w of g.wings)w.rotation.z=Math.sin(m.phase)*0.55*w.userData.sd; }
+  else {
+    let mx=0,mz=0; const reach=1.25;
+    if(active&&dist>Math.max(reach,R.keep)){ const depth=(m.p[2]-A.tz)*A.side; if(R.line&&depth>7){ mz=-A.side; } else { mx=dx/dist; mz=dz/dist; } }
+    if(t.hop){ if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=6.5; m.mv=[mx*R.spd*1.4,mz*R.spd*1.4]; m.hopT=0.35+rand()*0.4; } } }
+    else m.mv=[mx*R.spd,mz*R.spd];
+    m.v[0]=m.mv[0]; m.v[2]=m.mv[1]; m.v[1]=Math.max(-30,m.v[1]-25*dt); physStep(m,dt);
+    if(!t.hop&&m.wall&&m.onGround&&(mx||mz))m.v[1]=7.5;
+    if(m.p[1]<-5){ removeMob(m); return; }
+    R.cd-=dt; if(active&&dist<=reach+0.35&&R.cd<=0){ R.cd=1.5; m.atk=0.3; hurtPlayer(t.dmg>=3?2:1,dx/dist,dz/dist,'A '+t.name); }
+    const sh=SHOT[m.type]; if(sh&&active&&dist<32&&dist>3){ R.shootT-=dt; if(R.shootT<=0){ R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0])+0.5; rdThrow(m,sh); } }
+    m.yaw=mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz);
+    g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
+    if(t.hop){ const sq=m.onGround?1:1+Math.max(-0.2,Math.min(0.25,m.v[1]*0.04)); g.body.scale.set(1/Math.sqrt(sq),sq,1/Math.sqrt(sq)); }
+    else if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3;
+      for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; }
+      g.body.rotation.x=m.atk>0?-0.35:0; }
+    else { m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
+      if(t.archer){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
+      else if(m.type==='zombie'){ const l=m.atk>0?-0.4:0; g.armL.rotation.x=-1.45+a*0.12+l; g.armR.rotation.x=-1.45-a*0.12+l; }
+      else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } } }
+  for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
+  if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/(m.mhp||t.hp)); } }
+function updateRaid(dt){ if(mode!=='raid'||!rd)return; updateRaidHud();
+  for(let i=rd.booms.length-1;i>=0;i--){ const b=rd.booms[i]; b.t-=dt; if(b.t<=0){ rd.booms.splice(i,1); raidBlast(b.x,b.y,b.z,b.R); } } // barrels and cars set each other off
+  for(const s of rdS) if(s.state==='sinking'){ s.sinkT-=dt; if(s.sinkT<=0){ s.sinkT=0.11; rdSink(s); } } // things that took enough damage fall down
+  if(rd.phase!=='round')return; const R=RD_ROUNDS[rd.r];
+  if(R.type==='bomb'){ const busy=rd.booms.length||rdS.some(s=>s.state==='sinking')||shots.some(s=>!s.fromMob);
+    if(arrows.explode<=0&&!busy){ rd.idle+=dt; if(rd.idle>2.5)raidEndRound(false); } else rd.idle=0; return; }
+  raidWave(dt,R.style); }
+function raidHelp(){
+  return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
+  '<h3>🧟 Monster rounds (1, 3 and 5)</h3><ul><li>Monsters walk at your cart. Shoot them before they reach you! Round 1 comes in random bunches, Round 3 marches in lines, and Round 5 is everything at once, with eagles diving from the sky</li>'+
+  '<li>🧟 Zombies and 🟫 slimes go down in 1–2 arrows, 💀 skeletons in 2, 🗿 golems and 🧌 trolls take 3–4</li><li>💀 Skeletons, 👹 orcs and 🧌 trolls shoot or throw at you slowly as they come</li>'+
+  '<li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
+  '<h3>💣 Bomb rounds (2, 4 and 6)</h3><ul><li>You get '+RD_BOMBS+' bomb arrows to blow up a town: skyscrapers, apartments, castle towers, houses, gold statues, water towers, billboards, cars, buses, crates and explosive barrels. Every town is different</li>'+
+  '<li>Every block you blow up scores points. Hurt a building enough and it comes crashing down for a big bonus. Hits low on a building, or on water tower legs, do extra damage</li><li>🚗 Cars and buses explode, and 🛢️ barrels blow up everything around them!</li></ul>'+
+  '<h3>Controls</h3><ul><li>Look around and tap ⛏ Hit (or click) to shoot. Arrows drop over distance, so aim a little high for faraway targets</li></ul>';
+}
+
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
@@ -2109,7 +2451,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -2200,6 +2542,7 @@ const tmp=new THREE.Vector3();
 let waterT=0, lavaT=0, fireT=0, spawnT=2, animT=0, animPh=0;
 function updatePlayer(dt){
   if(mode==='cart'){ ridePlayer(dt); return {hs:0}; }
+  if(mode==='raid'){ rideRaid(dt); return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -2240,6 +2583,7 @@ function updatePlayer(dt){
 }
 function updateMobs(dt){
   for(const m of mobs.slice()){
+    if(mode==='raid'){ raidMob(m,dt); continue; }
     const V=victimFor(m); mobVictim=V;
     const t=m.t, dx=V.p[0]-m.p[0], dz=V.p[2]-m.p[2], dy=V.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
     if(m.home===undefined&&Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2])>(t.flyer?60:48)){ removeMob(m); continue; }
@@ -2288,6 +2632,7 @@ function updateMobs(dt){
     else { m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
       m.atk=Math.max(0,m.atk-dt);
       if(t.archer&&chase){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
+      else if(m.type==='zombie'){ const l=m.atk>0?-0.4:0; g.armL.rotation.x=-1.45+a*0.12+l; g.armR.rotation.x=-1.45-a*0.12+l; }
       else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } }
     m.flash=Math.max(0,m.flash-dt); for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
     if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); }
@@ -2305,7 +2650,7 @@ function updateMobs(dt){
         if(get(x,s.y+1,z)||get(x,s.y+2,z))continue;
         let lavaNear=false; for(const i of lavaSet){ const lx2=ix_(i),lz2=iz_(i); if(Math.abs(lx2-x)<10&&Math.abs(lz2-z)<10){lavaNear=true;break;} }
         const q=rand(); const type=lavaNear&&q<0.5?'magma':q<0.3?'slime':q<0.48?'golem':q<0.68?'spider':q<0.86?'skeleton':'magma';
-        spawnMob(type,x+0.5,s.y+1,z+0.5); break;
+        spawnMob(mode==='survival'&&rand()<0.22?'zombie':type,x+0.5,s.y+1,z+0.5); break;
       }
     }
   }
@@ -2388,9 +2733,9 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt);
   atkCd-=dt;
-  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart')hitAction(); if(placeHeld)placeAction(); } }
+  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid')hitAction(); if(placeHeld)placeAction(); } }
 
   // player model
   model.position.set(pl.p[0],pl.p[1],pl.p[2]); model.rotation.y=yaw;
@@ -2410,6 +2755,7 @@ function update(dt){
     const want=eye.clone().addScaledVector(d,-4).addScaledVector(right,0.6).add(new THREE.Vector3(0,0.25,0));
     let tt=1; for(let t=0.05;t<=1.0001;t+=0.05){ tmp.lerpVectors(eye,want,t); const b=get(Math.floor(tmp.x),Math.floor(tmp.y),Math.floor(tmp.z)); if(b&&B[b].solid){ tt=Math.max(0,t-0.1); break; } }
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
+  if(mode==='raid'&&rd&&rd.shake>0){ rd.shake=Math.max(0,rd.shake-dt*1.5); const k=Math.min(0.5,rd.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   camera.updateMatrixWorld();
 
   // merchant faces player
@@ -2453,7 +2799,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
