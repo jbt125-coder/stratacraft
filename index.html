@@ -1003,7 +1003,7 @@ function updateShots(dt){
       const [x,y,z]=s.p;
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       if(s.owner&&mode==='cart'&&cartCheck(s,px0,py0,pz0)){ hit=true; break; }
-      if(mode==='raid'&&!s.fromMob&&rd&&(raidApple(s,px0,py0,pz0)||raidBonusHit(s,px0,py0,pz0))){ hit=true; break; }
+      if(mode==='raid'&&!s.fromMob&&rd&&(raidApple(s,px0,py0,pz0)||raidBonusHit(s,px0,py0,pz0)||raidFloatHit(s,px0,py0,pz0))){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
@@ -2119,7 +2119,7 @@ function generateRaid(s){
 }
 // --- scene, cart, ride
 let rd=null, rdCart=null;
-function newRd(){ return {phase:'intro',dist:0,v:0,r:0,t:0,time:RD_LEN,score:0,rs:[0,0,0,0,0,0],kos:[],kills:{},blocks:0,topple:0,rk:0,rb:0,rt:0,booms:[],bonus:[],turn:null,lastYaw:null,shake:0,idle:0}; }
+function newRd(){ return {phase:'intro',dist:0,v:0,r:0,t:0,time:RD_LEN,score:0,rs:[0,0,0,0,0,0],kos:[],kills:{},blocks:0,topple:0,rk:0,rb:0,rt:0,booms:[],bonus:[],floats:[],floatT:0,turn:null,lastYaw:null,shake:0,idle:0}; }
 function raidBest(){ try{ return +localStorage.getItem(RD_BEST)||0; }catch(e){ return 0; } }
 function buildRaidScene(){ clearCart();
   const n=RTRK.n, rails=new THREE.InstancedMesh(new THREE.BoxGeometry(0.09,0.1,TSTEP+0.02),lm(0x9aa0aa),n*2), sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(1.4,0.1,0.32),lm(0x6b4a2a),Math.ceil(n/2));
@@ -2158,7 +2158,7 @@ function rideRaid(dt){ if(!rd)return;
   if(rd.turn){ const T=rd.turn; T.t+=dt; const u=Math.min(1,T.t/T.dur), e=u*u*(3-2*u); yaw=T.from+(T.to-T.from)*e; pitch=T.pf+(T.pt-T.pf)*e; if(u>=1)rd.turn=null; }
   invuln-=dt; hurtFlash=Math.max(0,hurtFlash-dt); $('hurt').style.opacity=(hurtFlash/0.35).toFixed(2); }
 function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; rd.t=3;
-  rdLook([A.x,R.type==='bomb'?RD_GY+5:RD_GY+1.2,A.tz+A.side*(R.type==='bomb'?20:17)],0.9); sfx('place');
+  rdFloatsClear(); sfx('place');
   raidBanner('Round '+(rd.r+1)+' of 6: '+R.name, R.type==='bomb'?'You get '+RD_BOMBS+' bomb arrows. Blow up as much as you can!':R.style==='lines'?'Monsters march at you in lines. 🍎 Shoot an apple to heal!':R.style==='mixed'?'Everything at once, and eagles too! 🍎 Shoot an apple to heal!':'Monsters are coming! 🍎 Shoot an apple to heal!',3); }
 function raidStartRound(){ const R=RD_ROUNDS[rd.r]; rd.phase='round'; rd.time=RD_LEN; rd.rk=0; rd.rb=0; rd.rt=0; rd.idle=0; rd.spawnT=0.5; rd.lineT=0.5; rd.eagleT=8; rd.lineN=0; rd.ko=false;
   arrows=cleanArrows(); rd.bonusAt=[]; rd.bonusKinds=['rabbit','deer','eagle'].sort(()=>rand()-0.5);
@@ -2192,12 +2192,14 @@ function raidIntro(){ if(!rd)return; if(document.pointerLockElement)document.exi
   $('modal').style.display='flex';
   tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'); }); tap($('rMenu'),openMenu); }
 function updateRaidHud(){ const el=$('cartHud'); el.style.display='inline-block'; const R=RD_ROUNDS[Math.min(5,rd.r)];
-  let h=rd.phase==='ride'||rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
+  let h=rd.phase==='ride'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name+' &nbsp;🎯 Shoot the floating bullseyes!':rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
   if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; else { if(arrows.explode>0)h+=' &nbsp;<span style="color:#ff8a5a">💥×'+arrows.explode+'</span>'; if(arrows.split>0)h+=' &nbsp;<span style="color:#ffc81a">🔱×'+arrows.split+'</span>'; } }
   h+='<br><span style="color:#7fe3cf">⭐ '+rd.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(raidBest(),rd.score)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 // --- shooting
-function raidShoot(){ if(!rd||rd.phase!=='round'||atkCd>0)return; const bomb=RD_ROUNDS[rd.r].type==='bomb';
+function raidShoot(){ if(!rd||atkCd>0)return;
+  if(rd.phase==='ride'){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel='normal'; shoot(WP.bow); atkCd=0.3; return; } // warm up on the floating bullseyes
+  if(rd.phase!=='round')return; const bomb=RD_ROUNDS[rd.r].type==='bomb';
   if(bomb&&arrows.explode<=0){ toast('💣 Out of bomb arrows!'); return; }
   if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb||arrows.explode>0?'explode':arrows.split>0?'split':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
 function raidApple(s,x0,y0,z0){ // shooting a ripe apple heals you
@@ -2286,6 +2288,25 @@ function raidBonusHit(s,x0,y0,z0){ const w=new THREE.Vector3();
       if(b.bomb){ arrows.explode=Math.max(arrows.explode,3); tgPopup('💥 +150','#ff8a5a',[w.x,w.y+0.6,w.z]); toast('💥 3 bomb arrows! They blow up every monster near where they land!'); }
       else { arrows.split=Math.max(arrows.split,10); tgPopup('🔱 +150','#ffc81a',[w.x,w.y+0.6,w.z]); toast('🔱 Split arrows for your next 10 shots! (3 arrows each)'); } sfx('buy'); rdBonusFree(b,true); updateRaidHud(); return true; } }
   return false; }
+// --- floating bullseyes to shoot while the cart rolls between stations
+function rdFloatSpawn(){ const s=rd.dist+9+rand()*16, p=rtAt(s), l=Math.hypot(p.dx,p.dz)||1, fx=p.dx/l, fz=p.dz/l, side=rand()<0.7?1:-1, off=side*(3.5+rand()*8);
+  const x=p.x-fz*off, z=p.z+fx*off, gy=Math.max(RD_GY,surfaceAt(Math.max(0,Math.min(W-1,Math.floor(x))),Math.max(0,Math.min(D-1,Math.floor(z)))).y+1);
+  const m=discMesh(0.45+rand()*0.25); m.position.set(x,gy+1.5+rand()*4.5,z); cartRoot.add(m);
+  rd.floats.push({m,s,x,y:m.position.y,z,ph:rand()*6,sx:(rand()-.5)*1.6,sy:0.4+rand()*0.6}); }
+function rdFloatFree(f,pop){ if(pop)puff(f.m.position.x,f.m.position.y,f.m.position.z,[0xffffff,0xff5a4a],10,4,3,8,0.7);
+  cartRoot.remove(f.m); f.m.geometry.dispose(); rd.floats.splice(rd.floats.indexOf(f),1); }
+function rdFloatsClear(){ for(const f of rd.floats.slice())rdFloatFree(f,true); }
+function updateRdFloats(dt){
+  if(rd.phase==='ride'){ rd.floatT-=dt; if((rd.floatT<=0||rd.floats.length<3)&&rd.floats.length<6){ rd.floatT=0.7+rand()*0.9; rdFloatSpawn(); } }
+  for(const f of rd.floats.slice()){ f.ph+=dt; f.m.position.set(f.x+Math.sin(f.ph*0.9)*f.sx,f.y+Math.sin(f.ph*1.7)*f.sy,f.z); f.m.lookAt(camera.position);
+    if(f.s<rd.dist-4)rdFloatFree(f,false); } }
+function raidFloatHit(s,x0,y0,z0){ const c=new THREE.Vector3(), n=new THREE.Vector3();
+  for(const f of rd.floats){ const d=f.m; d.updateWorldMatrix(true,false); d.getWorldPosition(c); d.getWorldDirection(n);
+    const a=(x0-c.x)*n.x+(y0-c.y)*n.y+(z0-c.z)*n.z, b=(s.p[0]-c.x)*n.x+(s.p[1]-c.y)*n.y+(s.p[2]-c.z)*n.z; if((a>0)===(b>0)||a===b)continue;
+    const t=a/(a-b), hx=x0+(s.p[0]-x0)*t, hy=y0+(s.p[1]-y0)*t, hz=z0+(s.p[2]-z0)*t, r=Math.hypot(hx-c.x,hy-c.y,hz-c.z)/d.userData.R; if(r>1)continue;
+    const ring=ringPoints(r); if(!ring)continue; const pts=ring*4; rdAdd(pts); tgPopup('+'+pts,ring===25?'#ff5a4a':'#7fe3cf',[hx,hy+0.5,hz]); sfx(ring===25?'buy':'coin');
+    if(ring===25)toast('🎯 Bullseye! +'+pts); rdFloatFree(f,true); return true; }
+  return false; }
 function raidKill(m){ const p=(m.rdi&&m.rdi.pts)||50; rdAdd(p); rd.kills[m.type]=(rd.kills[m.type]||0)+1; rd.rk++; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
 function rdThrow(m,sh){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.6,pl.p[1]+1.0+(rand()-.5)*0.8,pl.p[2]+(rand()-.5)*1.6);
   const fl=o.distanceTo(tg)/sh.spd; tg.y+=0.5*sh.g*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.6);
@@ -2331,13 +2352,13 @@ function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shoo
 function updateRaid(dt){ if(mode!=='raid'||!rd)return; updateRaidHud();
   for(let i=rd.booms.length-1;i>=0;i--){ const b=rd.booms[i]; b.t-=dt; if(b.t<=0){ rd.booms.splice(i,1); raidBlast(b.x,b.y,b.z,b.R); } } // barrels and cars set each other off
   for(const s of rdS) if(s.state==='sinking'){ s.sinkT-=dt; if(s.sinkT<=0){ s.sinkT=0.11; rdSink(s); } } // things that took enough damage fall down
-  updateRdBonus(dt);
+  updateRdBonus(dt); updateRdFloats(dt);
   if(rd.phase!=='round')return; const R=RD_ROUNDS[rd.r];
   if(R.type==='bomb'){ const busy=rd.booms.length||rdS.some(s=>s.state==='sinking')||shots.some(s=>!s.fromMob);
     if(arrows.explode<=0&&!busy){ rd.idle+=dt; if(rd.idle>2.5)raidEndRound(false); } else rd.idle=0; return; }
   raidWave(dt,R.style); }
 function raidHelp(){
-  return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Drag anywhere on the screen to aim. Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
+  return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Drag anywhere on the screen to aim. While the cart rolls between stations, shoot the floating bullseyes for extra points (the red middle is worth 100). Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
   '<h3>🧟 Monster rounds (1, 3 and 5)</h3><ul><li>Monsters walk at your cart. Shoot them before they reach you! Round 1 comes in random bunches, Round 3 marches in lines, and Round 5 is everything at once, with eagles diving from the sky</li>'+
   '<li>🧟 Zombies and 🟫 slimes go down in 1–2 arrows, 💀 skeletons in 2, 🗿 golems and 🧌 trolls take 3–4</li><li>💀 Skeletons, 👹 orcs and 🧌 trolls shoot or throw at you as they come, but only a few at a time and they take turns. Each hit costs 1 heart</li>'+
   '<li>✨ 3 golden creatures (a rabbit, a deer and an eagle) run past in every monster round carrying a gold-ring target. Hit the target for 🔱 split arrows: your next 10 shots fire 3 arrows each!</li><li>🦅 A red eagle also flies over once per monster round. Hit its 💥 target for 3 bomb arrows that blow up every monster near where they land</li><li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
