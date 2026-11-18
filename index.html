@@ -670,6 +670,14 @@ const faceM=new THREE.MeshLambertMaterial({map:faceTex(fx=>{
 const head=new THREE.Group(); head.position.y=1.44; model.add(head);
 const headM=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[skin,skin,hairM,skin,hairM,faceM]); headM.position.y=0.23; head.add(headM);
 model.scale.setScalar(0.94);
+const suit=(()=>{ const W=lm(0xf2f2ee), G=lm(0x9aa0a8), D=lm(0x5a5f68), parts=[]; const add=(par,m,x,y,z)=>{ m.position.set(x,y,z); par.add(m); parts.push(m); return m; };
+  for(const L of [legL,legR]){ add(L,box(0.29,0.74,0.29,W),0,-0.36,0); add(L,box(0.31,0.16,0.33,D),0,-0.66,-0.02); }
+  for(const A of [armL,armR]){ add(A,box(0.27,0.6,0.27,W),0,-0.29,0); add(A,box(0.28,0.16,0.28,G),0,-0.64,0); }
+  add(model,box(0.56,0.78,0.32,W),0,1.08,0); add(model,box(0.2,0.14,0.02,lm(0x2a6adf)),0.1,1.22,-0.165); add(model,box(0.1,0.1,0.02,lm(0xd8202a)),-0.12,1.24,-0.165);
+  add(head,box(0.6,0.6,0.6,W),0,0.25,0); add(head,box(0.46,0.32,0.03,new THREE.MeshLambertMaterial({color:0xe0a820,emissive:0x5a3a00})),0,0.26,-0.3);
+  const jp=add(model,box(0.46,0.56,0.24,G),0,1.1,0.28); add(model,box(0.1,0.3,0.1,D),-0.13,0.74,0.3); add(model,box(0.1,0.3,0.1,D),0.13,0.74,0.3); add(model,box(0.3,0.06,0.26,lm(0xd8202a)),0,1.4,0.28);
+  const flames=[]; for(const x of [-0.13,0.13]){ const f=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.5,6),new THREE.MeshBasicMaterial({color:0xffa030,transparent:true,opacity:0.9})); f.rotation.x=Math.PI; f.position.set(x,0.38,0.3); f.visible=false; model.add(f); flames.push(f); }
+  return {parts,flames,set(on){ for(const m of parts)m.visible=on; }}; })(); suit.set(false);
 let walkPhase=0;
 
 // --- weapons
@@ -944,6 +952,7 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='coin'){ tone('square',988,988,0.06,0.07); tone('square',1319,1319,0.12,0.07,0.06); }
   else if(k==='die')tone('triangle',400,60,0.35,0.2);
   else if(k==='sizzle')noise(3000,0.35,0.25,'highpass');
+  else if(k==='jet'){ noise(500,0.5,0.45,'lowpass'); noise(1600,0.35,0.12,'bandpass'); tone('sawtooth',140,60,0.4,0.06); }
   else if(k==='laser'){ tone('square',1400,260,0.09,0.06); tone('sawtooth',900,200,0.07,0.03); }
   else if(k==='buy'){ tone('square',660,660,0.07,0.08); tone('square',880,880,0.07,0.08,0.07); tone('square',1320,1320,0.12,0.08,0.14); }
 }catch(e){} }
@@ -1022,7 +1031,7 @@ function spearMesh(){ const g=new THREE.Group(); g.add(box(0.06,0.06,1.25,spearW
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function rockMesh(){ const g=new THREE.Group(); g.add(box(0.44,0.4,0.42,rockMat)); const k=box(0.26,0.22,0.3,rockMat); k.position.set(0.12,0.16,0.05); g.add(k);
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
-function laserMesh(kind){ const g=new THREE.Group(), red=kind==='rlaser'; g.add(box(0.07,0.07,1.1,new THREE.MeshBasicMaterial({color:red?0xff3030:0x60f0ff}))); const gl=box(0.16,0.16,1.2,new THREE.MeshBasicMaterial({color:red?0xff8080:0xbff8ff,transparent:true,opacity:0.35})); g.add(gl);
+function laserMesh(kind){ const g=new THREE.Group(), mine=kind==='laser'; g.add(box(0.08,0.08,2.2,new THREE.MeshBasicMaterial({color:mine?0xff2020:0xff9a20}))); const gl=box(0.22,0.22,2.4,new THREE.MeshBasicMaterial({color:mine?0xff7070:0xffc070,transparent:true,opacity:0.4})); g.add(gl);
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function blobMesh(kind){ const g=new THREE.Group(), f=kind==='fireball', pz=kind==='plasma'; const a=box(f?0.5:0.38,f?0.5:0.38,f?0.5:0.38,new THREE.MeshBasicMaterial({color:f?0xff6a10:pz?0x40ff60:0x6fb8ff,transparent:!f,opacity:0.85})); g.add(a);
   const c=box(f?0.3:0.2,f?0.3:0.2,f?0.3:0.2,new THREE.MeshBasicMaterial({color:f?0xffe24a:0xdff2ff})); c.position.set(0.05,0.05,-0.05); g.add(c); g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
@@ -1074,6 +1083,7 @@ function updateShots(dt){
   for(const s of shots.slice()){
     s.life-=dt; if(s.life<=0){ freeShot(s); continue; }
     if(s.sp==='seek')steerSeek(s,dt);
+    if(s.kind==='laser'){ for(let q=0;q<2;q++){ const k=rand(); puff(s.p[0]-s.v[0]*dt*k,s.p[1]-s.v[1]*dt*k,s.p[2]-s.v[2]*dt*k,[0xff2020,0xff7070],1,0.3,0,0,0.25); } }
     if(s.kind==='fireball'){ s.mesh.rotation.x+=dt*6; s.mesh.rotation.y+=dt*4; if(rand()<0.7)burst(s.p[0]-0.5,s.p[1]-0.5,s.p[2]-0.5,new THREE.Color(1,.45,.05),1); }
     if(s.sp==='fire'&&rand()<0.6) burst(s.p[0]-0.5,s.p[1]-0.5,s.p[2]-0.5,new THREE.Color(1,.5,.1),1);
     s.v[1]-=s.grav*dt; let hit=false;
@@ -2811,7 +2821,7 @@ function tourHelp(){
 // ================= MOON LANDING =================
 // The lunar lander touches down, you climb down the ladder in 1/6 gravity, collect rock samples and plant the flag. Then a
 // meteorite crashes, aliens pour out of the crater in 3 waves (with a giant robot at the end), and you fly home.
-const ML_G=10, ML_LEM=[40,40], ML_FLAG=[40,48], ML_CRATER=[76,74,9], ML_NEED=6, ML_BEST='stratacraft_moon_best', ML_PAR=420;
+let moonSnap=false; const ML_G=10, ML_LEM=[40,40], ML_FLAG=[40,48], ML_CRATER=[76,74,9], ML_NEED=6, ML_BEST='stratacraft_moon_best', ML_PAR=420;
 const moonRoot=new THREE.Group(); scene.add(moonRoot);
 const moonSky=(()=>{ const g=new THREE.Group(); g.visible=false; scene.add(g); // stars, the Earth and the Sun, always far away
   const n=1600, pos=new Float32Array(n*3); for(let i=0;i<n;i++){ const u=Math.random()*2-1, a=Math.random()*Math.PI*2, r=Math.sqrt(1-u*u); pos[i*3]=Math.cos(a)*r*150; pos[i*3+1]=Math.abs(u)*150*(u<-0.1?-1:1); pos[i*3+2]=Math.sin(a)*r*150; }
@@ -2850,14 +2860,15 @@ function generateMoon(s){ seed=s; world=new Uint8Array(N); meta=new Uint8Array(N
 function moonSetup(){ clearMoon(); clearApples(); for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
   const s=(Math.random()*1e9)|0, rnd=generateMoon(s); rebuildAll();
   const lem=makeLem(); moonRoot.add(lem.g); lem.g.position.set(ML_LEM[0],ML_G+30,ML_LEM[1]);
+  const COLS=[0xc0392b,0xe67e22,0xd4ac0d,0x27ae60,0x2e86de,0xecf0f1,0x2c2c34,0xff79c6].sort(()=>rnd()-0.5), CRY=[0x9b59ff,0x3ae0ff];
   const samples=[]; for(let k=0,a=0;k<8&&a<400;a++){ const an=rnd()*Math.PI*2, r=10+rnd()*28, x=ML_LEM[0]+Math.cos(an)*r, z=ML_LEM[1]+Math.sin(an)*r;
     if(x<4||z<4||x>W-4||z>D-4||Math.hypot(x-ML_CRATER[0],z-ML_CRATER[1])<15||samples.some(q=>Math.hypot(q.x-x,q.z-z)<7))continue;
-    const su=surfaceAt(Math.floor(x),Math.floor(z)); if(get(Math.floor(x),su.y+1,Math.floor(z)))continue; const rare=k<2, g=new THREE.Group();
-    if(rare){ for(const [ox,oz,h] of [[0,0,0.6],[0.15,0.1,0.4],[-0.12,0.08,0.35]]){ const c=box(0.14,h,0.14,lm(0x7a5aff,{emissive:0x3a1a9a})); c.position.set(ox,h/2,oz); c.rotation.z=ox*2; g.add(c); } }
-    else { const a1=box(0.42,0.3,0.36,lm(0x8a8478)); a1.position.y=0.15; g.add(a1); const a2=box(0.24,0.2,0.22,lm(0x6a6258)); a2.position.set(0.2,0.3,0.05); g.add(a2); }
-    const tag=new THREE.Mesh(new THREE.OctahedronGeometry(0.18),new THREE.MeshBasicMaterial({color:rare?0xc8a8ff:0x7fe3ff,fog:false})); tag.position.y=1.1; g.add(tag);
-    g.position.set(x,su.y+1,z); moonRoot.add(g); samples.push({g,tag,x,z,rare,got:false}); k++; }
-  ml={phase:'intro',t:0,ct:0,score:0,samples,lem,got:0,rare:0,kills:{},wave:0,spawned:0,todo:[],spawnT:0,fireT:0,heat:0,hot:0,leak:false,o2:30,shake:0,beacon:null,flag:null,meteor:null,deaths:0};
+    const su=surfaceAt(Math.floor(x),Math.floor(z)); if(get(Math.floor(x),su.y+1,Math.floor(z)))continue; const rare=k<2, col=rare?CRY[k]:COLS[k], g=new THREE.Group(); // every sample is a different color
+    if(rare){ for(const [ox,oz,h] of [[0,0,0.6],[0.15,0.1,0.4],[-0.12,0.08,0.35]]){ const c=box(0.14,h,0.14,lm(col,{emissive:new THREE.Color(col).multiplyScalar(0.45).getHex()})); c.position.set(ox,h/2,oz); c.rotation.z=ox*2; g.add(c); } }
+    else { const dark=new THREE.Color(col).multiplyScalar(0.7).getHex(); const a1=box(0.42,0.3,0.36,lm(col)); a1.position.y=0.15; g.add(a1); const a2=box(0.24,0.2,0.22,lm(dark)); a2.position.set(0.2,0.3,0.05); g.add(a2); }
+    const tag=new THREE.Mesh(new THREE.OctahedronGeometry(0.18),new THREE.MeshBasicMaterial({color:col===0x2c2c34?0x9a9aa8:col,fog:false})); tag.position.y=1.1; g.add(tag);
+    g.position.set(x,su.y+1,z); moonRoot.add(g); samples.push({g,tag,x,z,rare,col,got:false}); k++; }
+  ml={phase:'intro',t:0,ct:0,score:0,samples,lem,got:0,rare:0,kills:{},wave:0,spawned:0,todo:[],spawnT:0,fireT:0,heat:0,hot:0,leak:false,o2:100,stam:100,digT:0,upPrev:false,jetUsed:false,jetT:0,cam:null,look:null,lowSaid:false,shake:0,beacon:null,flag:null,meteor:null,deaths:0};
   pl.p=[ML_LEM[0]+12,ML_G+2,ML_LEM[1]+16]; pl.v=[0,0,0]; yaw=Math.atan2(-(ML_LEM[0]-pl.p[0]),-(ML_LEM[1]-pl.p[2])); pitch=0.15; }
 function clearMoon(){ moonRoot.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); moonRoot.clear(); }
 function startMoon(){ clearEntities(); mode='moon'; cg=null; tgm=null; owned=['laser']; weapon='laser'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0; camMode=1;
@@ -2872,14 +2883,65 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
     pl.p=[base[0]+12,ML_G+2,base[2]+16]; mlLookAt([base[0],L.g.position.y+2,base[2]]); if(u>=1&&ml.t>8){ ml.phase='ladder'; ml.t=0; L.flame.visible=false; mlSay('🌕 The Eagle has landed!','Climbing down the ladder…',3.5); } return true; }
   if(ml.phase==='ladder'){ ml.t+=dt; const u=Math.min(1,ml.t/3.2); pl.p=[base[0],ML_G+3.15*(1-u)+0.02,base[2]+3.35]; yaw=0; pitch=-0.15;
     if(u>=1){ ml.phase='explore'; ml.ct=0; yaw=Math.PI; pitch=0.05; mlSay('👣 One small step…','Collect '+ML_NEED+' rock samples (look for the glowing markers). Purple crystals are rare!',5); sfx('buy'); } return true; }
+  if(ml.phase==='photo'){ mlPhoto(dt); return true; }
   if(ml.phase==='launch'){ ml.t+=dt; const a=L.as, k=Math.max(0,ml.t-1); a.position.y=3+0.6*k*k; L.flame2.visible=ml.t>0.6; L.flame2.scale.y=0.8+rand()*0.6;
     if(ml.t>0.6&&ml.t<2.5&&rand()<0.7)puff(base[0]+(rand()-.5)*3,ML_G+3,base[2]+(rand()-.5)*3,[0xffb040,0xc8c4b8],3,6,1,1,1.0);
     pl.p=[base[0]+14,ML_G+2,base[2]+18]; mlLookAt([base[0],ML_G+4+a.position.y,base[2]]); if(ml.t>3.5)twFade.style.opacity=1; if(ml.t>4.8&&ml.phase==='launch'){ ml.phase='done'; moonFinish(true); } return true; }
   return false; }
-function moonShoot(){ if(!ml||!['explore','flag','meteor','scout','fight','return'].includes(ml.phase)||atkCd>0)return; if(ml.hot>0){ toast('🔥 Laser overheated! Wait for it to cool down…'); return; }
-  const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.5); addShot(o,d,70,0,10,'laser',false); sfx('laser'); atkCd=0.14;
+// --- photo next to the flag: the meteorite streaks in behind you as the picture is taken
+const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
+const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
+document.body.appendChild(mlPola);
+function mlShowPhoto(url){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">Me on the Moon! 🌕</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
+function mlPhoto(dt){ ml.t+=dt; const fx=ML_FLAG[0], fz=ML_FLAG[1], gy=surfaceAt(fx,fz).y+1, vx=fx-ML_CRATER[0], vz=fz-ML_CRATER[1], vl=Math.hypot(vx,vz), ux=vx/vl, uz=vz/vl;
+  const px=fx-uz*1.1, pz=fz+ux*1.1; pl.p=[px,gy,pz]; pl.v=[0,0,0]; yaw=Math.atan2(-ux,-uz); // you face the camera; the crater is behind you
+  ml.cam=[px+ux*4.6,gy+1.6,pz+uz*4.6]; ml.look=[px-ux*2,gy+3.1,pz-uz*2];
+  const say=(t,m)=>{ if(ml.t>=t&&!(ml['s'+t])){ ml['s'+t]=1; toast(m); sfx('place'); } };
+  say(0.5,'📸 Say cheese! 3…'); say(1.3,'📸 2…'); say(2.1,'📸 1…');
+  if(ml.t>1.0&&!ml.meteor){ const m=new THREE.Group(), r=box(2.4,2.4,2.4,lm(0x6a5a4a,{emissive:0x502000})); m.add(r); m.add(box(3.6,3.6,3.6,new THREE.MeshBasicMaterial({color:0xff8a1a,transparent:true,opacity:0.5,fog:false})));
+    moonRoot.add(m); ml.meteor={m,t:0,from:[ML_CRATER[0]-ux*10-uz*45,45,ML_CRATER[1]-uz*10+ux*45]}; }
+  if(ml.meteor&&ml.meteor.m.parent){ const M=ml.meteor; M.t+=dt; const u=Math.min(1,M.t/2.4), to=[ML_CRATER[0],ML_G,ML_CRATER[1]], p=M.from.map((v,i)=>v+(to[i]-v)*u); M.m.position.set(p[0],p[1],p[2]); M.m.rotation.x+=dt*5; M.m.rotation.z+=dt*3;
+    for(let q=0;q<3;q++)puff(p[0],p[1],p[2],[0xff8a1a,0xffd84a,0x555555],2,1.5,0.5,0,1.4);
+    if(u>=1){ moonRoot.remove(M.m); mlImpact(); } }
+  if(ml.t>=2.45&&!ml.snapped){ ml.snapped=true; moonSnap=true; sfx('catch'); mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
+  if(ml.t>5){ ml.cam=null; ml.phase='scout'; pitch=0.1; mlBeacon(0x6aff6a,ML_CRATER[0],ML_CRATER[1]); mlSay('💥 Did you see that?!','Houston: "Something just crashed out there! Go check it out (follow the green beam)."',5); } }
+// --- digging: ⛏ at nearby ground digs. It tires you out and uses extra oxygen
+function mlDig(){ if(ml.stam<14){ if(!(ml.tiredT>0)){ toast('😮‍💨 You\'re tired! Catch your breath…'); ml.tiredT=2; } return; }
+  const t=target, id=get(t.x,t.y,t.z); setBlock(t.x,t.y,t.z,0); burst(t.x,t.y,t.z,B[id].avg,10); puff(t.x+0.5,t.y+0.6,t.z+0.5,[0xa8a49a,0xc8c4b8],6,3,1.5,0.6,1.2); sfx('break');
+  ml.stam-=14; ml.digT=0.8; ml.o2=Math.max(0,ml.o2-1.2); atkCd=0.3;
+  if(id===ID.meteor){ ml.score+=100; tgPopup('+100','#6aff6a',[t.x+0.5,t.y+1.2,t.z+0.5]); toast('☄️ A chunk of the meteorite! +100'); }
+  else if(rand()<0.08){ ml.score+=50; tgPopup('+50','#ffd84a',[t.x+0.5,t.y+1.2,t.z+0.5]); toast('💎 You dug up a tiny moon gem! +50'); sfx('coin'); } }
+// --- the mini-map
+const mlMap=document.createElement('canvas'); mlMap.width=mlMap.height=236; mlMap.className='ui';
+mlMap.style.cssText='position:fixed;top:calc(64px + env(safe-area-inset-top));right:calc(12px + env(safe-area-inset-right));width:118px;height:118px;border-radius:12px;background:rgba(10,12,20,.55);border:2px solid rgba(255,255,255,.3);display:none;z-index:5;pointer-events:none';
+document.body.appendChild(mlMap);
+function mlDrawMap(){ const c=mlMap.getContext('2d'), S=236/96, P=(x,z)=>[x*S,z*S]; c.clearRect(0,0,236,236);
+  const dot=(x,z,r,col,ring)=>{ const [a,b]=P(x,z); c.beginPath(); c.arc(a,b,r,0,Math.PI*2); if(ring){ c.strokeStyle=col; c.lineWidth=3; c.stroke(); } else { c.fillStyle=col; c.fill(); c.strokeStyle='rgba(255,255,255,.8)'; c.lineWidth=1.5; c.stroke(); } };
+  const pulse=6+Math.sin(performance.now()/200)*2;
+  { const [a,b]=P(ML_LEM[0],ML_LEM[1]); c.fillStyle='#ffd84a'; c.fillRect(a-6,b-6,12,12); }
+  if(ml.flag)dot(ML_FLAG[0],ML_FLAG[1],5,'#ff4a4a'); else if(ml.phase==='flag'){ dot(ML_FLAG[0],ML_FLAG[1],5,'#ff4a4a'); dot(ML_FLAG[0],ML_FLAG[1],pulse+4,'#ff4a4a',true); }
+  if(['scout','fight','return','launch'].includes(ml.phase)){ dot(ML_CRATER[0],ML_CRATER[1],ML_CRATER[2]*S*0.8,'rgba(106,255,106,.35)'); if(ml.phase==='scout')dot(ML_CRATER[0],ML_CRATER[1],pulse+6,'#6aff6a',true); }
+  if(ml.phase==='return')dot(ML_LEM[0],ML_LEM[1],pulse+6,'#7fe3ff',true);
+  for(const s of ml.samples)if(!s.got)dot(s.x,s.z,s.rare?7:6,'#'+new THREE.Color(s.col===0x2c2c34?0x6a6a78:s.col).getHexString());
+  for(const m of mobs)dot(m.p[0],m.p[2],4,'#ff3030');
+  const [a,b]=P(pl.p[0],pl.p[2]), fx=-Math.sin(yaw), fz=-Math.cos(yaw); c.save(); c.translate(a,b); c.rotate(Math.atan2(fz,fx)); c.beginPath(); c.moveTo(12,0); c.lineTo(-8,-7); c.lineTo(-4,0); c.lineTo(-8,7); c.closePath();
+  c.fillStyle='#ffffff'; c.fill(); c.strokeStyle='#000'; c.lineWidth=2; c.stroke(); c.restore(); }
+// --- first-person helmet edge
+const mlHelmet=document.createElement('div'); mlHelmet.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:1;display:none;background:radial-gradient(ellipse 75% 70% at 50% 48%,rgba(0,0,0,0) 68%,rgba(30,26,10,.35) 86%,rgba(10,10,10,.75) 100%)'; document.body.appendChild(mlHelmet);
+function moonShoot(){ if(!ml||!['explore','flag','meteor','scout','fight','return'].includes(ml.phase)||atkCd>0)return;
+  if(target&&target.t<=3.5&&!aimMob&&target.y>0){ mlDig(); return; }
+  if(ml.hot>0){ toast('🔥 Laser overheated! Wait for it to cool down…'); return; }
+  const d=lookDir(), cam=camera.position, right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)); let dist=45; const hit=raycast(cam,d,45); if(hit)dist=hit.t;
+  for(const m of mobs){ const t=rayBox(cam,d,m); if(t!==null&&t<dist)dist=t; }
+  const aimP=cam.clone().addScaledVector(d,Math.max(3,dist)), o=cam.clone().addScaledVector(d,0.6).addScaledVector(right,0.22).add(new THREE.Vector3(0,-0.2,0)); // out of the gun, toward the crosshair
+  addShot(o,aimP.sub(o).normalize(),38,0,10,'laser',false); sfx('laser'); atkCd=0.14;
   ml.heat+=0.085; if(ml.heat>=1){ ml.heat=1; ml.hot=2; sfx('sizzle'); toast('🔥 Overheated! 2 seconds to cool down'); } }
-function updateMoon(dt){ moonSky.visible=mode==='moon'; if(mode!=='moon'||!ml)return; moonSky.position.copy(camera.position);
+function updateMoon(dt){ const on=mode==='moon'; moonSky.visible=on; mlMap.style.display=on&&ml&&!paused&&!['intro','landing','done','failed'].includes(ml.phase)?'block':'none'; mlHelmet.style.display=on&&camMode===1&&ml&&!ml.cam?'block':'none';
+  fpHandMat.color.setHex(on?0xeeeeea:0xe0b08a);
+  if(!on||!ml){ suit.set(false); for(const f of suit.flames)f.visible=false; return; } moonSky.position.copy(camera.position); suit.set(true);
+  ml.digT-=dt; ml.tiredT=(ml.tiredT||0)-dt; if(ml.digT<=0)ml.stam=Math.min(100,ml.stam+25*dt);
+  ml.jetT=Math.max(0,ml.jetT-dt); for(const f of suit.flames){ f.visible=ml.jetT>0; f.scale.y=0.7+rand()*0.6; } if(ml.jetT>0&&rand()<0.8)puff(pl.p[0]+(rand()-.5)*0.3,pl.p[1]+0.6,pl.p[2]+(rand()-.5)*0.3,[0xffa030,0xffe080],2,1,-2,0,0.4);
+  ml.mapT=(ml.mapT||0)-dt; if(ml.mapT<=0&&mlMap.style.display==='block'){ ml.mapT=0.1; mlDrawMap(); }
   if(ml.beacon)ml.beacon.children[0].material.opacity=0.25+Math.sin(performance.now()/300)*0.1;
   ml.hot=Math.max(0,ml.hot-dt); ml.heat=Math.max(0,ml.heat-dt*(ml.hot>0?0.5:0.35)); ml.fireT-=dt; updateMoonHud();
   for(const s of ml.samples)if(!s.got){ s.tag.rotation.y+=dt*2; s.tag.position.y=1.1+Math.sin(performance.now()/400+s.x)*0.15; }
@@ -2890,14 +2952,16 @@ function updateMoon(dt){ moonSky.visible=mode==='moon'; if(mode!=='moon'||!ml)re
     if(ml.phase==='explore'&&ml.got>=ML_NEED){ ml.phase='flag'; mlBeacon(0xff4a4a,ML_FLAG[0],ML_FLAG[1]); mlSay('📡 Houston: Great samples!','Now go plant the flag next to the lander (follow the red beam)',5); } }
   // the suit: hearts first, then the oxygen leaks; the lander patches you up
   const atLem=Math.hypot(pl.p[0]-ML_LEM[0],pl.p[2]-ML_LEM[1])<4.5;
-  if(ml.leak){ ml.o2-=dt; if(atLem){ ml.leak=false; ml.o2=30; hp=MAXHP; updateHUD(); toast('🔧 Suit patched and oxygen refilled!'); sfx('buy'); }
-    else if(ml.o2<=0){ ml.o2=0; ml.phase='failed'; moonFinish(false); return; } }
+  ml.o2-=dt*(ml.leak?3.4:0.2); // a full tank lasts about 8 minutes; a cracked suit empties it in about 30 seconds
+  if(atLem&&(ml.leak||ml.o2<99.5)){ if(ml.leak){ ml.leak=false; hp=MAXHP; updateHUD(); toast('🔧 Suit patched and oxygen refilled!'); sfx('buy'); } else if(ml.o2<90)toast('🫧 Oxygen tank refilled!'); ml.o2=100; ml.lowSaid=false; }
+  if(!ml.leak&&ml.o2<25&&!ml.lowSaid){ ml.lowSaid=true; mlSay('⚠️ Oxygen low!','Head back to the lander to refill your tank',3.5); }
+  if(ml.o2<=0){ ml.o2=0; ml.phase='failed'; moonFinish(false); return; }
   if(ml.phase==='flag'&&Math.hypot(pl.p[0]-ML_FLAG[0],pl.p[2]-ML_FLAG[1])<2.2){ // plant the flag
     const g=new THREE.Group(), pole=box(0.07,3.2,0.07,lm(0xdddddd)); pole.position.y=1.6; g.add(pole); const c=document.createElement('canvas'); c.width=96; c.height=64; const x=c.getContext('2d');
     for(let i=0;i<13;i++){ x.fillStyle=i%2?'#ffffff':'#c8202a'; x.fillRect(0,i*64/13,96,64/13+1); } x.fillStyle='#1c2f7a'; x.fillRect(0,0,40,34); x.fillStyle='#fff'; for(let i=0;i<5;i++)for(let j=0;j<4;j++)x.fillRect(4+i*7,4+j*7,2,2);
     const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.0),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide})); fl.position.set(0.78,2.6,0); g.add(fl); const bar=box(1.5,0.05,0.05,lm(0xdddddd)); bar.position.set(0.78,3.12,0); g.add(bar);
     g.position.set(ML_FLAG[0],surfaceAt(ML_FLAG[0],ML_FLAG[1]).y+1,ML_FLAG[1]); moonRoot.add(g); ml.flag=g; ml.score+=500; tgPopup('+500','#ffd84a',[ML_FLAG[0],ML_G+4,ML_FLAG[1]]); sfx('buy');
-    mlBeacon(null); ml.phase='meteor'; ml.t=0; mlSay('🇺🇸 Flag planted!','Houston: "Great job! Take a moment to enjoy the view…"',3.5); }
+    mlBeacon(null); ml.phase='photo'; ml.t=0; mlSay('🇺🇸 Flag planted!','📸 Pose for a photo next to the flag!',3); }
   if(ml.phase==='meteor'){ ml.t+=dt;
     if(ml.t>3&&!ml.meteor){ const m=new THREE.Group(), r=box(1.4,1.4,1.4,lm(0x6a5a4a,{emissive:0x401800})); m.add(r); const glow=box(2,2,2,new THREE.MeshBasicMaterial({color:0xff8a1a,transparent:true,opacity:0.45})); m.add(glow);
       moonRoot.add(m); ml.meteor={m,t:0,from:[ML_CRATER[0]-70,70,ML_CRATER[1]-20]}; sfx('screech'); toast('☄️ Look up! Something is coming!'); }
@@ -2939,12 +3003,12 @@ function moonMob(m,dt){ const t=m.t, g=m.g, R=m.ml||(m.ml={cd:1,shootT:3,keep:0}
   if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); } }
 function mlKill(m){ const p=ML_PTS[m.type]||50; ml.score+=p; ml.kills[m.type]=(ml.kills[m.type]||0)+1; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); if(m.type==='mech'){ ml.shake=1.2; puff(m.p[0],m.p[1]+2,m.p[2],[0xff3a10,0xff8a1a,0xffd84a,0x555555],60,10,6,4,1.6); sfx('boom'); } }
 function mlHurt(){ if(!ml)return; invuln=0.8; hurtFlash=0.35; sfx('hurt');
-  if(ml.leak){ ml.o2=Math.max(0,ml.o2-3); } else { hp=Math.max(0,hp-1); updateHUD(); if(hp<=0){ ml.leak=true; ml.o2=30; ml.deaths++; mlSay('⚠️ Your suit is cracked!','Oxygen is leaking! Get back to the lander to patch it up',4); } } }
+  if(ml.leak){ ml.o2=Math.max(0,ml.o2-8); } else { hp=Math.max(0,hp-1); updateHUD(); if(hp<=0){ ml.leak=true; ml.deaths++; mlSay('⚠️ Your suit is cracked!','Oxygen is leaking! Get back to the lander to patch it up',4); } } }
 function updateMoonHud(){ const el=$('cartHud'); el.style.display='inline-block'; let obj='';
-  const P=ml.phase; if(P==='explore')obj='🪨 Rock samples '+ml.got+'/'+ML_NEED; else if(P==='flag')obj='🇺🇸 Plant the flag (red beam)'; else if(P==='meteor')obj='🌍 Enjoy the view…'; else if(P==='scout')obj='☄️ Check out the crash (green beam)';
+  const P=ml.phase; if(P==='explore')obj='🪨 Rock samples '+ml.got+'/'+ML_NEED; else if(P==='flag')obj='🇺🇸 Plant the flag (red beam)'; else if(P==='meteor'||P==='photo')obj='📸 Say cheese!'; else if(P==='scout')obj='☄️ Check out the crash (green beam)';
   else if(P==='fight')obj='👾 Wave '+ml.wave+'/3 · '+(mobs.length+ml.todo.length)+' left'; else if(P==='return')obj='🚀 Back to the lander (blue beam)'; else obj='🌕 Moon Landing';
   const bars=Math.round((1-ml.heat)*8); let h=obj+'<br>🔫 '+(ml.hot>0?'<span style="color:#ff6a3a">OVERHEATED</span>':'<span style="color:'+(ml.heat>0.7?'#ffb347':'#7fe3ff')+'">'+'▮'.repeat(bars)+'▯'.repeat(8-bars)+'</span>');
-  if(ml.leak)h+=' &nbsp;<span style="color:#ff5a4a">🫧 O₂ '+Math.ceil(ml.o2)+'s</span>';
+  h+=' &nbsp;<span style="color:'+(ml.leak||ml.o2<25?'#ff5a4a':'#9fd8ff')+'">🫧 O₂ '+Math.ceil(ml.o2)+'%'+(ml.leak?' LEAK!':'')+'</span>'; if(ml.stam<99)h+=' &nbsp;<span style="color:#ffd84a">💪'+'▮'.repeat(Math.round(ml.stam/20))+'</span>';
   h+=' &nbsp;<span style="color:#7fe3cf">⭐ '+ml.score+'</span> &nbsp;<span style="opacity:.8">⏱ '+Math.floor(ml.ct/60)+':'+('0'+Math.floor(ml.ct%60)).slice(-2)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 function moonBest(){ try{ return +localStorage.getItem(ML_BEST)||0; }catch(e){ return 0; } }
@@ -2967,9 +3031,9 @@ function moonFinish(won){ if(document.pointerLockElement)document.exitPointerLoc
   tap($('mAgain'),()=>{ closeMenu(); moonSetup(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; }); tap($('mMenu2'),openMenu); }
 function moonHelp(){
   return '<h2>🌕 Moon Landing</h2>Land on the Moon in the lunar lander and complete your mission. Gravity is only 1/6 of Earth\'s, so you bounce and jump really high!'+
-  '<h3>The mission</h3><ul><li>🪨 Walk over '+ML_NEED+' rock samples to collect them (100 points each, purple crystals 300). Follow the glowing markers</li><li>🇺🇸 Plant the flag next to the lander (red beam): +500</li><li>☄️ Then… something crashes nearby. Go check it out (green beam)</li>'+
+  '<h3>The mission</h3><ul><li>🪨 Walk over '+ML_NEED+' rock samples to collect them (100 points each, glowing crystals 300). Every one is a different color. The mini-map in the corner shows where they are</li><li>🇺🇸 Plant the flag next to the lander (red beam): +500, then pose for a photo…</li><li>☄️ Something crashes nearby. Go check it out (green beam)</li>'+
   '<li>👾 Fight 3 waves: moon crawlers (1 hit), aliens that shoot green plasma (3 hits), and robot aliens with red lasers (5 hits), plus a giant robot (30 hits!)</li><li>🚀 Get back to the lander (blue beam) to fly home. The faster you finish, the bigger your time bonus</li></ul>'+
-  '<h3>Your suit</h3><ul><li>When your hearts run out, your suit cracks and your oxygen starts leaking (30 seconds). Get back to the lander to patch it up. If your oxygen runs out, the mission fails</li><li>🔫 Your laser never runs out, but fire too fast and it overheats for 2 seconds</li></ul>'+
+  '<h3>Your suit</h3><ul><li>When your hearts run out, your suit cracks and your oxygen starts leaking (30 seconds). Get back to the lander to patch it up. If your oxygen runs out, the mission fails</li><li>🫧 Your oxygen tank slowly runs down. The lander refills it</li><li>🔫 Your laser never runs out, but fire too fast and it overheats for 2 seconds</li><li>⛏ Aim at the ground right in front of you to dig. Digging tires you out and uses extra oxygen, and sometimes you find a moon gem</li><li>🎒 Your jetpack: press jump again in the air for a double jump</li></ul>'+
   '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit (or click) fires the laser · jump with the jump button or Space</li></ul>';
 }
 
@@ -3230,7 +3294,8 @@ function updatePlayer(dt){
   const up=upHeld||keys.Space, down=downHeld||keys.ShiftLeft||keys.ShiftRight;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
-  else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30; } // the Moon has 1/6 of Earth's gravity
+  else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30;
+    if(mo&&ml){ if(up&&!ml.upPrev&&!pl.onGround&&!ml.jetUsed){ ml.jetUsed=true; pl.v[1]=Math.max(pl.v[1],0)+4.4; ml.jetT=0.6; sfx('jet'); } if(pl.onGround)ml.jetUsed=false; ml.upPrev=up; } } // jetpack: jump again in the air // the Moon has 1/6 of Earth's gravity
   edgeOpen=mode==='survival'; physStep(pl,dt);
   if(!fly && pl.wall && pl.onGround && m>0.2){
     const dx=(-s*fwd+c*str), dz=(-c*fwd-s*str), l=Math.hypot(dx,dz)||1;
@@ -3434,6 +3499,7 @@ function update(dt){
     const want=eye.clone().addScaledVector(d,-4).addScaledVector(right,0.6).add(new THREE.Vector3(0,0.25,0));
     let tt=1; for(let t=0.05;t<=1.0001;t+=0.05){ tmp.lerpVectors(eye,want,t); const b=get(Math.floor(tmp.x),Math.floor(tmp.y),Math.floor(tmp.z)); if(b&&B[b].solid){ tt=Math.max(0,t-0.1); break; } }
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
+  armL.rotation.z=0; if(mode==='moon'&&ml&&ml.cam){ camera.position.set(ml.cam[0],ml.cam[1],ml.cam[2]); camera.lookAt(ml.look[0],ml.look[1],ml.look[2]); model.visible=true; fpHolder.visible=false; armR.rotation.x=-2.9; armL.rotation.x=-0.3; armL.rotation.z=-0.5; } // posing for the photo
   if(mode==='moon'&&ml&&ml.shake>0){ ml.shake=Math.max(0,ml.shake-dt*1.5); const k=Math.min(0.6,ml.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='tour'&&tw&&tw.shake>0){ tw.shake=Math.max(0,tw.shake-dt*1.5); const k=Math.min(0.5,tw.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='raid'&&rd&&rd.shake>0){ rd.shake=Math.max(0,rd.shake-dt*1.5); const k=Math.min(0.5,rd.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
@@ -3466,7 +3532,7 @@ function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
   update(dt); animate(dt);
   let n=0; for(const k of dirty){ buildChunk(k%NCX,Math.floor(k/NCX)); dirty.delete(k); if(++n>=4)break; }
-  renderer.render(scene,camera); requestAnimationFrame(frame);
+  renderer.render(scene,camera); if(moonSnap){ moonSnap=false; try{ mlShowPhoto(renderer.domElement.toDataURL('image/jpeg',0.8)); }catch(e){} } requestAnimationFrame(frame);
 }
 
 // ================= START =================
