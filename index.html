@@ -251,6 +251,8 @@ makeTile('gold',41,(x,y,r)=>{ const v=Math.sin(x*0.5+y*0.3); return nz(v>0.7?[25
 makeTile('barrel_side',42,(x,y,r)=>{ if(y===2||y===13)return nz([90,20,20],r,.1); if(y>=6&&y<=9)return ((x+y)%4<2)?[30,30,30]:[250,200,30]; return nz([200,30,30],r,.08); });
 makeTile('barrel_top',43,(x,y,r)=>{ const d=Math.hypot(x-7.5,y-7.5); if(d>6.5)return nz([110,20,20],r,.1); if(d<2)return [40,40,40]; return nz([190,30,30],r,.08); });
 makeTile('crate',44,(x,y,r)=>{ if(x<2||y<2||x>13||y>13||Math.abs(x-y)<1.5)return nz([130,92,48],r,.1); return nz([196,152,92],r,.08); });
+makeTile('iron',46,(x,y,r)=>{ let c=nz([122,84,58],r,.12); if((x+y)%5===0)c=[92,62,42]; return c; });
+makeTile('steel',47,(x,y,r)=>{ const v=Math.sin((x+y)*0.4); return nz(v>0.6?[226,230,236]:[176,182,192],r,.05); });
 makeTile('roof',45,(x,y,r)=>{ if(y%4===3)return nz([110,30,24],r,.1); return nz(((x+(y>>2)*3)%6===0)?[150,44,34]:[178,58,42],r,.08); });
 
 // fire texture (4 animation frames stacked)
@@ -309,6 +311,8 @@ addBlock('gold','Gold','Mineral','Gold is so soft that one gram can be hammered 
 addBlock('barrel','Explosive Barrel','Building','Boom! It blows up everything around it.',{side:'barrel_side',top:'barrel_top',bottom:'barrel_top'},{hidden:true});
 addBlock('crate','Wooden Crate','Building','A crate made of planks.',{t:'crate'},{hidden:true});
 addBlock('roof','Roof Tiles','Building','Clay roof tiles are baked like bricks.',{t:'roof'},{hidden:true});
+addBlock('iron','Wrought Iron','Building','Wrought iron is iron with almost no carbon, so it bends instead of snapping.',{t:'iron'},{hidden:true});
+addBlock('steel','Steel','Building','Steel is iron mixed with a little carbon, which makes it much stronger.',{t:'steel'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
 B.forEach(b=>{ if(!b)return; const id=b.side; const d=actx.getImageData((id%COLS)*T,Math.floor(id/COLS)*T,T,T).data;
@@ -607,7 +611,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=['corners','targets','cart','raid'].includes(s.mode)?s.mode:'survival';
+  mode=['corners','targets','cart','raid','tour'].includes(s.mode)?s.mode:'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -628,6 +632,7 @@ function applySnapshot(s){
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   if(mode==='cart'){ buildCartScene(); crt=newCrt(); placeCart(); }
+  if(mode==='tour'){ owned=['fists','bow']; weapon='bow'; tourSetup(); } // a saved tour always starts over
   if(mode==='raid'){ owned=['fists','bow']; weapon='bow'; raidSetup(); } // a saved Rail Rampage always starts a fresh run
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
@@ -923,6 +928,7 @@ let atkCd=0;
 function hitAction(){
   swingT=0.25;
   if(mode==='raid'){ raidShoot(); return; }
+  if(mode==='tour'){ tourShoot(); return; }
   if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
@@ -1057,7 +1063,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
-  if(mode==='cart'||mode==='raid')return;
+  if(mode==='cart'||mode==='raid'||mode==='tour')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
@@ -1120,7 +1126,7 @@ const touchEl=$('touch');
 touchEl.addEventListener('touchstart',e=>{
   e.preventDefault(); audioInit();
   for(const t of e.changedTouches){
-    if(t.clientX<window.innerWidth*0.42 && joy.id===null && mode!=='cart' && mode!=='raid'){
+    if(t.clientX<window.innerWidth*0.42 && joy.id===null && mode!=='cart' && mode!=='raid' && mode!=='tour'){
       joy.id=t.identifier; joy.ox=t.clientX; joy.oy=t.clientY; joy.x=joy.y=0;
       const jb=$('joyBase'),jk=$('joyKnob'); jb.style.display=jk.style.display='block';
       jb.style.left=(t.clientX-60)+'px'; jb.style.top=(t.clientY-60)+'px'; jk.style.left=(t.clientX-27)+'px'; jk.style.top=(t.clientY-27)+'px';
@@ -1227,7 +1233,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='cart'||mode==='raid'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
+function toggleFly(){ if(mode==='cart'||mode==='raid'||mode==='tour'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1237,8 +1243,8 @@ let viewF=-1;
 function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
-  const fc=mode==='corners'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ if(mode==='targets'||mode==='cart'||mode==='raid'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+  const fc=mode==='corners'||mode==='tour'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
+function cycleWeapon(){ if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1273,12 +1279,12 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1319,14 +1325,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1352,7 +1358,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets','cart','raid'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1379,11 +1385,13 @@ function openNewGame(){
     '<div class="item"><div class="ic">🎯</div><div class="tx"><b>Targets</b><div class="fx">Every monster carries a bullseye. Out-shoot an AI archer over 4 rounds: on foot, with wings, attack mode and a shield duel.</div></div><button class="ibtn" data-new="targets">Start</button></div>'+
     '<div class="item"><div class="ic">🛤️</div><div class="tx"><b>Mine Cart Rush</b><div class="fx">Ride a mine cart up hills, down drops and through a tunnel. Shoot targets, animals, sunflowers, apples, glass, a volcano, a fountain and a dragon for a high score!</div></div><button class="ibtn" data-new="cart">Start</button></div>'+
     '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
+    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
+    if(md==='tour'){ if(!confirm('Start the Wrecking World Tour? The game you are playing now will be replaced.'))return; closeMenu(); startTour(); return; }
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
     closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
@@ -1391,10 +1399,10 @@ function openNewGame(){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ rdBan.style.display='none'; clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid')?'none':'';
-  $('cartHud').style.display=mode==='cart'||mode==='raid'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid');
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour')?'none':'';
+  $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
@@ -1592,7 +1600,7 @@ function steerSeek(s,dt){ const sp=Math.hypot(s.v[0],s.v[1],s.v[2])||1;
 function specialImpact(s,m,x,y,z,x0,y0,z0){
   if(s.sp==='fire'){ if(m){ if(!m.t.fireproof){ m.fireT=4; m.burnT=0; } } else { const fx=Math.floor(x0),fy=Math.floor(y0),fz=Math.floor(z0); if(get(fx,fy,fz)===0)tryIgnite(fx,fy,fz); } sfx('sizzle'); }
   else if(s.sp==='explode') explodeAt(x,y,z); }
-function explodeAt(x,y,z){ if(mode==='cart'){ cartBlast(x,y,z); return; } if(mode==='raid'){ raidBlast(x,y,z,2.6); return; } sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
+function explodeAt(x,y,z){ if(mode==='cart'){ cartBlast(x,y,z); return; } if(mode==='raid'){ raidBlast(x,y,z,2.6); return; } if(mode==='tour'){ tourBlast(x,y,z); return; } sfx('boom'); for(let k=0;k<4;k++) burst(x-0.5+(rand()-.5)*2,y-0.5+(rand()-.5)*2,z-0.5+(rand()-.5)*2,new THREE.Color(1,0.35+rand()*0.4,0.05),12);
   for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<3.4&&mobs.includes(m)) damageMob(m,Math.round(2+9*(1-d/3.4)),m.p[0]-x,m.p[2]-z,9); }
   const pd=Math.hypot(pl.p[0]-x,pl.p[1]+0.9-y,pl.p[2]-z); if(pd<2.2){ const l=Math.hypot(pl.p[0]-x,pl.p[2]-z)||1; hurtPlayer(1,(pl.p[0]-x)/l,(pl.p[2]-z)/l,'Your own explosion'); }
   const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z);
@@ -2371,6 +2379,261 @@ function raidHelp(){
   '<h3>Controls</h3><ul><li>Look around and tap ⛏ Hit (or click) to shoot. Arrows drop over distance, so aim a little high for faraway targets</li></ul>';
 }
 
+
+// ================= WRECKING WORLD TOUR =================
+// 5 random world landmarks, each in its own world. Come out of a tunnel, roll up a hill, watch the landmark build itself
+// from the bottom up, pull in closer and blast it with unlimited bomb arrows for 45 seconds. Damage is tallied in dollars.
+const TW_GY=8, TW_TZ=6, TW_CX=48, TW_CZ=40, TW_HILL=16, TW_STATION=48, TW_LEN=45, TW_STOPS=5, TW_BEST='stratacraft_tour_best';
+const twTrackY=x=>TW_GY+5*Math.max(0,1-((x-TW_HILL)/13)**2); // a hill to watch the build from
+function twKit(P){ // drawing helpers in landmark coordinates: x,z from the middle of the site, y up from the ground
+  const box=(x0,x1,y0,y1,z0,z1,id)=>{ for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++)P(x,y,z,typeof id==='function'?id(x,y,z):id); };
+  const disc=(cx,cz,y,r0,r1,id)=>{ const R=Math.ceil(r1); for(let z=-R;z<=R;z++)for(let x=-R;x<=R;x++){ const d=Math.hypot(x,z); if(d<=r1+0.01&&d>=r0)P(cx+x,y,cz+z,typeof id==='function'?id(x,z,d):id); } };
+  const ball=(cx,cy,cz,r,id,shell)=>{ const R=Math.ceil(r); for(let y=-R;y<=R;y++)for(let z=-R;z<=R;z++)for(let x=-R;x<=R;x++){ const d=Math.hypot(x,y,z); if(d<=r&&(!shell||d>=r-shell))P(Math.round(cx+x),Math.round(cy+y),Math.round(cz+z),id); } };
+  const line=(a,b,id,th)=>{ const L=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]), n=Math.max(1,Math.ceil(L*2)), t=th||0, R=Math.ceil(t);
+    for(let k=0;k<=n;k++){ const f=k/n, x=a[0]+(b[0]-a[0])*f, y=a[1]+(b[1]-a[1])*f, z=a[2]+(b[2]-a[2])*f;
+      if(!t)P(Math.round(x),Math.round(y),Math.round(z),id); else for(let dy=-R;dy<=R;dy++)for(let dz=-R;dz<=R;dz++)for(let dx=-R;dx<=R;dx++)if(Math.hypot(dx,dy,dz)<=t)P(Math.round(x+dx),Math.round(y+dy),Math.round(z+dz),id); } };
+  return {box,disc,ball,line}; }
+const TW={
+  eiffel:{name:'Eiffel Tower',icon:'🗼',place:'Paris, France',year:'1889',value:5e8,ground:'grass',
+    history:'Gustave Eiffel\'s company built it for the 1889 World\'s Fair out of 18,000 iron pieces and 2.5 million rivets. It was only supposed to stand for 20 years, and it was the tallest structure humans had ever built until 1930.',
+    sad:'Parisians are crying into their croissants. You knocked over the Iron Lady!',
+    build(K,part){ const I=ID.iron; part('Eiffel Tower',0.3);
+      for(let y=0;y<=10;y++){ const h=Math.round(10-y*0.42); for(const sx of[-1,1])for(const sz of[-1,1])K.box(sx*h-1,sx*h+1,y,y,sz*h-1,sz*h+1,I); }
+      for(let t=-6;t<=6;t++){ const y=Math.round(8.6-t*t/12); for(const s of[-8,8]){ K.box(t,t,y,y,s,s,I); K.box(s,s,y,y,t,t,I); } }
+      K.box(-8,8,11,11,-8,8,I);
+      for(let y=12;y<=22;y++){ const h=Math.round(6-(y-12)*0.32); K.box(-h,h,y,y,-h,h,(x,yy,z)=>(Math.abs(x)===h||Math.abs(z)===h)&&((x+z+yy)%3!==0||(Math.abs(x)===h&&Math.abs(z)===h))?I:0); }
+      K.box(-4,4,23,23,-4,4,I);
+      for(let y=24;y<=35;y++){ const h=Math.max(0,Math.round(3-(y-24)*0.24)); K.box(-h,h,y,y,-h,h,(x,yy,z)=>(Math.abs(x)===h||Math.abs(z)===h)?I:0); }
+      K.box(-1,1,33,33,-1,1,I); K.box(0,0,36,39,0,0,I); }},
+  pyramid:{name:'Great Pyramid of Giza',icon:'🔺',place:'Giza, Egypt',year:'about 2560 BC',value:5e9,ground:'sand',
+    history:'It was built for the pharaoh Khufu about 4,500 years ago out of roughly 2.3 million stone blocks. For almost 3,800 years it was the tallest thing humans had ever made, and it is the only one of the Seven Wonders of the Ancient World still standing.',
+    sad:'It survived 4,500 years of sandstorms, earthquakes and tomb robbers… and then YOU showed up. Pharaoh Khufu is NOT happy.',
+    build(K,part){ part('Great Pyramid',0.3);
+      for(let y=0;y<=18;y++){ const h=18-y; K.box(-h,h,y,y,-h,h,(x,yy,z)=>Math.max(Math.abs(x),Math.abs(z))>=h-1?(y>=16?ID.gold:ID.sandstone):0); } }},
+  colosseum:{name:'Colosseum',icon:'🏟️',place:'Rome, Italy',year:'80 AD',value:1.8e9,ground:'grass',
+    history:'Emperor Titus opened it in 80 AD, and about 50,000 Romans could squeeze in to watch gladiators. Earthquakes and people taking its stones for other buildings had already knocked part of it down, which is why one side is lower.',
+    sad:'It made it through 1,900 years, two big earthquakes and a LOT of tourists. Julius Caesar would like a word.',
+    build(K,part){ const a=20,b=15; part('Colosseum',0.3);
+      for(let z=-b-1;z<=b+1;z++)for(let x=-a-1;x<=a+1;x++){ const e=Math.hypot(x/a,z/b); if(e>1.0||e<0.78){ if(e<0.78)P0(x,0,z,ID.sand); continue; }
+        const ang=Math.atan2(z/b,x/a), outer=e>0.92, ruined=ang>0.5&&ang<2.2, top=outer?(ruined?8+((x*7+z*3)&3):13):Math.round(3+(e-0.78)/0.14*6), ai=Math.round((ang+Math.PI)/(2*Math.PI)*84);
+        for(let y=0;y<=top;y++){ if(outer&&ai%2===0&&y<12&&(y%4===1||y%4===2))continue; P0(x,y,z,outer?ID.limestone:ID.sandstone); } }
+      function P0(x,y,z,id){ K.box(x,x,y,y,z,z,id); } }},
+  burj:{name:'Burj Khalifa',icon:'🏙️',place:'Dubai, United Arab Emirates',year:'2010',value:1.5e9,ground:'sand',
+    history:'At 828 meters and 163 floors it is the tallest building in the world. Its Y-shaped floor plan is based on a desert flower, and on a clear day you can see the top from 95 kilometers away.',
+    sad:'The tallest building on the planet… and now it\'s the tallest pile of rubble on the planet. Dubai is going to need a bigger broom.',
+    build(K,part){ part('Burj Khalifa',0.28); const wid=y=>y%4===0?ID.steel:ID.window;
+      for(let y=0;y<=31;y++){ K.box(-2,2,y,y,-2,2,wid(y)); const L=y<6?10:y<10?9:y<14?8:y<18?7:y<22?6:y<25?5:y<28?4:y<30?3:0;
+        for(const a of [Math.PI/2,Math.PI*7/6,Math.PI*11/6]){ const dx=Math.cos(a),dz=Math.sin(a); for(let t=2;t<=L;t++)for(let w=-1;w<=1;w++)K.box(Math.round(dx*t-dz*w),Math.round(dx*t-dz*w),y,y,Math.round(dz*t+dx*w),Math.round(dz*t+dx*w),wid(y)); } }
+      K.box(-1,1,32,34,-1,1,ID.steel); K.box(0,0,35,39,0,0,ID.steel); }},
+  goldengate:{name:'Golden Gate Bridge',icon:'🌉',place:'San Francisco, USA',year:'1937',value:1.5e9,ground:'water',
+    history:'When it opened in 1937 it had the longest bridge span in the world, 1,280 meters. Its color is called International Orange, chosen so ships could see it in the fog, and painters touch it up all year round.',
+    sad:'San Francisco just lost its favorite bridge. The fog is going to be SO confused.',
+    build(K,part){ const R=ID.paint_red, seg=[part('West bridge',0.35),part('Middle bridge',0.3),part('East bridge',0.35)], tw=[part('West tower',0.3),part('East tower',0.3)];
+      const segOf=x=>x<-20?0:x>20?2:1;
+      for(let x=-42;x<=42;x++){ K.use(seg[segOf(x)]); K.box(x,x,4,4,-1,1,ID.asphalt); K.box(x,x,3,3,-2,2,R); if(x%3===0)K.box(x,x,2,2,-2,2,R);
+        const cy=Math.abs(x)<=20?6+24*(x/20)**2:5+25*(1-(Math.abs(x)-20)/22)**2; for(const z of[-2,2]){ K.box(x,x,Math.round(cy),Math.round(cy),z,z,R); if(x%2===0)K.box(x,x,5,Math.round(cy)-1,z,z,R); } }
+      tw.forEach((p,i)=>{ K.use(p); const X=i?20:-21; K.box(X,X+1,-4,30,-2,-2,R); K.box(X,X+1,-4,30,2,2,R); for(const y of[11,18,25,30])K.box(X,X+1,y,y+1,-2,2,R); });
+      K.use(seg[0]); K.box(-45,-42,-4,5,-3,3,ID.concrete); K.use(seg[2]); K.box(42,45,-4,5,-3,3,ID.concrete); }},
+  opera:{name:'Sydney Opera House',icon:'🎭',place:'Sydney, Australia',year:'1973',value:1.2e9,ground:'water',
+    history:'Danish architect Jørn Utzon won a design contest in 1957, and it took 16 years to build. Its shell-shaped roofs are covered with more than a million white and cream tiles, and it is a UNESCO World Heritage Site.',
+    sad:'A million hand-made tiles… sploosh, into the harbor. Somewhere a kangaroo is shaking its head.',
+    build(K,part){ part('Podium',0.4); K.box(-19,19,-4,1,-10,10,(x,y,z)=>Math.abs(x)===19||Math.abs(z)===10?ID.granite:0); K.box(-19,19,2,2,-10,10,ID.sandstone); K.box(-24,-20,-4,2,-6,6,(x,y,z)=>y===2||x===-24||Math.abs(z)===6?ID.sandstone:0);
+      const sail=(sx,sz,h,W,lean,dir)=>{ for(let y=0;y<=h;y++){ const f=y/h, w=Math.round(W*Math.pow(1-f,0.7)), x=sx+dir*Math.round(lean*f*f); for(let z=sz-w;z<=sz+w;z++)for(const t of[0,1])K.box(x-dir*t,x-dir*t,3+y,3+y,z,z,(y+z)%5===0?ID.quartz:ID.paint_white); } };
+      part('Concert Hall',0.3); [[-16,7,5],[-10,11,6],[-3,15,7],[4,18,7]].forEach(([x,h,W],i)=>sail(x,-5,h,W,5,i%2?-1:1));
+      part('Opera Theatre',0.3); [[-14,6,4],[-8,10,5],[-1,13,6],[6,15,6]].forEach(([x,h,W],i)=>sail(x,5,h,W,5,i%2?-1:1));
+      part('Restaurant',0.35); sail(13,0,8,3,3,1); sail(16,0,6,3,2,-1); }},
+  atomium:{name:'Atomium',icon:'⚛️',place:'Brussels, Belgium',year:'1958',value:1e8,ground:'grass',
+    history:'It was built for the 1958 World\'s Fair (Expo 58) and shows one tiny crystal of iron, blown up 165 billion times. Its nine steel balls are connected by tubes with escalators inside.',
+    sad:'It was a model of an iron crystal. Now it\'s a model of iron confetti. Belgium is going to need a LOT of waffles to feel better.',
+    build(K,part){ part('Atomium',0.3); const S=ID.steel, th=Math.acos(1/Math.sqrt(3)), k=[-1/Math.SQRT2,0,1/Math.SQRT2];
+      const rot=v=>{ const c=Math.cos(th), s=Math.sin(th), kv=k[0]*v[0]+k[1]*v[1]+k[2]*v[2], kx=[k[1]*v[2]-k[2]*v[1],k[2]*v[0]-k[0]*v[2],k[0]*v[1]-k[1]*v[0]]; return v.map((q,i)=>q*c+kx[i]*s+k[i]*kv*(1-c)); };
+      const C=[0,22,0], pts=[]; for(const a of[-1,1])for(const b of[-1,1])for(const c of[-1,1]){ const r=rot([a*7.6,b*7.6,c*7.6]); pts.push([C[0]+r[0],C[1]+r[1],C[2]+r[2]]); }
+      for(const p of pts)K.line(C,p,S,0.7);
+      for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){ const d=Math.hypot(pts[i][0]-pts[j][0],pts[i][1]-pts[j][1],pts[i][2]-pts[j][2]); if(d<15.5)K.line(pts[i],pts[j],S,0.6); }
+      for(const p of [C,...pts])K.ball(p[0],p[1],p[2],3.3,S,1.3);
+      const low=pts.reduce((a,b)=>a[1]<b[1]?a:b); K.line(low,[low[0],0,low[2]],ID.concrete,0.6);
+      for(let i=0;i<3;i++){ const an=i*Math.PI*2/3; K.line([low[0],low[1]-2,low[2]],[low[0]+Math.cos(an)*7,0,low[2]+Math.sin(an)*7],ID.concrete,0.5); } }},
+  needle:{name:'Space Needle',icon:'🛸',place:'Seattle, USA',year:'1962',value:1.5e8,ground:'grass',
+    history:'It was built in about 400 days for the 1962 World\'s Fair and stands 184 meters tall. The top was designed to look like a flying saucer, and today it has a glass floor that spins so you can look straight down.',
+    sad:'Seattle\'s flying saucer has crash-landed. The aliens would like their parking spot back.',
+    build(K,part){ part('Space Needle',0.3); const W=ID.paint_white;
+      K.box(-1,1,0,27,-1,1,ID.concrete);
+      for(let i=0;i<3;i++)for(const o of[-0.22,0.22]){ const an=i*Math.PI*2/3+o, a=[Math.cos(an)*8,0,Math.sin(an)*8], m=[Math.cos(an)*2.4,13,Math.sin(an)*2.4], t=[Math.cos(an)*5.5,24,Math.sin(an)*5.5]; K.line(a,m,W,0.5); K.line(m,t,W,0.5); }
+      K.disc(0,0,24,0,6,ID.steel); K.disc(0,0,25,0,8,(x,z,d)=>d>7?ID.window:W); K.disc(0,0,26,0,7.5,W); K.disc(0,0,27,5.5,7.5,ID.paint_yellow); K.disc(0,0,27,0,5.5,ID.gold); K.disc(0,0,28,0,4,ID.gold);
+      K.box(-1,1,29,30,-1,1,ID.steel); K.box(0,0,31,39,0,0,ID.steel); }},
+  petronas:{name:'Petronas Twin Towers',icon:'🏢',place:'Kuala Lumpur, Malaysia',year:'1998',value:1.6e9,ground:'plaza',
+    history:'At 452 meters they were the tallest buildings in the world from 1998 to 2004. The floor plan is an eight-pointed star from Islamic art, and a two-story skybridge joins the towers on floors 41 and 42.',
+    sad:'Twin towers? More like twin piles. Somebody has to tell Malaysia, and it is NOT going to be me.',
+    build(K,part){ const tower=(X,nm)=>{ part(nm,0.3); for(let y=0;y<=33;y++){ const r=y<16?5:y<22?4.5:y<27?4:y<31?3:2; K.disc(X,0,y,r-1,r,(x,z)=>y%3===0?ID.steel:ID.window); if(y%6===0)K.disc(X,0,y,0,r-1,ID.concrete); }
+        K.box(X-1,X+1,34,35,-1,1,ID.steel); K.box(X,X,36,39,0,0,ID.steel); };
+      tower(-9,'West tower'); tower(9,'East tower'); part('Skybridge',0.4); K.box(-4,4,14,15,-1,1,(x,y)=>y===14?ID.steel:ID.window); K.line([-5,9,0],[0,13,0],ID.steel,0.4); K.line([5,9,0],[0,13,0],ID.steel,0.4); }},
+  guggenheim:{name:'Guggenheim Museum Bilbao',icon:'🌀',place:'Bilbao, Spain',year:'1997',value:1e8,ground:'plaza',
+    history:'Frank Gehry designed its wild curves with computer software made for building airplanes, and it is covered with about 33,000 thin sheets of titanium. A giant spider sculpture called Maman stands guard outside.',
+    sad:'33,000 shiny titanium sheets, now 33,000 shiny titanium bits. Even Maman the giant spider is hiding under a chair.',
+    build(K,part){ part('Museum',0.3); K.box(-18,12,0,3,-6,9,ID.limestone);
+      for(let y=0;y<=16;y++){ const rx=7-Math.abs(y-7)*0.35, cx=Math.round(3*Math.sin(y*0.35)), an=y*0.18;
+        for(let a=0;a<64;a++){ const t=a/64*Math.PI*2, ex=Math.cos(t)*rx, ez=Math.sin(t)*3.2, x=Math.round(cx+ex*Math.cos(an)-ez*Math.sin(an)), z=Math.round(2+ex*Math.sin(an)+ez*Math.cos(an)); K.box(x,x,y+4,y+4,z,z,(a+y)%9===0?ID.window:ID.steel); } }
+      for(const [cx,cy,cz,r] of [[-11,6,2,4.5],[-6,9,6,3.5],[9,6,3,4]])K.ball(cx,cy,cz,r,ID.steel,1.2);
+      K.box(15,17,0,13,-2,0,(x,y)=>y%3===0?ID.steel:ID.limestone);
+      part('Maman (the spider)',0.4); const mx=-25,mz=-6; K.ball(mx,8,mz,1.6,ID.iron); for(let i=0;i<8;i++){ const an=i/8*Math.PI*2, kx=mx+Math.cos(an)*3.5, kz=mz+Math.sin(an)*3.5; K.line([mx,8,mz],[kx,11,kz],ID.iron,0); K.line([kx,11,kz],[mx+Math.cos(an)*6,0,mz+Math.sin(an)*6],ID.iron,0); } }},
+  louvre:{name:'Louvre Pyramid',icon:'💎',place:'Paris, France',year:'1989',value:6e7,ground:'plaza',
+    history:'Architect I. M. Pei built this glass entrance to the Louvre, the world\'s most visited art museum, in 1989. Lots of people hated it at first, but now it is one of the most famous sights in Paris. It is made of 673 panes of glass.',
+    sad:'673 panes of glass… you\'re going to need a REALLY big dustpan. And the Mona Lisa saw the whole thing.',
+    build(K,part){ part('Glass pyramid',0.3);
+      for(let y=0;y<=12;y++){ const h=Math.round(11*(1-y/13)); K.box(-h,h,y,y,-h,h,(x,yy,z)=>Math.max(Math.abs(x),Math.abs(z))>=h-0.5?((Math.abs(x)===Math.abs(z)||(x+z+yy)%3===0)?ID.steel:ID.glass):0); }
+      for(const [px,pz] of[[-16,-8],[16,-8],[0,-15]])for(let y=0;y<=2;y++){ const h=2-y; K.box(px-h,px+h,y,y,pz-h,pz+h,ID.glass); }
+      const wing=(x0,x1,z0,z1,nm)=>{ part(nm,0.35); K.box(x0,x1,0,7,z0,z1,(x,y,z)=>(x===x0||x===x1||z===z0||z===z1)?(y%3===1&&(x+z)%2?ID.window:ID.limestone):(y===0||y===4?ID.limestone:0)); K.box(x0,x1,8,9,z0,z1,(x,y,z)=>y===8||(x>x0&&x<x1&&z>z0&&z<z1)?ID.slate:0); };
+      wing(-34,34,15,20,'Palace (back)'); wing(-34,-29,-6,14,'Palace (west wing)'); wing(29,34,-6,14,'Palace (east wing)'); }},
+  shard:{name:'The Shard',icon:'🔷',place:'London, England',year:'2012',value:5.5e8,ground:'plaza',
+    history:'Renzo Piano designed it to look like a spire of glass rising from the River Thames. At 310 meters it is the tallest building in the United Kingdom, and it has about 11,000 panes of glass.',
+    sad:'It was called the Shard. Now it is LOTS of shards. London is putting the kettle on, because this calls for a very strong cup of tea.',
+    build(K,part){ part('The Shard',0.25);
+      for(let y=0;y<=39;y++){ const h=Math.max(0,Math.round(9*(1-y/41))); K.box(-h,h,y,y,-h,h,(x,yy,z)=>{ const e=Math.max(Math.abs(x),Math.abs(z)); if(e<h-0.5)return yy%6===0?ID.concrete:0; if(yy>32&&(x+z)%2)return 0; return Math.abs(x)===Math.abs(z)?ID.steel:ID.window; }); } }},
+  dancing:{name:'Dancing House',icon:'💃',place:'Prague, Czech Republic',year:'1996',value:3e7,ground:'plaza',
+    history:'Architects Vlado Milunić and Frank Gehry designed it to look like two dancers, so people nicknamed it "Fred and Ginger" after the movie stars Fred Astaire and Ginger Rogers. It was built where a building was destroyed in 1945.',
+    sad:'Fred and Ginger were dancing for 28 years. You just ended the dance. Forever. Not cool.',
+    build(K,part){ part('Fred',0.3); for(let y=0;y<=13;y++)K.disc(5,0,y,3,4,(x,z,d)=>{ const ai=Math.round(Math.atan2(z,x)/(Math.PI*2)*24+24); return y%3===1&&(ai+Math.floor(y/3))%3===0?ID.window:ID.concrete; });
+      K.ball(5,14,0,3,ID.steel,1);
+      part('Ginger',0.3); for(let y=0;y<=13;y++){ const s=Math.sin(Math.PI*y/13), r=4-1.6*s, cx=-4-1.6*s; if(y<3){ for(const [px,pz] of[[-6,-2],[-6,2],[-2,-2],[-2,2]])K.box(px,px,y,y,pz,pz,ID.concrete); continue; } K.disc(Math.round(cx),0,y,r-1,r,y%4===0?ID.steel:ID.window); }
+      part('Neighbor (west)',0.35); K.box(-20,-11,0,9,-4,4,(x,y,z)=>y===9?ID.roof:(y%3===1&&x%2?ID.window:ID.limestone));
+      part('Neighbor (east)',0.35); K.box(11,20,0,9,-4,4,(x,y,z)=>y===9?ID.roof:(y%3===1&&x%2?ID.window:ID.sandstone)); }},
+  fallingwater:{name:'Fallingwater',icon:'🏞️',place:'Pennsylvania, USA',year:'1939',value:5e7,ground:'stream',
+    history:'Frank Lloyd Wright built this house right on top of a waterfall for the Kaufmann family. Its concrete terraces stick far out over the stream with nothing underneath, and architects once voted it the best building in American history.',
+    sad:'Frank Lloyd Wright said a house should live in harmony with nature. Now it\'s living in harmony with the bottom of the creek.',
+    build(K,part){ part('Fallingwater',0.3); const C=ID.sandstone, G=ID.granite;
+      K.box(-4,4,-2,0,6,12,G); K.box(-1,1,0,17,5,7,G); K.box(-9,-7,0,9,4,8,G);
+      const terrace=(x0,x1,y,z0,z1)=>{ K.box(x0,x1,y,y,z0,z1,C); K.box(x0,x1,y+1,y+1,z0,z1,(x,yy,z)=>(x===x0||x===x1||z===z0||z===z1)?C:0); K.box(x0+2,x1-2,y-3,y-1,z0+2,z1-1,(x,yy,z)=>(x===x0+2||x===x1-2||z===z0+2)?ID.window:0); };
+      terrace(-11,7,4,-7,6); terrace(-3,11,8,-4,8); terrace(-8,3,12,-1,9); }},
+  millau:{name:'Millau Viaduct',icon:'🌁',place:'Millau, France',year:'2004',value:5e8,ground:'valley',
+    history:'It is the tallest bridge in the world: the top of its highest mast is 343 meters above the valley, taller than the Eiffel Tower. Engineer Michel Virlogeux and architect Norman Foster designed it, and it is 2.46 kilometers long.',
+    sad:'The tallest bridge in the world is now the tallest bridge in the world… lying down. Cars are going to have to take the long way around.',
+    build(K,part){ const X=[-39,-26,-13,0,13,26,39];
+      for(let i=0;i<=X.length;i++){ const a=i?X[i-1]:-46, b=i<X.length?X[i]:46; part('Deck section '+(i+1),0.4); K.box(a+(i?1:0),b-(i<X.length?1:0),18,18,-1,1,(x,y,z)=>z===0?ID.asphalt:ID.concrete); K.box(a+(i?1:0),b-(i<X.length?1:0),17,17,-1,1,ID.concrete); }
+      X.forEach((px,i)=>{ part('Pier '+(i+1),0.3); for(let y=-6;y<=18;y++){ const w=y<4?1:0; if(y<10)K.box(px-w-1,px+w+1,y,y,-1,1,ID.concrete); else{ K.box(px-1,px-1,y,y,-1,1,ID.concrete); K.box(px+1,px+1,y,y,-1,1,ID.concrete); } }
+        K.box(px,px,19,30,0,0,ID.steel); for(let k=1;k<=6;k++){ K.line([px,29-k,0],[px-k*1.1,19,0],ID.paint_white,0); K.line([px,29-k,0],[px+k*1.1,19,0],ID.paint_white,0); } }); }},
+};
+const TW_KEYS=Object.keys(TW);
+let twOwn=new Uint8Array(1), tw=null, twCart=null; const twS=[];
+function twFmt(v){ v=Math.round(v); if(v>=1e9)return '$'+(v/1e9).toFixed(2)+' billion'; if(v>=1e6)return '$'+(v/1e6).toFixed(1)+' million'; return '$'+v.toLocaleString('en-US'); }
+function twShort(v){ return v>=1e9?'$'+(v/1e9).toFixed(1)+'B':v>=1e6?'$'+(v/1e6).toFixed(1)+'M':v>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v); }
+function twBest(){ try{ return +localStorage.getItem(TW_BEST)||0; }catch(e){ return 0; } }
+// --- one world per landmark
+function generateTour(key,s){ const L=TW[key];
+  seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  twOwn=new Uint8Array(N); twS.length=0; const n1=makeNoise(s), rnd=mulberry32(s+5);
+  const top=L.ground==='sand'?ID.sand:ID.grass;
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){ const rz=z-TW_CZ, rx=x-TW_CX; let h=TW_GY, surf=top, water=0;
+    if(z<=14) h=Math.max(h,Math.round(TW_GY+5*Math.max(0,1-Math.hypot((x-TW_HILL)/13,(z-TW_TZ)/9)**2))); // the viewing hill
+    if((x<=3||x>=89)&&z<=13) h=Math.max(h,TW_GY+9-Math.round(Math.abs(z-TW_TZ)*0.4)); // mountains with the tunnels
+    if(L.ground==='sand'&&z>16) h=TW_GY+Math.round(n1(x/14,z/14)*1.5);
+    if(L.ground==='plaza'&&Math.abs(rx)<=38&&rz>=-24&&rz<=24) surf=ID.concrete;
+    if(L.ground==='water'&&z>=18){ h=TW_GY-4; water=TW_GY-1; if(x<6||x>90){ h=TW_GY; water=0; } }
+    if(L.ground==='valley'&&z>=18&&z<=62){ const f=Math.max(0,1-(Math.abs(rz)/22)**2); h=TW_GY-Math.round(6*f); if(Math.abs(rz)<=2)water=h; }
+    if(L.ground==='stream'&&Math.abs(rx)<=3&&z>=16){ h=TW_GY-(rz<4?1:3); water=h; }
+    if(L.ground==='grass'||L.ground==='stream') h+=z>66?Math.round(n1(x/9,z/9)*3):0;
+    for(let y=0;y<h;y++){ const dp=h-1-y; world[idx(x,y,z)]=y===0?ID.basalt:dp===0?(h<TW_GY&&L.ground!=='valley'?ID.sand:surf):dp<=2?(surf===ID.sand?ID.sandstone:ID.dirt):y<4?ID.granite:ID.limestone; }
+    for(let y=h;y<=water;y++)world[idx(x,y,z)]=ID.water; }
+  // the track: a bed of gravel, cleared above (the tunnels keep their roof)
+  for(let x=0;x<W;x++){ const ty=Math.floor(twTrackY(x+0.5)); for(let z=TW_TZ-1;z<=TW_TZ+1;z++){ for(let y=1;y<ty-1;y++)if(!world[idx(x,y,z)])world[idx(x,y,z)]=ID.dirt; world[idx(x,ty-1,z)]=ID.conglomerate; for(let y=ty;y<ty+4;y++)world[idx(x,y,z)]=0; } }
+  for(const x0 of [0,89])for(let x=x0;x<x0+7&&x<W;x++)for(const z of [TW_TZ-2,TW_TZ+2])for(let y=TW_GY;y<TW_GY+4;y++)world[idx(x,y,z)]=ID.granite; // tunnel walls
+  if(L.ground!=='water'&&L.ground!=='sand') for(let a=0;a<90;a++){ const x=2+Math.floor(rnd()*(W-4)), z=2+Math.floor(rnd()*(D-4)); if(Math.abs(x-TW_CX)<46&&z<66&&z>12)continue; if(z<16)continue;
+    const su=surfaceAt(x,z); if(su.id!==ID.grass||world[idx(x,su.y+1,z)])continue; plantTree(x,su.y+1,z,rnd); }
+  // the landmark goes into a build queue, bottom layer first
+  const Q=new Map(); let cur=0; const P=(x,y,z,id)=>{ if(!id)return; const X=TW_CX+x, Y=TW_GY+y, Z=TW_CZ+z; if(!inB(X,Y,Z)||Y<1)return; Q.set(idx(X,Y,Z),[id,cur]); };
+  const part=(name,thr)=>{ twS.push({n:twS.length,name,thr:Math.min(0.6,thr+0.15),total:0,lost:0,gone:0,state:'ok',box:[1e9,-1e9,1e9,-1e9],ymin:1e9,ymax:0}); cur=twS.length-1; return cur; };
+  const K=twKit(P); K.use=i=>{ cur=i; }; // Golden Gate switches parts mid-way
+  L.build(K,part);
+  const q=[]; for(const [i,[id,pn]] of Q){ const s2=twS[pn], x=ix_(i),y=iy_(i),z=iz_(i); s2.total++; const b=s2.box; b[0]=Math.min(b[0],x); b[1]=Math.max(b[1],x); b[2]=Math.min(b[2],z); b[3]=Math.max(b[3],z); s2.ymin=Math.min(s2.ymin,y); s2.ymax=Math.max(s2.ymax,y); q.push([i,id,pn,y+rnd()*0.9]); }
+  q.sort((a,b)=>a[3]-b[3]); return q; }
+function buildTourScene(){ clearCart(); const n=W*2, rails=new THREE.InstancedMesh(new THREE.BoxGeometry(0.09,0.1,0.52),lm(0x9aa0aa),n*2), sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(1.4,0.1,0.32),lm(0x6b4a2a),n);
+  const d=new THREE.Object3D(); for(let i=0;i<n;i++){ const x=i*0.5+0.25, y=twTrackY(x), pit=Math.atan2(twTrackY(x+0.5)-twTrackY(x-0.5),1);
+    for(const s of[-1,1]){ d.position.set(x,y+0.12,TW_TZ+s*0.5); d.rotation.set(0,-Math.PI/2,0); d.rotateX(pit); d.updateMatrix(); rails.setMatrixAt(i*2+(s>0?1:0),d.matrix); }
+    d.position.set(x,y+0.04,TW_TZ); d.rotation.set(0,-Math.PI/2,0); d.rotateX(pit); d.updateMatrix(); sleepers.setMatrixAt(i,d.matrix); }
+  cartRoot.add(rails,sleepers); twCart=cartMesh(); cartRoot.add(twCart); }
+function twLoad(i){ clearApples(); for(const sh of shots.slice())freeShot(sh); const key=tw.list[i];
+  tw.q=generateTour(key,(Math.random()*1e9)|0); tw.qi=0; tw.key=key; tw.dmgNow=0; rebuildAll(); buildTourScene(); tw.x=0.5; tw.v=0; tw.lastYaw=null; twPlace(0); }
+const twFade=document.createElement('div'); twFade.style.cssText='position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:4;transition:opacity .6s'; document.body.appendChild(twFade);
+function twNew(){ const list=TW_KEYS.slice().sort(()=>Math.random()-0.5).slice(0,TW_STOPS); return {phase:'intro',list,i:0,x:0.5,v:0,t:0,time:TW_LEN,total:0,dmg:[],pct:[],booms:[],turn:null,lastYaw:null,shake:0,q:[],qi:0}; }
+function tourSetup(){ tw=twNew(); twLoad(0); twFade.style.opacity=0; }
+function startTour(){ clearEntities(); mode='tour'; cg=null; tgm=null; owned=['fists','bow']; weapon='bow'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  setFly(false,false); applyMode(); tourSetup(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); tourIntro(); }
+function twPlace(dt){ const x=tw.x, y=twTrackY(x), c=twCart; if(!c)return; const pit=Math.atan2(twTrackY(x+0.6)-twTrackY(x-0.6),1.2);
+  c.position.set(x,y,TW_TZ); c.rotation.y=-Math.PI/2; c.rotation.x=pit;
+  if(tw.lastYaw===null){ yaw=-Math.PI; pitch=0.05; tw.lastYaw=0; } pl.p=[x,y+0.3,TW_TZ]; pl.v=[0,0,0]; pl.kb=[0,0,0]; }
+function twLook(f,dur){ const dx=f[0]-pl.p[0], dz=f[2]-pl.p[2], dy=f[1]-(pl.p[1]+EYE); let d=Math.atan2(-dx,-dz)-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+  tw.turn={from:yaw,to:yaw+d,pf:pitch,pt:Math.max(-0.8,Math.min(0.8,Math.atan2(dy,Math.hypot(dx,dz)))),t:0,dur}; }
+function twMove(dt,target,cruise){ const d=target-tw.x; tw.v+=Math.max(-5,Math.min(3,(cruise-tw.v)*1.2))*dt; tw.v=Math.max(0,Math.min(tw.v,Math.sqrt(2*3*Math.max(0,d))+0.12)); tw.x+=tw.v*dt;
+  if(d<=0.04||tw.x>=target){ tw.x=target; tw.v=0; return true; } return false; }
+function rideTour(dt){ if(!tw)return; const L=TW[tw.key];
+  if(tw.phase==='climb'){ if(twMove(dt,TW_HILL,5)){ tw.phase='build'; tw.t=0; twLook([TW_CX,TW_GY+14,TW_CZ],1.2);
+      raidBanner('🏗️ '+L.icon+' '+L.name,L.place+' · built '+L.year+'. Watch it go up!',4); } }
+  else if(tw.phase==='build'){ const n=Math.max(1,Math.ceil(tw.q.length*dt/9)); let k=0; // the whole landmark goes up in about 9 seconds
+    while(tw.qi<tw.q.length&&k<n){ const [i,id,pn]=tw.q[tw.qi++]; setBlock(ix_(i),iy_(i),iz_(i),id); twOwn[i]=pn+1; k++;
+      if(k===1&&rand()<0.5)puff(ix_(i)+0.5,iy_(i)+1,iz_(i)+0.5,[0xffffff,0xffe28a],3,2,2,2,0.5); }
+    tw.t+=dt; if(tw.t>0.12){ tw.t=0; sfx('place'); }
+    if(tw.qi>=tw.q.length){ tw.phase='admire'; tw.t=2; toast('✨ Finished! '+L.icon+' '+L.name); sfx('buy'); } }
+  else if(tw.phase==='admire'){ tw.t-=dt; if(tw.t<=0){ tw.phase='roll'; toast('🚂 Pulling in closer…'); } }
+  else if(tw.phase==='roll'){ if(twMove(dt,TW_STATION,4)){ tw.phase='blast'; tw.time=TW_LEN; arrows=cleanArrows(); arrows.explode=999; arrowSel='explode';
+      twLook([TW_CX,TW_GY+10,TW_CZ],0.7); raidBanner('💣 WRECK IT!','Unlimited bomb arrows for '+TW_LEN+' seconds',2.5); sfx('buy'); } }
+  else if(tw.phase==='blast'){ tw.time-=dt; if(tw.time<=0){ tw.time=0; tw.phase='tally'; tw.t=4; arrows=cleanArrows(); arrowSel='normal';
+      const tot=twS.reduce((a,s)=>a+s.total,0), gone=twS.reduce((a,s)=>a+(s.state==='ok'?s.gone:s.total),0), pct=Math.round(100*gone/Math.max(1,tot));
+      tw.dmg[tw.i]=tw.dmgNow; tw.pct[tw.i]=pct; raidBanner('💸 '+twFmt(tw.dmgNow)+' of damage!',L.icon+' '+L.name+': '+pct+'% destroyed',4); sfx('coin'); } }
+  else if(tw.phase==='tally'){ tw.t-=dt; if(tw.t<=0){ tw.phase='leave'; toast(tw.i+1<TW_STOPS?'🚂 On to the next wonder…':'🚂 That was the last one…'); } }
+  else if(tw.phase==='leave'){ twMove(dt,W-1,7); if(tw.x>88&&twFade.style.opacity!=='1')twFade.style.opacity=1; if(tw.x>=W-1.5){ tw.phase='dark'; tw.t=0.7; } }
+  else if(tw.phase==='dark'){ tw.t-=dt; if(tw.t<=0){ if(tw.i+1>=TW_STOPS){ tw.phase='done'; twFade.style.opacity=0; tourFinish(); }
+      else { tw.i++; twLoad(tw.i); tw.phase='climb'; twFade.style.opacity=0; } } }
+  twPlace(dt);
+  if(tw.turn){ const T=tw.turn; T.t+=dt; const u=Math.min(1,T.t/T.dur), e=u*u*(3-2*u); yaw=T.from+(T.to-T.from)*e; pitch=T.pf+(T.pt-T.pf)*e; if(u>=1)tw.turn=null; } }
+function tourShoot(){ if(!tw||atkCd>0)return; if(tw.phase!=='blast'){ if(tw.phase==='build'||tw.phase==='admire'||tw.phase==='roll')toast('⏳ Wait for it…'); return; }
+  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrows.explode=999; arrowSel='explode'; shoot(WP.bow); atkCd=0.4; }
+// --- blasting: every block is worth a share of the landmark's value
+function twCells(s){ const [x0,x1,z0,z1]=s.box, tag=s.n+1, out=[]; for(let y=s.ymin;y<=s.ymax;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++){ const i=idx(x,y,z); if(twOwn[i]===tag)out.push(i); } return out; }
+function twPer(){ const tot=twS.reduce((a,s)=>a+s.total,0)||1; return TW[tw.key].value/tot; }
+function twAdd(v,pos){ tw.dmgNow+=v; tw.total+=v; if(pos)tgPopup('+'+twShort(v),'#7fe38a',pos); }
+function tourBlast(x,y,z){ const R=3; sfx('boom'); if(!tw)return; tw.shake=Math.max(tw.shake,0.45); puff(x,y,z,[0xff3a10,0xff8a1a,0xffd84a,0x555555],30,9,6,8,1.0);
+  const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z), hit=new Set(), cols=[]; let n=0;
+  for(let dx=-R;dx<=R;dx++)for(let dy=-R;dy<=R;dy++)for(let dz=-R;dz<=R;dz++){ if(dx*dx+dy*dy+dz*dz>R*R)continue; const bx=cx+dx,by=cy+dy,bz=cz+dz; if(!inB(bx,by,bz))continue;
+    const i=idx(bx,by,bz), o=twOwn[i]; if(!o)continue; const id=world[i], s=twS[o-1]; if(!id||s.state!=='ok')continue;
+    setBlock(bx,by,bz,0); twOwn[i]=0; s.gone++; s.lost+=by-s.ymin<3?2:1; n++; hit.add(s); if(cols.length<5)cols.push(B[id].avg.getHex()); }
+  if(n){ twAdd(n*twPer(),[x,y+1.2,z]); puff(x,y,z,cols,Math.min(30,n),7,6,14,1.4); }
+  for(const s of hit)if(s.lost>=s.total*s.thr){ s.state='sinking'; s.sinkT=0.25; const left=s.total-s.gone; twAdd(left*twPer(),[(s.box[0]+s.box[1])/2,s.ymax+2,(s.box[2]+s.box[3])/2]);
+    sfx('rock'); tw.shake=Math.max(tw.shake,0.9); toast('💥 '+(s.name===TW[tw.key].name?'The '+s.name:s.name)+' is coming down!'); } }
+function twSink(s){ const cells=twCells(s), tag=s.n+1; if(!cells.length){ s.state='gone'; return; }
+  for(const i of cells){ const x=ix_(i),y=iy_(i),z=iz_(i), id=world[i]; setBlock(x,y,z,0); twOwn[i]=0; if(y>s.ymin){ setBlock(x,y-1,z,id); twOwn[idx(x,y-1,z)]=tag; } }
+  s.ymax--; tw.shake=Math.max(tw.shake,0.5); const [x0,x1,z0,z1]=s.box;
+  for(let k=0;k<3;k++)puff(x0+rand()*(x1-x0+1),s.ymin+0.4,z0+rand()*(z1-z0+1),[0x9a9a96,0xc8c4b8,0x77776f],7,6,2.5,3,1.3); if(rand()<0.4)sfx('break'); }
+function updateTour(dt){ if(mode!=='tour'||!tw)return; updateTourHud();
+  for(const s of twS)if(s.state==='sinking'){ s.sinkT-=dt; if(s.sinkT<=0){ s.sinkT=0.1; twSink(s); } } }
+function updateTourHud(){ const el=$('cartHud'); el.style.display='inline-block'; const L=TW[tw.key]; let h='🌍 Stop '+Math.min(TW_STOPS,tw.i+1)+'/'+TW_STOPS+' · '+L.icon+' '+L.name;
+  if(tw.phase==='build')h+=' &nbsp;<span style="color:#ffd84a">🏗️ '+Math.round(100*tw.qi/Math.max(1,tw.q.length))+'%</span>';
+  if(tw.phase==='blast')h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(tw.time)+'s</span> &nbsp;<span style="color:#7fe38a">💸 '+twShort(tw.dmgNow)+'</span>';
+  h+='<br><span style="color:#7fe38a">💰 Total '+twFmt(tw.total)+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+twFmt(Math.max(twBest(),tw.total))+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function tourIntro(){ if(!tw)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=tw.phase!=='intro'&&tw.phase!=='done';
+  $('mbox').innerHTML='<h2>🌍 Wrecking World Tour</h2><div class="say">Visit '+TW_STOPS+' wonders of the world, picked at random from 15. At each stop, watch the landmark build itself from the ground up. Then the cart pulls in, and you get <b>unlimited bomb arrows for '+TW_LEN+' seconds</b>. Every block you blow up adds to your damage bill in dollars. Your tour guide may get a little upset…</div>'+
+    '<div class="board"><div>🏆 Biggest damage bill<div class="n" style="color:#ffd84a;font-size:24px">'+twFmt(twBest())+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="wGo">'+(mid?'Keep going':'Start the tour!')+'</button><button class="mbtn gray" id="wMenu">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('wGo'),()=>{ closeMenu(); if(!mid){ if(tw.phase==='done')tourSetup(); tw.phase='climb'; toast('🚂 All aboard!'); } }); tap($('wMenu'),openMenu); }
+function tourFinish(){ const best=twBest(), rec=tw.total>best; if(rec)try{ localStorage.setItem(TW_BEST,String(Math.round(tw.total))); }catch(e){}
+  if(document.pointerLockElement)document.exitPointerLock(); paused=true; rdBan.style.display='none';
+  const rows=tw.list.map((k,i)=>'<li>'+TW[k].icon+' <b>'+TW[k].name+'</b>: '+twFmt(tw.dmg[i]||0)+' ('+(tw.pct[i]||0)+'% destroyed)</li>').join('');
+  const notes=tw.list.map((k,i)=>{ const L=TW[k]; return '<div class="item" style="display:block"><b>'+L.icon+' '+L.name+'</b> <span style="opacity:.7">· '+L.place+' · '+L.year+'</span><div class="fx" style="margin-top:4px">'+L.history+'</div><div style="margin-top:4px;color:#ff9d8a"><b>'+((tw.pct[i]||0)>=50?'😭 ':'😟 ')+L.sad+'</b></div></div>'; }).join('');
+  const t=tw.total, cry=t>=5e9?'FIVE BILLION DOLLARS?! I need to sit down. Actually, I need to lie down. On the floor. Where all the landmarks are now.':t>=1e9?'Over a BILLION dollars of history, gone in a few minutes. I am going to need a very long nap.':t>0?'Okay, you didn\'t knock EVERYTHING down… but I\'m still sending you the bill.':'You didn\'t break a single block. Wait, is that allowed? Thank you!';
+  $('mbox').innerHTML='<h2>'+(rec?'🏆 NEW RECORD DAMAGE BILL!':'🌍 Tour complete')+'</h2><div class="board"><div>💸 Damage this tour<div class="n" style="color:#7fe38a;font-size:24px">'+twFmt(t)+'</div></div><div>🏆 Record<div class="n" style="color:#ffd84a;font-size:24px">'+twFmt(Math.max(best,t))+'</div></div></div>'+
+    '<ul style="margin-top:10px">'+rows+'</ul><h3>🧑‍🏫 A word from your heartbroken tour guide</h3><div class="say">*sniff* Do you have ANY idea what you just did? '+cry+' Let me tell you what you destroyed…</div>'+notes+
+    '<div class="say" style="margin-top:8px">*blows nose loudly* Those were real wonders that took people years (or centuries!) to build. Good thing this was only a game. Please, PLEASE never do this in real life.</div>'+
+    '<div class="row"><button class="mbtn" id="wAgain">New tour</button><button class="mbtn gray" id="wMenu">Menu</button></div>';
+  $('modal').style.display='flex'; $('mbox').scrollTop=0; if(rec)sfx('buy'); saveNow();
+  tap($('wAgain'),()=>{ closeMenu(); tourSetup(); tw.phase='climb'; }); tap($('wMenu'),openMenu); }
+function tourHelp(){
+  return '<h2>🌍 Wrecking World Tour</h2>Ride a cart to '+TW_STOPS+' wonders of the world, picked at random from 15 famous landmarks. Each one is in its own world.'+
+  '<h3>At each stop</h3><ul><li>The cart rolls out of a tunnel and up a hill. Watch the landmark build itself, super fast, from the bottom up</li><li>The cart pulls in closer. You get <b>unlimited bomb arrows for '+TW_LEN+' seconds</b></li>'+
+  '<li>Every block you blow up adds to the damage bill in dollars, based on what the landmark is worth. Damage it enough and it comes crashing down, and the rest of its value counts too. Hits low down do extra damage</li><li>Then the cart rolls into a tunnel and on to the next wonder</li></ul>'+
+  '<h3>The landmarks</h3><ul><li>'+TW_KEYS.map(k=>TW[k].icon+' '+TW[k].name).join(' · ')+'</li></ul>'+
+  '<h3>Controls</h3><ul><li>Drag anywhere to aim, and tap ⛏ Hit (or click) to shoot. At the end, your tour guide tells you the real history of what you wrecked (and is NOT happy about it)</li></ul>';
+}
+
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
@@ -2524,7 +2787,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -2616,6 +2879,7 @@ let waterT=0, lavaT=0, fireT=0, spawnT=2, animT=0, animPh=0;
 function updatePlayer(dt){
   if(mode==='cart'){ ridePlayer(dt); return {hs:0}; }
   if(mode==='raid'){ rideRaid(dt); return {hs:0}; }
+  if(mode==='tour'){ rideTour(dt); return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -2806,9 +3070,9 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt);
   atkCd-=dt;
-  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid')hitAction(); if(placeHeld)placeAction(); } }
+  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid'&&mode!=='tour')hitAction(); if(placeHeld)placeAction(); } }
 
   // player model
   model.position.set(pl.p[0],pl.p[1],pl.p[2]); model.rotation.y=yaw;
@@ -2828,6 +3092,7 @@ function update(dt){
     const want=eye.clone().addScaledVector(d,-4).addScaledVector(right,0.6).add(new THREE.Vector3(0,0.25,0));
     let tt=1; for(let t=0.05;t<=1.0001;t+=0.05){ tmp.lerpVectors(eye,want,t); const b=get(Math.floor(tmp.x),Math.floor(tmp.y),Math.floor(tmp.z)); if(b&&B[b].solid){ tt=Math.max(0,t-0.1); break; } }
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
+  if(mode==='tour'&&tw&&tw.shake>0){ tw.shake=Math.max(0,tw.shake-dt*1.5); const k=Math.min(0.5,tw.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='raid'&&rd&&rd.shake>0){ rd.shake=Math.max(0,rd.shake-dt*1.5); const k=Math.min(0.5,rd.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   camera.updateMatrixWorld();
 
@@ -2872,7 +3137,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
