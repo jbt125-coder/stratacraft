@@ -1003,7 +1003,7 @@ function updateShots(dt){
       const [x,y,z]=s.p;
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       if(s.owner&&mode==='cart'&&cartCheck(s,px0,py0,pz0)){ hit=true; break; }
-      if(mode==='raid'&&!s.fromMob&&raidApple(s,px0,py0,pz0)){ hit=true; break; }
+      if(mode==='raid'&&!s.fromMob&&rd&&(raidApple(s,px0,py0,pz0)||raidBonusHit(s,px0,py0,pz0))){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
       if(solidAt(bx,by,bz)&&s.fromMob&&mode==='corners'&&cg){ const bid=get(bx,by,bz);
@@ -1120,7 +1120,7 @@ const touchEl=$('touch');
 touchEl.addEventListener('touchstart',e=>{
   e.preventDefault(); audioInit();
   for(const t of e.changedTouches){
-    if(t.clientX<window.innerWidth*0.42 && joy.id===null){
+    if(t.clientX<window.innerWidth*0.42 && joy.id===null && mode!=='cart' && mode!=='raid'){
       joy.id=t.identifier; joy.ox=t.clientX; joy.oy=t.clientY; joy.x=joy.y=0;
       const jb=$('joyBase'),jk=$('joyKnob'); jb.style.display=jk.style.display='block';
       jb.style.left=(t.clientX-60)+'px'; jb.style.top=(t.clientY-60)+'px'; jk.style.left=(t.clientX-27)+'px'; jk.style.top=(t.clientY-27)+'px';
@@ -2059,7 +2059,7 @@ const RD_GEN={
   barrels:{name:'Barrels',icon:'🛢️',w:3,d:3,thr:9,bonus:0,build(P,r){ let n=0; for(let u=0;u<3;u++)for(let d=0;d<3;d++){ if(r()<0.55||n===0&&u===2&&d===2){ P(u,0,d,ID.barrel); n++; if(r()<0.3)P(u,1,d,ID.barrel); } } }},
   crates:{name:'Crate pile',icon:'📦',w:3,d:2,thr:0.4,bonus:120,crumble:true,build(P){ for(let u=0;u<3;u++)for(let d=0;d<2;d++)P(u,0,d,ID.crate); P(0,1,0,ID.crate); P(1,1,0,ID.crate); P(1,1,1,ID.crate); P(0,1,1,ID.crate); P(0,2,0,ID.crate); }},
 };
-let rdOwn=new Uint8Array(1); const rdS=[]; // rdOwn[block] = structure number + 1
+let rdOwn=new Uint8Array(1), rdHM=null; const rdS=[]; // rdOwn[block] = structure number + 1
 function rdPut(s,x,y,z,id){ if(!inB(x,y,z))return; const i=idx(x,y,z); if(rdOwn[i]===s.n+1)s.total--; world[i]=id; rdOwn[i]=s.n+1; s.total++;
   const b=s.box; b[0]=Math.min(b[0],x); b[1]=Math.max(b[1],x); b[2]=Math.min(b[2],z); b[3]=Math.max(b[3],z); s.ymax=Math.max(s.ymax,y); }
 function rdTown(k,rnd){ const st=RD_ST[k], used=new Set(), fin=k===5, views=[]; // views: the direction to the middle of each big building
@@ -2070,8 +2070,10 @@ function rdTown(k,rnd){ const st=RD_ST[k], used=new Set(), fin=k===5, views=[]; 
       if(tier!=='small'&&views.some(c=>c>amin&&c<amax))continue; // don't hide the middle of a big building from the cart
       if(tier==='big')views.push(Math.atan2(u0+G.w/2-st.x,d0+G.d/2));
       for(let u=u0;u<u0+G.w;u++)for(let d=d0;d<d0+G.d;d++)used.add(u+','+d);
-      const s={n:rdS.length,kind,G,total:0,lost:0,gone:0,state:'ok',box:[1e9,-1e9,1e9,-1e9],ymax:0}; rdS.push(s);
-      G.build((u,y,d,id)=>rdPut(s,u0+u,RD_GY+y,st.tz+st.side*(d0+d),id),rnd); return; } };
+      let base=RD_GY; for(let u=u0;u<u0+G.w;u++)for(let d=d0;d<d0+G.d;d++)base=Math.max(base,rdHM[u+(st.tz+st.side*d)*W]); // stand on the highest ground under it
+      for(let u=u0;u<u0+G.w;u++)for(let d=d0;d<d0+G.d;d++){ const z=st.tz+st.side*d; for(let y=rdHM[u+z*W];y<base;y++)world[idx(u,y,z)]=ID.concrete; }
+      const s={n:rdS.length,kind,G,base,total:0,lost:0,gone:0,state:'ok',box:[1e9,-1e9,1e9,-1e9],ymax:0}; rdS.push(s);
+      G.build((u,y,d,id)=>rdPut(s,u0+u,base+y,st.tz+st.side*(d0+d),id),rnd); return; } };
   const pick=L=>L[Math.floor(rnd()*L.length)];
   for(let i=0;i<(fin?3:2);i++)put(fin&&i===0?'sky':pick(['sky','apt','castle']),23,38,'big');
   for(let i=0;i<3;i++)put(pick(['house','statue','tower','billboard','house']),13,31,'med');
@@ -2082,11 +2084,19 @@ function generateRaid(s){
   const n1=makeNoise(s), n3=makeNoise(s+2), rnd=mulberry32(s+99), appleSpots=[];
   const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
   const arenaAt=(x,z,m)=>{ for(let k=0;k<6;k++){ const st=RD_ST[k], d=(z-st.tz)*st.side; if(Math.abs(x+0.5-st.x)<=15+m&&d>=1-m&&d<=38+m)return k; } return -1; };
+  const HM=rdHM=new Int16Array(W*D), AR=new Int8Array(W*D);
   for(let z=0;z<D;z++)for(let x=0;x<W;x++){
     let h=RD_GY; if(z>=43&&z<=52) h=RD_GY+Math.round(Math.sin((z-42.5)/10*Math.PI)*(3+n1(x/8,z/8)*4)); // a wooded ridge splits the two rows
-    const k=arenaAt(x,z,0), city=k>=0&&RD_ROUNDS[k].type==='bomb', d=k>=0?(z-RD_ST[k].tz)*RD_ST[k].side:0;
+    const k=arenaAt(x,z,0); AR[x+z*W]=k;
+    if(k>=0){ const d=(z-RD_ST[k].tz)*RD_ST[k].side, ramp=Math.max(0,Math.min(1,(d-5)/14)), b=n1(x/10+40,z/10+40)*0.7+n3(x/5+70,z/5)*0.3; // rolling hills that rise toward the back, flat next to the track
+      h=RD_GY+Math.max(0,Math.round(ramp*(b*7.5-2.2))); }
+    HM[x+z*W]=h; }
+  for(let pass=0;pass<8;pass++)for(let z=1;z<D-1;z++)for(let x=1;x<W-1;x++){ const i=x+z*W; if(AR[i]<0)continue; // never more than a 1-block step, so monsters can climb
+    HM[i]=Math.min(HM[i],HM[i-1]+1,HM[i+1]+1,HM[i-W]+1,HM[i+W]+1); }
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){
+    const h=HM[x+z*W], k=AR[x+z*W], city=k>=0&&RD_ROUNDS[k].type==='bomb', d=k>=0?(z-RD_ST[k].tz)*RD_ST[k].side:0;
     for(let y=0;y<h;y++){ const depth=h-1-y; let id;
-      if(y===0)id=ID.basalt; else if(depth===0)id=city?(d<=2?ID.concrete:d===4&&(x%4<2)?ID.paint_yellow:ID.asphalt):ID.grass;
+      if(y===0)id=ID.basalt; else if(depth===0)id=city&&d<=6?(d<=2?ID.concrete:d===4&&(x%4<2)?ID.paint_yellow:ID.asphalt):ID.grass;
       else if(depth<=2)id=ID.dirt; else if(y<4)id=ID.granite; else { id=SED[(y+Math.floor(n3(x/9,z/9)*4))%SED.length]; if(rnd()<0.012)id=ID.coal; }
       world[idx(x,y,z)]=id; } }
   // the track bed
@@ -2094,7 +2104,7 @@ function generateRaid(s){
     world[idx(x,RD_GY-1,z)]=ID.conglomerate; for(let y=RD_GY;y<RD_GY+4;y++)world[idx(x,y,z)]=0; }
   // gravestones at the back of the monster fields
   for(let k=0;k<6;k++){ const st=RD_ST[k]; if(RD_ROUNDS[k].type!=='wave')continue;
-    for(let g=0;g<7;g++){ const x=Math.floor(st.x-12+g*3.7+rnd()*2), z=st.tz+st.side*(38+Math.floor(rnd()*2)); for(let y=RD_GY;y<RD_GY+1+(rnd()<0.5?1:0);y++)world[idx(x,y,z)]=ID.slate; } }
+    for(let g=0;g<7;g++){ const x=Math.floor(st.x-12+g*3.7+rnd()*2), z=st.tz+st.side*(38+Math.floor(rnd()*2)), gy=HM[x+z*W]; for(let y=gy;y<gy+1+(rnd()<0.5?1:0);y++)world[idx(x,y,z)]=ID.slate; } }
   // trees on the ridge and around the edges (never in an arena or on the track)
   for(let a=0;a<260;a++){ const x=2+Math.floor(rnd()*(W-4)), z=2+Math.floor(rnd()*(D-4)); if(arenaAt(x,z,2)>=0)continue;
     if(Math.abs(z-RD_ROW1)<4||Math.abs(z-RD_ROW2)<4||Math.abs(x-RD_EAST)<4)continue; const su=surfaceAt(x,z); if(su.id!==ID.grass||world[idx(x,su.y+1,z)])continue;
@@ -2102,13 +2112,13 @@ function generateRaid(s){
     plantTree(x,su.y+1,z,rnd); }
   // two apple trees beside every monster station: shoot an apple to heal
   for(let k=0;k<6;k++){ const st=RD_ST[k]; if(RD_ROUNDS[k].type!=='wave')continue;
-    for(const u of [-12,12]){ const x=st.x+u, z=st.tz+st.side*11; plantTree(x,RD_GY,z,rnd); appleSpots.push([x,plantTree.ty,z]); } }
+    for(const u of [-12,12]){ const x=st.x+u, z=st.tz+st.side*11; plantTree(x,HM[x+z*W],z,rnd); appleSpots.push([x,plantTree.ty,z]); } }
   for(let k=0;k<6;k++) if(RD_ROUNDS[k].type==='bomb')rdTown(k,rnd);
   for(const [x,ty,z] of appleSpots) makeAppleTree(x,ty,z);
 }
 // --- scene, cart, ride
 let rd=null, rdCart=null;
-function newRd(){ return {phase:'intro',dist:0,v:0,r:0,t:0,time:RD_LEN,score:0,rs:[0,0,0,0,0,0],kos:[],kills:{},blocks:0,topple:0,rk:0,rb:0,rt:0,booms:[],turn:null,lastYaw:null,shake:0,idle:0}; }
+function newRd(){ return {phase:'intro',dist:0,v:0,r:0,t:0,time:RD_LEN,score:0,rs:[0,0,0,0,0,0],kos:[],kills:{},blocks:0,topple:0,rk:0,rb:0,rt:0,booms:[],bonus:[],turn:null,lastYaw:null,shake:0,idle:0}; }
 function raidBest(){ try{ return +localStorage.getItem(RD_BEST)||0; }catch(e){ return 0; } }
 function buildRaidScene(){ clearCart();
   const n=RTRK.n, rails=new THREE.InstancedMesh(new THREE.BoxGeometry(0.09,0.1,TSTEP+0.02),lm(0x9aa0aa),n*2), sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(1.4,0.1,0.32),lm(0x6b4a2a),Math.ceil(n/2));
@@ -2150,12 +2160,14 @@ function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; r
   rdLook([A.x,R.type==='bomb'?RD_GY+5:RD_GY+1.2,A.tz+A.side*(R.type==='bomb'?20:17)],0.9); sfx('place');
   raidBanner('Round '+(rd.r+1)+' of 6: '+R.name, R.type==='bomb'?'You get '+RD_BOMBS+' bomb arrows. Blow up as much as you can!':R.style==='lines'?'Monsters march at you in lines. 🍎 Shoot an apple to heal!':R.style==='mixed'?'Everything at once, and eagles too! 🍎 Shoot an apple to heal!':'Monsters are coming! 🍎 Shoot an apple to heal!',3); }
 function raidStartRound(){ const R=RD_ROUNDS[rd.r]; rd.phase='round'; rd.time=RD_LEN; rd.rk=0; rd.rb=0; rd.rt=0; rd.idle=0; rd.spawnT=0.5; rd.lineT=0.5; rd.eagleT=8; rd.lineN=0; rd.ko=false;
-  if(R.type==='bomb'){ arrows=cleanArrows(); arrows.explode=RD_BOMBS; arrowSel='explode'; toast('💣 GO! Blow it all up!'); } else { arrowSel='normal'; toast('🏹 GO! Here they come!'); }
+  arrows=cleanArrows(); rd.bonusAt=[]; rd.bonusKinds=['rabbit','deer','eagle'].sort(()=>rand()-0.5);
+  if(R.type==='bomb'){ arrows.explode=RD_BOMBS; arrowSel='explode'; toast('💣 GO! Blow it all up!'); } else { arrowSel='normal'; rd.bonusAt=[7+rand()*6,25+rand()*6,42+rand()*6]; toast('🏹 GO! Here they come!'); }
   sfx('buy'); }
 function raidEndRound(ko){ const R=RD_ROUNDS[rd.r]; if(rd.phase!=='round')return; rd.phase='post'; rd.t=3.2;
   for(const m of mobs.slice()){ puff(m.p[0],m.p[1]+0.8,m.p[2],[0x888888,0xcccccc,0x555555],10,3,2,2,0.9); removeMob(m); }
   for(const sh of shots.slice()) if(sh.fromMob)freeShot(sh);
-  if(R.type==='bomb'){ arrows.explode=0; arrowSel='normal';
+  for(const b of rd.bonus.slice())rdBonusFree(b,false); arrows.split=0; arrowSel='normal';
+  if(R.type==='bomb'){ arrows.explode=0;
     raidBanner('Round '+(rd.r+1)+' done! +'+rd.rs[rd.r],'🧱 '+rd.rb+' blocks blown up · 🏚️ '+rd.rt+' knocked down',3); }
   else { let bonus=0; if(ko){ rd.kos[rd.r]=true; hp=MAXHP; updateHUD(); } else { bonus=hp*25; rdAdd(bonus); }
     raidBanner(ko?'💫 Knocked out!':'Round '+(rd.r+1)+' done! +'+rd.rs[rd.r], '👾 '+rd.rk+' monsters'+(ko?' · your hearts are full again':' · ❤️ survival bonus +'+bonus),3); }
@@ -2180,13 +2192,13 @@ function raidIntro(){ if(!rd)return; if(document.pointerLockElement)document.exi
   tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'); }); tap($('rMenu'),openMenu); }
 function updateRaidHud(){ const el=$('cartHud'); el.style.display='inline-block'; const R=RD_ROUNDS[Math.min(5,rd.r)];
   let h=rd.phase==='ride'||rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
-  if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; }
+  if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; else if(arrows.split>0)h+=' &nbsp;<span style="color:#ffc81a">🔱×'+arrows.split+'</span>'; }
   h+='<br><span style="color:#7fe3cf">⭐ '+rd.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(raidBest(),rd.score)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 // --- shooting
 function raidShoot(){ if(!rd||rd.phase!=='round'||atkCd>0)return; const bomb=RD_ROUNDS[rd.r].type==='bomb';
   if(bomb&&arrows.explode<=0){ toast('💣 Out of bomb arrows!'); return; }
-  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb?'explode':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
+  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb?'explode':arrows.split>0?'split':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
 function raidApple(s,x0,y0,z0){ // shooting a ripe apple heals you
   for(const tr of appleTrees) for(const sl of tr.slots){ if(sl.st!==2)continue; const c=sl.pos, ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
     let t=((c[0]-x0)*ex+(c[1]-y0)*ey+(c[2]-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-c[0], dy=y0+ey*t-c[1], dz=z0+ez*t-c[2];
@@ -2195,14 +2207,14 @@ function raidApple(s,x0,y0,z0){ // shooting a ripe apple heals you
   return false; }
 // --- explosions
 function rdQueueBoom(x,y,z,R,t){ rd.booms.push({x,y,z,R,t}); }
-function rdCells(s){ const [x0,x1,z0,z1]=s.box, tag=s.n+1, out=[]; for(let y=RD_GY;y<=s.ymax;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++){ const i=idx(x,y,z); if(rdOwn[i]===tag)out.push(i); } return out; }
+function rdCells(s){ const [x0,x1,z0,z1]=s.box, tag=s.n+1, out=[]; for(let y=s.base;y<=s.ymax;y++)for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++){ const i=idx(x,y,z); if(rdOwn[i]===tag)out.push(i); } return out; }
 function raidBlast(x,y,z,R){ R=R||2.6; sfx('boom'); if(rd)rd.shake=Math.max(rd.shake,0.4);
   puff(x,y,z,[0xff3a10,0xff8a1a,0xffd84a,0x555555],30,9,6,8,1.0);
   for(const m of mobs.slice()){ const d=Math.hypot(m.p[0]-x,m.p[1]+m.h*0.5-y,m.p[2]-z); if(d<R+0.8&&mobs.includes(m))damageMob(m,15,m.p[0]-x,m.p[2]-z,9); }
   if(!rd)return; const cx=Math.floor(x),cy=Math.floor(y),cz=Math.floor(z), r=Math.ceil(R), R2=R*R, hitS=new Set(), cols=[]; let n=0, extra=0;
   for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++)for(let dz=-r;dz<=r;dz++){ if(dx*dx+dy*dy+dz*dz>R2)continue; const bx=cx+dx,by=cy+dy,bz=cz+dz; if(!inB(bx,by,bz))continue;
     const i=idx(bx,by,bz), o=rdOwn[i]; if(!o)continue; const id=world[i], s=rdS[o-1]; if(!id||s.state!=='ok')continue;
-    setBlock(bx,by,bz,0); rdOwn[i]=0; s.gone++; s.lost+=(s.G.weakY&&by-RD_GY<s.G.weakY)?s.G.weakW:1; n++; hitS.add(s); if(cols.length<5)cols.push(B[id].avg.getHex());
+    setBlock(bx,by,bz,0); rdOwn[i]=0; s.gone++; s.lost+=(s.G.weakY&&by-s.base<s.G.weakY)?s.G.weakW:1; n++; hitS.add(s); if(cols.length<5)cols.push(B[id].avg.getHex());
     if(id===ID.barrel){ extra+=25; rdQueueBoom(bx+0.5,by+0.5,bz+0.5,2.8,0.12+rand()*0.18); } }
   if(n){ const p=n*RD_BLOCK+extra; rdAdd(p); rd.blocks+=n; rd.rb+=n; puff(x,y,z,cols,Math.min(30,n),7,6,14,1.4); tgPopup('+'+p,'#ffb347',[x,y+1.2,z]); }
   for(const s of hitS) rdCheckFall(s); }
@@ -2212,16 +2224,16 @@ function rdCheckFall(s){ const G=s.G; if(s.state!=='ok'||s.lost<s.total*G.thr)re
   tgPopup('+'+pts,'#ffd84a',[mx,s.ymax+2,mz]);
   if(G.boom||G.crumble){ s.state='gone'; const cols=[];
     for(const i of rdCells(s)){ const id=world[i]; if(cols.length<5)cols.push(B[id].avg.getHex()); setBlock(ix_(i),iy_(i),iz_(i),0); rdOwn[i]=0; }
-    puff(mx,RD_GY+1,mz,cols.length?cols:[0x777777],30,8,7,12,1.5);
-    if(G.boom){ rdQueueBoom(mx,RD_GY+1,mz,G.boom,0.08); puff(mx,RD_GY+1.5,mz,[0xff3a10,0xff8a1a,0xffd84a],40,10,9,8,1.2); toast(G.icon+' '+G.name+' exploded! +'+pts); }
+    puff(mx,s.base+1,mz,cols.length?cols:[0x777777],30,8,7,12,1.5);
+    if(G.boom){ rdQueueBoom(mx,s.base+1,mz,G.boom,0.08); puff(mx,s.base+1.5,mz,[0xff3a10,0xff8a1a,0xffd84a],40,10,9,8,1.2); toast(G.icon+' '+G.name+' exploded! +'+pts); }
     else { sfx('break'); toast(G.icon+' '+G.name+' smashed! +'+pts); } return; }
   s.state='sinking'; s.sinkT=0.25; sfx('rock'); rd.shake=Math.max(rd.shake,0.9);
   if(G.splash)puff(mx,s.ymax-2,mz,[0x6fb8ff,0xbfe6ff,0xffffff],60,9,6,9,1.6);
   toast(G.icon+' The '+G.name.toLowerCase()+' is coming down! +'+pts); }
 function rdSink(s){ const cells=rdCells(s), tag=s.n+1; if(!cells.length){ s.state='gone'; return; }
-  for(const i of cells){ const x=ix_(i),y=iy_(i),z=iz_(i), id=world[i]; setBlock(x,y,z,0); rdOwn[i]=0; if(y>RD_GY){ setBlock(x,y-1,z,id); rdOwn[idx(x,y-1,z)]=tag; } }
+  for(const i of cells){ const x=ix_(i),y=iy_(i),z=iz_(i), id=world[i]; setBlock(x,y,z,0); rdOwn[i]=0; if(y>s.base){ setBlock(x,y-1,z,id); rdOwn[idx(x,y-1,z)]=tag; } }
   s.ymax--; rd.shake=Math.max(rd.shake,0.5); const [x0,x1,z0,z1]=s.box;
-  for(let k=0;k<3;k++) puff(x0+rand()*(x1-x0+1),RD_GY+0.4,z0+rand()*(z1-z0+1),[0x9a9a96,0xc8c4b8,0x77776f],7,6,2.5,3,1.3);
+  for(let k=0;k<3;k++) puff(x0+rand()*(x1-x0+1),s.base+0.4,z0+rand()*(z1-z0+1),[0x9a9a96,0xc8c4b8,0x77776f],7,6,2.5,3,1.3);
   if(rand()<0.4)sfx('break'); }
 // --- monster waves
 function rdSpawn(type,u,d,o){ const A=rdArena(), info=RD_MON[type], t=MOBT[type], x=A.x+u, z=A.tz+A.side*d;
@@ -2235,12 +2247,40 @@ function rdLine(big){ const pat=big?RD_PAT2[rd.lineN%RD_PAT2.length]:RD_PAT[rd.l
   const sp=Math.min(...pat.map(k=>RD_MON[k].spd))*(1+rd.lineN*0.04);
   for(let i=0;i<n;i++) rdSpawn(pat[i%pat.length],-9+i*18/(n-1),36,{spd:sp,line:true});
   toast('⚠️ A line of monsters is coming!'); }
-function raidWave(dt,style){ const prog=1-rd.time/RD_LEN, alive=mobs.length, pick=L=>L[Math.floor(rand()*L.length)];
+function raidWave(dt,style){ if(rd.bonusAt.length&&RD_LEN-rd.time>=rd.bonusAt[0]){ rd.bonusAt.shift(); rdBonusSpawn(rd.bonusKinds.pop()); }
+  const prog=1-rd.time/RD_LEN, alive=mobs.length, pick=L=>L[Math.floor(rand()*L.length)];
   if(style!=='lines'){ rd.spawnT-=dt; if(rd.spawnT<=0&&rd.time>6&&alive<(style==='mixed'?16:12)){ rd.spawnT=(style==='mixed'?2.6:2.3)-prog*1.0;
       const L=style==='mixed'?['zombie','zombie','slime','spider','magma','skeleton','orc']:['zombie','zombie','zombie','slime','slime','spider','skeleton','skeleton'];
       const n=1+(rand()<0.2+prog*0.5?1:0); for(let k=0;k<n;k++)rdSpawn(pick(L),(rand()-.5)*18,29+rand()*7); } }
   if(style!=='random'){ rd.lineT-=dt; if(rd.lineT<=0&&rd.time>10&&alive<18){ rd.lineT=style==='mixed'?11:8.5; rdLine(style==='mixed'); } }
   if(style==='mixed'){ rd.eagleT-=dt; if(rd.eagleT<=0&&rd.time>6){ rd.eagleT=8+rand()*4; rdSpawn(rand()<0.7?'eagle':'griffin',(rand()-.5)*24,34); toast('🦅 Look up!'); } } }
+// --- golden bonus creatures: 3 per monster round run across the field carrying a gold-ring target. Hit it for 10 split arrows
+const rdGold=lm(0xffc81a,{emissive:0x5a3a00});
+function rdBonusSpawn(kind){ const A=rdArena(), dir=rand()<0.5?1:-1, d=12+rand()*12; let g,legs=[],wings=null,R=0.62,spd,top;
+  if(kind==='eagle'){ const r=mobModel('eagle'); g=r.root; wings=r.wings; r.bar.visible=false; spd=5; top=-0.9; }
+  else { const a=makeAnimal(kind); cartRoot.remove(a.g); for(const dd of a.discs)dd.parent.remove(dd); g=a.g; legs=a.legs; spd=kind==='rabbit'?3.4:4.3; top=kind==='rabbit'?0.9:2.1; }
+  g.traverse(o=>{ if(o.isMesh&&o.material&&o.material.isMeshLambertMaterial)o.material=rdGold; });
+  const pole=box(0.07,1.0,0.07,lm(0x6b4a2a)); pole.position.y=top+(top<0?-0.5:0.5); g.add(pole);
+  const disc=discMesh(R); disc.position.y=top+(top<0?-1.1:1.1); g.add(disc); powerTag(disc,'split');
+  cartRoot.add(g); const b={kind,g,legs,wings,disc,u:-17*dir,dir,d,spd,ph:0,hop:0,A};
+  rdBonusPlace(b,0); rd.bonus.push(b); sfx('coin');
+  toast('✨ A golden '+(kind==='eagle'?'eagle':kind)+'! Hit its gold target for 🔱 split arrows!'); }
+function rdBonusPlace(b,dt){ const A=b.A, x=A.x+b.u, z=A.tz+A.side*b.d; b.ph+=dt*b.spd*3;
+  let y; if(b.kind==='eagle')y=RD_GY+7+Math.sin(b.ph*0.3)*1.2; else { const su=surfaceAt(Math.max(0,Math.min(W-1,Math.floor(x))),Math.floor(z)); y=su.y+1+(b.kind==='rabbit'?Math.abs(Math.sin(b.ph*0.7))*0.45:0); }
+  b.g.position.set(x,y,z); b.g.rotation.y=b.dir>0?-Math.PI/2:Math.PI/2;
+  for(let i=0;i<b.legs.length;i++)b.legs[i].rotation.x=Math.sin(b.ph+(i%2)*Math.PI)*0.6;
+  if(b.wings)for(const w of b.wings)w.rotation.z=Math.sin(b.ph*1.5)*0.55*w.userData.sd;
+  b.disc.lookAt(camera.position); }
+function rdBonusFree(b,hit){ const w=new THREE.Vector3(); b.disc.getWorldPosition(w);
+  if(hit)puff(w.x,w.y,w.z,[0xffc81a,0xfff2a0,0xffffff],26,6,4,6,1.0);
+  cartRoot.remove(b.g); b.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); rd.bonus.splice(rd.bonus.indexOf(b),1); }
+function updateRdBonus(dt){ for(const b of rd.bonus.slice()){ b.u+=b.dir*b.spd*dt; rdBonusPlace(b,dt); if(Math.abs(b.u)>18)rdBonusFree(b,false); } }
+function raidBonusHit(s,x0,y0,z0){ const w=new THREE.Vector3();
+  for(const b of rd.bonus){ b.disc.getWorldPosition(w); const ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
+    let t=((w.x-x0)*ex+(w.y-y0)*ey+(w.z-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-w.x, dy=y0+ey*t-w.y, dz=z0+ez*t-w.z;
+    if(dx*dx+dy*dy+dz*dz<0.8*0.8){ arrows.split=Math.max(arrows.split,10); arrowSel='split'; rdAdd(150); tgPopup('🔱 +150','#ffc81a',[w.x,w.y+0.6,w.z]);
+      toast('🔱 Split arrows for your next 10 shots! (3 arrows each)'); sfx('buy'); rdBonusFree(b,true); updateRaidHud(); return true; } }
+  return false; }
 function raidKill(m){ const p=(m.rdi&&m.rdi.pts)||50; rdAdd(p); rd.kills[m.type]=(rd.kills[m.type]||0)+1; rd.rk++; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
 function rdThrow(m,sh){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.6,pl.p[1]+1.0+(rand()-.5)*0.8,pl.p[2]+(rand()-.5)*1.6);
   const fl=o.distanceTo(tg)/sh.spd; tg.y+=0.5*sh.g*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.6);
@@ -2262,7 +2302,7 @@ function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shoo
   else {
     let mx=0,mz=0; const reach=1.25;
     if(active&&dist>Math.max(reach,R.keep)){ const depth=(m.p[2]-A.tz)*A.side; if(R.line&&depth>7){ mz=-A.side; } else { mx=dx/dist; mz=dz/dist; } }
-    if(t.hop){ if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=6.5; m.mv=[mx*R.spd*1.4,mz*R.spd*1.4]; m.hopT=0.35+rand()*0.4; } } }
+    if(t.hop){ if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=7.6; m.mv=[mx*R.spd*1.4,mz*R.spd*1.4]; m.hopT=0.35+rand()*0.4; } } }
     else m.mv=[mx*R.spd,mz*R.spd];
     m.v[0]=m.mv[0]; m.v[2]=m.mv[1]; m.v[1]=Math.max(-30,m.v[1]-25*dt); physStep(m,dt);
     if(!t.hop&&m.wall&&m.onGround&&(mx||mz))m.v[1]=7.5;
@@ -2284,15 +2324,16 @@ function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shoo
 function updateRaid(dt){ if(mode!=='raid'||!rd)return; updateRaidHud();
   for(let i=rd.booms.length-1;i>=0;i--){ const b=rd.booms[i]; b.t-=dt; if(b.t<=0){ rd.booms.splice(i,1); raidBlast(b.x,b.y,b.z,b.R); } } // barrels and cars set each other off
   for(const s of rdS) if(s.state==='sinking'){ s.sinkT-=dt; if(s.sinkT<=0){ s.sinkT=0.11; rdSink(s); } } // things that took enough damage fall down
+  updateRdBonus(dt);
   if(rd.phase!=='round')return; const R=RD_ROUNDS[rd.r];
   if(R.type==='bomb'){ const busy=rd.booms.length||rdS.some(s=>s.state==='sinking')||shots.some(s=>!s.fromMob);
     if(arrows.explode<=0&&!busy){ rd.idle+=dt; if(rd.idle>2.5)raidEndRound(false); } else rd.idle=0; return; }
   raidWave(dt,R.style); }
 function raidHelp(){
-  return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
+  return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Drag anywhere on the screen to aim. Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
   '<h3>🧟 Monster rounds (1, 3 and 5)</h3><ul><li>Monsters walk at your cart. Shoot them before they reach you! Round 1 comes in random bunches, Round 3 marches in lines, and Round 5 is everything at once, with eagles diving from the sky</li>'+
   '<li>🧟 Zombies and 🟫 slimes go down in 1–2 arrows, 💀 skeletons in 2, 🗿 golems and 🧌 trolls take 3–4</li><li>💀 Skeletons, 👹 orcs and 🧌 trolls shoot or throw at you slowly as they come</li>'+
-  '<li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
+  '<li>✨ 3 golden creatures (a rabbit, a deer and an eagle) run past in every monster round carrying a gold-ring target. Hit the target for 🔱 split arrows: your next 10 shots fire 3 arrows each!</li><li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
   '<h3>💣 Bomb rounds (2, 4 and 6)</h3><ul><li>You get '+RD_BOMBS+' bomb arrows to blow up a town: skyscrapers, apartments, castle towers, houses, gold statues, water towers, billboards, cars, buses, crates and explosive barrels. Every town is different</li>'+
   '<li>Every block you blow up scores points. Hurt a building enough and it comes crashing down for a big bonus. Hits low on a building, or on water tower legs, do extra damage</li><li>🚗 Cars and buses explode, and 🛢️ barrels blow up everything around them!</li></ul>'+
   '<h3>Controls</h3><ul><li>Look around and tap ⛏ Hit (or click) to shoot. Arrows drop over distance, so aim a little high for faraway targets</li></ul>';
