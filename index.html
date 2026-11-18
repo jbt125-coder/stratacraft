@@ -252,6 +252,9 @@ makeTile('barrel_side',42,(x,y,r)=>{ if(y===2||y===13)return nz([90,20,20],r,.1)
 makeTile('barrel_top',43,(x,y,r)=>{ const d=Math.hypot(x-7.5,y-7.5); if(d>6.5)return nz([110,20,20],r,.1); if(d<2)return [40,40,40]; return nz([190,30,30],r,.08); });
 makeTile('crate',44,(x,y,r)=>{ if(x<2||y<2||x>13||y>13||Math.abs(x-y)<1.5)return nz([130,92,48],r,.1); return nz([196,152,92],r,.08); });
 makeTile('iron',46,(x,y,r)=>{ let c=nz([122,84,58],r,.12); if((x+y)%5===0)c=[92,62,42]; return c; });
+makeTile('regolith',48,(x,y,r)=>{ let c=nz([168,166,160],r,.1); if(r()<.06)c=[120,118,114]; return c; });
+makeTile('moonrock',49,(x,y,r)=>{ let c=nz([104,102,100],r,.14); if(r()<.05)c=[70,68,66]; return c; });
+makeTile('meteor',50,(x,y,r)=>{ const v=Math.sin(x*0.9+y*0.4)+Math.sin(y*0.7-x*0.3); return v>1.2?[120,255,120]:nz([58,48,44],r,.2); });
 makeTile('steel',47,(x,y,r)=>{ const v=Math.sin((x+y)*0.4); return nz(v>0.6?[226,230,236]:[176,182,192],r,.05); });
 makeTile('roof',45,(x,y,r)=>{ if(y%4===3)return nz([110,30,24],r,.1); return nz(((x+(y>>2)*3)%6===0)?[150,44,34]:[178,58,42],r,.08); });
 
@@ -312,6 +315,9 @@ addBlock('barrel','Explosive Barrel','Building','Boom! It blows up everything ar
 addBlock('crate','Wooden Crate','Building','A crate made of planks.',{t:'crate'},{hidden:true});
 addBlock('roof','Roof Tiles','Building','Clay roof tiles are baked like bricks.',{t:'roof'},{hidden:true});
 addBlock('iron','Wrought Iron','Building','Wrought iron is iron with almost no carbon, so it bends instead of snapping.',{t:'iron'},{hidden:true});
+addBlock('regolith','Moon Dust (Regolith)','Igneous','The Moon is covered in regolith: powdery dust and broken rock made by billions of years of meteorite hits. Astronaut bootprints in it can last for millions of years.',{t:'regolith'},{hidden:true});
+addBlock('moonrock','Moon Rock','Igneous','Most of the Moon\'s dark areas are basalt, rock from ancient lava flows. Apollo astronauts brought 382 kg of moon rocks back to Earth.',{t:'moonrock'},{hidden:true});
+addBlock('meteor','Meteorite','Mineral','A meteorite is a space rock that survives the fall to the ground. This one seems to be glowing…',{t:'meteor'},{hidden:true});
 addBlock('steel','Steel','Building','Steel is iron mixed with a little carbon, which makes it much stronger.',{t:'steel'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
@@ -611,7 +617,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=['corners','targets','cart','raid','tour'].includes(s.mode)?s.mode:'survival';
+  mode=['corners','targets','cart','raid','tour','moon'].includes(s.mode)?s.mode:'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -632,6 +638,7 @@ function applySnapshot(s){
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   if(mode==='cart'){ buildCartScene(); crt=newCrt(); placeCart(); }
+  if(mode==='moon'){ owned=['laser']; weapon='laser'; camMode=1; moonSetup(); } // a saved moon mission starts over
   if(mode==='tour'){ owned=['fists','bow']; weapon='bow'; tourSetup(); } // a saved tour always starts over
   if(mode==='raid'){ owned=['fists','bow']; weapon='bow'; raidSetup(); } // a saved Rail Rampage always starts a fresh run
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
@@ -676,12 +683,14 @@ const WEAPONS=[
  {id:'diamond',name:'Diamond Sword',icon:'💎',dmg:10,cd:0.42,price:120,fact:'Diamond is pure carbon squeezed about 150 km deep in the mantle. At 10 on the Mohs scale, it is the hardest natural mineral.'},
 ];
 const WP=Object.fromEntries(WEAPONS.map(w=>[w.id,w]));
+WP.laser={id:'laser',name:'Laser Blaster',icon:'🔫',dmg:10,cd:0.14,ranged:true,range:70,spd:70,grav:0,fact:'A laser is a beam of light where all the light waves march in step.'};
 function weaponMesh(id,fp){
   const g=new THREE.Group(); if(id==='fists')return g;
   const M=c=>{ const m=new THREE.MeshLambertMaterial({color:c}); if(fp){m.depthTest=false;} return m; };
   const add=(w,h,d,c,y,x)=>{ const m=box(w,h,d,M(c)); m.position.set(x||0,y,0); if(fp)m.renderOrder=999; g.add(m); return m; };
   add(0.06,0.3,0.06,0x6b4a2a,0.05);
   if(id==='boomerang'){ g.children[0].visible=false; boomerangShape(g,M,fp); }
+  if(id==='laser'){ g.children[0].visible=false; add(0.12,0.14,0.42,0xe8ecf2,0.2).position.z=-0.05; add(0.07,0.07,0.22,0x2a2e36,0.22).position.z=-0.34; add(0.08,0.08,0.05,0x40e0ff,0.22).position.z=-0.46; add(0.07,0.2,0.09,0x2a2e36,0.06).position.z=0.06; g.scale.setScalar(0.55); }
   if(id==='bow'){ g.children[0].visible=false; const W=0x8a5a2a;
     for(let i=-4;i<=4;i++){ const a=add(0.05,0.1,0.05,W,0.2+i*0.09); a.position.z=-0.12+(i*i)*0.008; }
     add(0.012,0.8,0.012,0xeeeeee,0.2).position.z=0.02; add(0.03,0.03,0.6,0xc9a46a,0.2).position.z=-0.12;
@@ -752,6 +761,10 @@ const MOBT={
   raven:{name:'Tower Raven',hp:8,dmg:1,spd:7,coins:[3,6],hw:0.45,h:0.5,flyer:true,model:'eagle',tint:0x2a2a32},
   serpent:{name:'Sea Serpent',hp:25,dmg:1,spd:1.6,coins:[6,10],hw:0.8,h:2.2,swim:true},
   koi:{name:'Killer Koi',hp:6,dmg:1,spd:2,coins:[2,4],hw:0.35,h:0.6,swim:true},
+  crawler:{name:'Moon Crawler',hp:5,dmg:1,spd:4,coins:[1,2],hw:0.5,h:0.6,legs:true,model:'spider',tint:0x6ae04a},
+  alien:{name:'Alien',hp:25,dmg:1,spd:2.2,coins:[3,6],hw:0.3,h:2.0},
+  robot:{name:'Robot Alien',hp:50,dmg:1,spd:1.8,coins:[5,8],hw:0.4,h:2.3},
+  mech:{name:'Giant Robot',hp:300,dmg:2,spd:1.3,coins:[20,30],hw:1.0,h:4.9},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
 function mobModel(type){
@@ -840,6 +853,21 @@ function mobModel(type){
     for(const z of[-0.2,0.25]){ const sp=box(0.38,0.3,0.25,o); sp.position.set(0,0.33,z); body.add(sp); }
     const tl=box(0.06,0.42,0.36,o); tl.position.set(0,0.25,0.6); body.add(tl);
     for(const sx of[-0.185,0.185]){ const e=box(0.03,0.07,0.07,bm(0x111111)); e.position.set(sx,0.33,-0.33); body.add(e); } eye(0,0.2,-0.455,0x3a0a0a,0.16,0.08);
+  } else if(type==='alien'){ // a gray alien with a huge head and a ray gun
+    const sk=L({color:0x9aa8a0}), dk=L({color:0x6a7a70});
+    r.legL=limbOn(body,-0.1,0.72,0.14,0.72,sk,dk); r.legR=limbOn(body,0.1,0.72,0.14,0.72,sk,dk);
+    const b=box(0.36,0.6,0.22,sk); b.position.y=1.02; body.add(b); const nk=box(0.12,0.16,0.12,sk); nk.position.y=1.39; body.add(nk);
+    const hd=box(0.72,0.64,0.62,sk); hd.position.y=1.76; body.add(hd); eye(-0.17,1.76,-0.315,0x050505,0.22,0.15); eye(0.17,1.76,-0.315,0x050505,0.22,0.15);
+    r.armL=limbOn(body,-0.25,1.28,0.1,0.66,sk,dk); r.armR=limbOn(body,0.25,1.28,0.1,0.66,sk,dk);
+    const gun=box(0.09,0.09,0.32,L({color:0x40ff60,emissive:0x105010})); gun.position.set(0,-0.64,-0.12); r.armR.add(gun);
+  } else if(type==='robot'||type==='mech'){ // robot aliens, and one giant one
+    const s=type==='mech'?2.15:1.1, mt=L({color:0x9aa2ae}), dk=L({color:0x4a505a});
+    r.legL=limbOn(body,-0.15*s,0.75*s,0.24*s,0.75*s,dk,mt); r.legR=limbOn(body,0.15*s,0.75*s,0.24*s,0.75*s,dk,mt);
+    const b=box(0.62*s,0.7*s,0.4*s,mt); b.position.y=1.12*s; body.add(b); const pn=box(0.3*s,0.25*s,0.02,L({color:0x2a8aff,emissive:0x0a2a6a})); pn.position.set(0,1.18*s,-0.21*s); body.add(pn);
+    const hd=box(0.5*s,0.4*s,0.42*s,mt); hd.position.y=1.7*s; body.add(hd); eye(0,1.72*s,-0.215*s,0xff2222,0.38*s,0.09*s);
+    const an=box(0.04*s,0.3*s,0.04*s,dk); an.position.y=2.05*s; body.add(an); const tip=box(0.09*s,0.09*s,0.09*s,bm(0xff3333)); tip.position.y=2.22*s; body.add(tip);
+    r.armL=limbOn(body,-0.42*s,1.42*s,0.2*s,0.7*s,dk,mt); r.armR=limbOn(body,0.42*s,1.42*s,0.2*s,0.7*s,dk,mt);
+    const can=box(0.14*s,0.14*s,0.42*s,dk); can.position.set(0,-0.66*s,-0.15*s); r.armR.add(can);
   } else if(type==='zombie'){ // a green person with torn clothes, arms held out in front
     const sk=L({color:0x6fae4a}), sh=L({color:0x3a6a9a}), pa=L({color:0x3b3550}), dk=L({color:0x2a3a22});
     r.legL=limbOn(body,-0.125,0.72,0.24,0.72,pa,L({color:0x2a2420})); r.legR=limbOn(body,0.125,0.72,0.24,0.72,pa,L({color:0x2a2420}));
@@ -916,6 +944,7 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='coin'){ tone('square',988,988,0.06,0.07); tone('square',1319,1319,0.12,0.07,0.06); }
   else if(k==='die')tone('triangle',400,60,0.35,0.2);
   else if(k==='sizzle')noise(3000,0.35,0.25,'highpass');
+  else if(k==='laser'){ tone('square',1400,260,0.09,0.06); tone('sawtooth',900,200,0.07,0.03); }
   else if(k==='buy'){ tone('square',660,660,0.07,0.08); tone('square',880,880,0.07,0.08,0.07); tone('square',1320,1320,0.12,0.08,0.14); }
 }catch(e){} }
 
@@ -968,6 +997,7 @@ function hitAction(){
   swingT=0.25;
   if(mode==='raid'){ raidShoot(); return; }
   if(mode==='tour'){ tourShoot(); return; }
+  if(mode==='moon'){ moonShoot(); return; }
   if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
@@ -992,10 +1022,12 @@ function spearMesh(){ const g=new THREE.Group(); g.add(box(0.06,0.06,1.25,spearW
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function rockMesh(){ const g=new THREE.Group(); g.add(box(0.44,0.4,0.42,rockMat)); const k=box(0.26,0.22,0.3,rockMat); k.position.set(0.12,0.16,0.05); g.add(k);
   g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
-function blobMesh(kind){ const g=new THREE.Group(), f=kind==='fireball'; const a=box(f?0.5:0.38,f?0.5:0.38,f?0.5:0.38,new THREE.MeshBasicMaterial({color:f?0xff6a10:0x6fb8ff,transparent:!f,opacity:0.85})); g.add(a);
+function laserMesh(kind){ const g=new THREE.Group(), red=kind==='rlaser'; g.add(box(0.07,0.07,1.1,new THREE.MeshBasicMaterial({color:red?0xff3030:0x60f0ff}))); const gl=box(0.16,0.16,1.2,new THREE.MeshBasicMaterial({color:red?0xff8080:0xbff8ff,transparent:true,opacity:0.35})); g.add(gl);
+  g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
+function blobMesh(kind){ const g=new THREE.Group(), f=kind==='fireball', pz=kind==='plasma'; const a=box(f?0.5:0.38,f?0.5:0.38,f?0.5:0.38,new THREE.MeshBasicMaterial({color:f?0xff6a10:pz?0x40ff60:0x6fb8ff,transparent:!f,opacity:0.85})); g.add(a);
   const c=box(f?0.3:0.2,f?0.3:0.2,f?0.3:0.2,new THREE.MeshBasicMaterial({color:f?0xffe24a:0xdff2ff})); c.position.set(0.05,0.05,-0.05); g.add(c); g.traverse(o=>{ if(o.geometry)o.userData.own=true; }); return g; }
 function addShot(o,d,spd,grav,dmg,kind,fromMob){
-  const mesh=kind==='web'?webMesh():kind==='spear'?spearMesh():kind==='rock'?rockMesh():kind==='fireball'||kind==='splash'?blobMesh(kind):arrowMesh(fromMob); scene.add(mesh);
+  const mesh=kind==='web'?webMesh():kind==='spear'?spearMesh():kind==='rock'?rockMesh():kind==='fireball'||kind==='splash'||kind==='plasma'?blobMesh(kind):kind==='laser'||kind==='rlaser'?laserMesh(kind):arrowMesh(fromMob); scene.add(mesh);
   const sh={p:[o.x,o.y,o.z],v:[d.x*spd,d.y*spd,d.z*spd],grav,dmg,kind,fromMob,mesh,life:3}; shots.push(sh); return sh; }
 function shoot(w){
   atkCd=w.cd; const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.4);
@@ -1070,7 +1102,7 @@ function updateShots(dt){
     s.mesh.position.set(s.p[0],s.p[1],s.p[2]);
     if(s.kind==='web') s.mesh.rotation.y+=dt*8;
     else if(s.kind==='rock'){ s.mesh.rotation.x+=dt*5; s.mesh.rotation.z+=dt*3; }
-    else if(s.kind==='arrow'||s.kind==='spear'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
+    else if(s.kind==='arrow'||s.kind==='spear'||s.kind==='laser'||s.kind==='rlaser'){ tmp.set(s.p[0]+s.v[0],s.p[1]+s.v[1],s.p[2]+s.v[2]); s.mesh.lookAt(tmp); s.mesh.rotateY(Math.PI); }
   }
 }
 function attackMob(m){
@@ -1093,6 +1125,7 @@ function killMob(m){
   if(m.type==='magma'){ const x=Math.floor(m.p[0]),y=Math.floor(m.p[1]+0.2),z=Math.floor(m.p[2]); if(get(x,y,z)===0)tryIgnite(x,y,z); }
   if(mode==='raid'&&rd)raidKill(m);
   if(mode==='tour'&&tw)twKill(m);
+  if(mode==='moon'&&ml)mlKill(m);
   removeMob(m);
 }
 function doBreak(){
@@ -1107,7 +1140,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
-  if(mode==='cart'||mode==='raid'||mode==='tour')return;
+  if(mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
@@ -1141,6 +1174,7 @@ function updateWebHUD(){ const c=$('webCount'); c.style.display=webbed?'inline-b
 let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
   if(dead||invuln>0)return;
+  if(mode==='moon'){ mlHurt(); return; }
   if(mode==='tour'){ if(!tw||tw.phase!=='blast')return; hp=Math.max(0,hp-1); invuln=1.2; hurtFlash=0.35; sfx('hurt'); updateHUD(); if(hp<=0)twEndBlast(true); return; }
   if(mode==='raid'){ if(!rd||rd.phase!=='round')return; hp=Math.max(0,hp-Math.min(2,n)); invuln=0.6; hurtFlash=0.35; sfx('hurt'); updateHUD(); if(hp<=0)raidKO(); return; }
   if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point and a heart
@@ -1278,7 +1312,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='cart'||mode==='raid'||mode==='tour'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
+function toggleFly(){ if(mode==='moon'){ toast('🌕 No flying, but in 1/6 gravity you can jump really high!'); return; } if(mode==='cart'||mode==='raid'||mode==='tour'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1288,8 +1322,8 @@ let viewF=-1;
 function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
-  const fc=mode==='corners'||mode==='tour'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+  const fc=mode==='corners'||mode==='tour'||mode==='moon'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
+function cycleWeapon(){ if(mode==='moon'){ toast('🔫 Your laser is all you need up here!'); return; } if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1324,12 +1358,12 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1370,14 +1404,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour',moon:'🌕 Moon'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':mode==='moon'?'Moon Landing':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1403,7 +1437,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour','moon'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1431,11 +1465,13 @@ function openNewGame(){
     '<div class="item"><div class="ic">🛤️</div><div class="tx"><b>Mine Cart Rush</b><div class="fx">Ride a mine cart up hills, down drops and through a tunnel. Shoot targets, animals, sunflowers, apples, glass, a volcano, a fountain and a dragon for a high score!</div></div><button class="ibtn" data-new="cart">Start</button></div>'+
     '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
+    '<div class="item"><div class="ic">🌕</div><div class="tx"><b>Moon Landing</b><div class="fx">Land on the Moon, bounce around in 1/6 gravity collecting rock samples and plant the flag. Then a meteorite crashes… and the aliens come out. Grab your laser!</div></div><button class="ibtn" data-new="moon">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
+    if(md==='moon'){ if(!confirm('Start the Moon Landing? The game you are playing now will be replaced.'))return; closeMenu(); startMoon(); return; }
     if(md==='tour'){ if(!confirm('Start the Wrecking World Tour? The game you are playing now will be replaced.'))return; closeMenu(); startTour(); return; }
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
@@ -1444,10 +1480,10 @@ function openNewGame(){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour')?'none':'';
-  $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour');
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon')?'none':''; { const mo=mode==='moon'; scene.background.setHex(mo?0x000000:SKY); scene.fog.color.setHex(mo?0x000000:SKY); for(const c of clouds)c.visible=!mo; moonSky.visible=mo; }
+  $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
@@ -2771,6 +2807,172 @@ function tourHelp(){
   '<h3>Controls</h3><ul><li>Drag anywhere to aim, and tap ⛏ Hit (or click) to shoot. At the end, your tour guide tells you the real history of what you wrecked (and is NOT happy about it)</li></ul>';
 }
 
+
+// ================= MOON LANDING =================
+// The lunar lander touches down, you climb down the ladder in 1/6 gravity, collect rock samples and plant the flag. Then a
+// meteorite crashes, aliens pour out of the crater in 3 waves (with a giant robot at the end), and you fly home.
+const ML_G=10, ML_LEM=[40,40], ML_FLAG=[40,48], ML_CRATER=[76,74,9], ML_NEED=6, ML_BEST='stratacraft_moon_best', ML_PAR=420;
+const moonRoot=new THREE.Group(); scene.add(moonRoot);
+const moonSky=(()=>{ const g=new THREE.Group(); g.visible=false; scene.add(g); // stars, the Earth and the Sun, always far away
+  const n=1600, pos=new Float32Array(n*3); for(let i=0;i<n;i++){ const u=Math.random()*2-1, a=Math.random()*Math.PI*2, r=Math.sqrt(1-u*u); pos[i*3]=Math.cos(a)*r*150; pos[i*3+1]=Math.abs(u)*150*(u<-0.1?-1:1); pos[i*3+2]=Math.sin(a)*r*150; }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:0.6,fog:false,sizeAttenuation:true})));
+  const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.fillStyle='#1f5fd0'; x.beginPath(); x.arc(64,64,62,0,Math.PI*2); x.fill();
+  x.fillStyle='#3a9a3a'; for(const [px,py,rr] of [[40,50,18],[80,40,14],[70,85,20],[35,90,10]]){ x.beginPath(); x.arc(px,py,rr,0,Math.PI*2); x.fill(); }
+  x.fillStyle='rgba(255,255,255,.85)'; for(const [px,py,w] of [[30,30,40],[60,70,50],[50,105,36]])x.fillRect(px,py,w,6);
+  const earth=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false})); earth.scale.set(22,22,1); earth.position.set(-60,70,-90); g.add(earth);
+  const sunS=new THREE.Sprite(new THREE.SpriteMaterial({color:0xfff6d8,fog:false})); sunS.scale.set(9,9,1); sunS.position.set(110,60,40); g.add(sunS); return g; })();
+function makeLem(){ const g=new THREE.Group(), gold=lm(0xd4a017,{emissive:0x3a2a00}), silver=lm(0xc8ccd4), dk=lm(0x30343c), blk=bm(0x101418);
+  const ds=new THREE.Group(); g.add(ds); const db=box(3.6,1.6,3.6,gold); db.position.y=2.2; ds.add(db); const db2=box(2.6,1.62,4.4,gold); db2.position.y=2.2; ds.add(db2); const db3=box(4.4,1.62,2.6,gold); db3.position.y=2.2; ds.add(db3);
+  const bell=box(1.1,0.7,1.1,dk); bell.position.y=1.1; ds.add(bell);
+  for(const [sx,sz] of [[1,1],[1,-1],[-1,1],[-1,-1]]){ const leg=box(0.16,2.6,0.16,silver); leg.position.set(sx*2.4,1.3,sz*2.4); leg.rotation.set(sz*0.35,0,-sx*0.35); ds.add(leg); const pad=box(0.9,0.12,0.9,silver); pad.position.set(sx*2.85,0.06,sz*2.85); ds.add(pad); }
+  for(let i=0;i<6;i++){ const rung=box(0.6,0.06,0.08,silver); rung.position.set(0,0.35+i*0.5,2.75); ds.add(rung); } for(const sx of[-0.3,0.3]){ const rail=box(0.06,3.0,0.08,silver); rail.position.set(sx,1.6,2.75); ds.add(rail); }
+  const porch=box(1.0,0.08,0.8,silver); porch.position.set(0,3.05,2.3); ds.add(porch);
+  const as=new THREE.Group(); as.position.y=3.0; g.add(as); const cab=box(3.0,2.0,2.6,silver); cab.position.y=1.0; as.add(cab); const cab2=box(2.2,1.4,3.2,silver); cab2.position.y=1.1; as.add(cab2);
+  for(const sx of[-0.6,0.6]){ const w=box(0.5,0.45,0.04,blk); w.position.set(sx,1.5,1.62); as.add(w); } const hatch=box(0.8,0.8,0.04,dk); hatch.position.set(0,0.55,1.62); as.add(hatch);
+  const ant=box(0.06,0.9,0.06,silver); ant.position.set(0.9,2.4,-0.6); as.add(ant); const dish=box(0.6,0.06,0.6,lm(0xeeeeee)); dish.position.set(0.9,2.85,-0.6); as.add(dish);
+  const fl=new THREE.Mesh(new THREE.ConeGeometry(0.55,2.4,8),new THREE.MeshBasicMaterial({color:0xffb040,transparent:true,opacity:0.85})); fl.rotation.x=Math.PI; fl.position.y=0.0; fl.visible=false; g.add(fl);
+  const fl2=fl.clone(); fl2.position.y=2.6; fl2.scale.set(0.7,0.7,0.7); as.add(fl2); fl2.position.y=-0.6;
+  return {g,ds,as,flame:fl,flame2:fl2}; }
+function makeBeacon(col){ const m=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,40,8),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.35,fog:false,depthWrite:false})); m.position.y=20; const g=new THREE.Group(); g.add(m); moonRoot.add(g); return g; }
+let ml=null;
+function generateMoon(s){ seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  const n1=makeNoise(s), n2=makeNoise(s+3), rnd=mulberry32(s+7), HM=new Float32Array(W*D);
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++)HM[x+z*W]=ML_G+n1(x/14,z/14)*2.2+n2(x/5,z/5)*0.8-1;
+  const craters=[]; for(let k=0;k<14;k++){ const cx=6+rnd()*84, cz=6+rnd()*84, r=2.5+rnd()*6.5; if(Math.hypot(cx-ML_LEM[0],cz-ML_LEM[1])<r+10||Math.hypot(cx-ML_CRATER[0],cz-ML_CRATER[1])<r+12)continue; craters.push([cx,cz,r]); }
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){ let h=HM[x+z*W];
+    for(const [cx,cz,r] of craters){ const d=Math.hypot(x+0.5-cx,z+0.5-cz)/r; if(d<1)h-=r*0.45*(1-d*d); else if(d<1.4)h+=r*0.12*(1-(d-1)/0.4); }
+    const dl=Math.hypot(x+0.5-ML_LEM[0],z+0.5-ML_LEM[1]); if(dl<10){ const f=Math.max(0,(dl-6)/4); h=ML_G+(h-ML_G)*f; } // a flat landing site
+    const hh=Math.max(3,Math.round(h)); for(let y=0;y<hh;y++){ const dp=hh-1-y; world[idx(x,y,z)]=y===0?ID.basalt:dp<=1?ID.regolith:ID.moonrock; } }
+  for(let k=0;k<70;k++){ const x=2+Math.floor(rnd()*(W-4)), z=2+Math.floor(rnd()*(D-4)); if(Math.hypot(x-ML_LEM[0],z-ML_LEM[1])<9||Math.hypot(x-ML_CRATER[0],z-ML_CRATER[1])<13)continue; // boulders
+    const su=surfaceAt(x,z), sz=rnd()<0.25?2:1; for(let dy=1;dy<=sz;dy++)for(let dx=0;dx<sz;dx++)for(let dz=0;dz<sz;dz++)if(inB(x+dx,su.y+dy,z+dz))world[idx(x+dx,su.y+dy,z+dz)]=ID.moonrock; }
+  return rnd; }
+function moonSetup(){ clearMoon(); clearApples(); for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
+  const s=(Math.random()*1e9)|0, rnd=generateMoon(s); rebuildAll();
+  const lem=makeLem(); moonRoot.add(lem.g); lem.g.position.set(ML_LEM[0],ML_G+30,ML_LEM[1]);
+  const samples=[]; for(let k=0,a=0;k<8&&a<400;a++){ const an=rnd()*Math.PI*2, r=10+rnd()*28, x=ML_LEM[0]+Math.cos(an)*r, z=ML_LEM[1]+Math.sin(an)*r;
+    if(x<4||z<4||x>W-4||z>D-4||Math.hypot(x-ML_CRATER[0],z-ML_CRATER[1])<15||samples.some(q=>Math.hypot(q.x-x,q.z-z)<7))continue;
+    const su=surfaceAt(Math.floor(x),Math.floor(z)); if(get(Math.floor(x),su.y+1,Math.floor(z)))continue; const rare=k<2, g=new THREE.Group();
+    if(rare){ for(const [ox,oz,h] of [[0,0,0.6],[0.15,0.1,0.4],[-0.12,0.08,0.35]]){ const c=box(0.14,h,0.14,lm(0x7a5aff,{emissive:0x3a1a9a})); c.position.set(ox,h/2,oz); c.rotation.z=ox*2; g.add(c); } }
+    else { const a1=box(0.42,0.3,0.36,lm(0x8a8478)); a1.position.y=0.15; g.add(a1); const a2=box(0.24,0.2,0.22,lm(0x6a6258)); a2.position.set(0.2,0.3,0.05); g.add(a2); }
+    const tag=new THREE.Mesh(new THREE.OctahedronGeometry(0.18),new THREE.MeshBasicMaterial({color:rare?0xc8a8ff:0x7fe3ff,fog:false})); tag.position.y=1.1; g.add(tag);
+    g.position.set(x,su.y+1,z); moonRoot.add(g); samples.push({g,tag,x,z,rare,got:false}); k++; }
+  ml={phase:'intro',t:0,ct:0,score:0,samples,lem,got:0,rare:0,kills:{},wave:0,spawned:0,todo:[],spawnT:0,fireT:0,heat:0,hot:0,leak:false,o2:30,shake:0,beacon:null,flag:null,meteor:null,deaths:0};
+  pl.p=[ML_LEM[0]+12,ML_G+2,ML_LEM[1]+16]; pl.v=[0,0,0]; yaw=Math.atan2(-(ML_LEM[0]-pl.p[0]),-(ML_LEM[1]-pl.p[2])); pitch=0.15; }
+function clearMoon(){ moonRoot.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); moonRoot.clear(); }
+function startMoon(){ clearEntities(); mode='moon'; cg=null; tgm=null; owned=['laser']; weapon='laser'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0; camMode=1;
+  setFly(false,false); applyMode(); moonSetup(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); moonIntro(); }
+function mlLookAt(p,y){ const dx=p[0]-pl.p[0], dz=p[2]-pl.p[2]; yaw=Math.atan2(-dx,-dz); pitch=Math.atan2(p[1]-(pl.p[1]+EYE),Math.hypot(dx,dz)); }
+function mlSay(t,sub,d){ raidBanner(t,sub,d||4); }
+function mlBeacon(col,x,z){ if(ml.beacon){ moonRoot.remove(ml.beacon); } if(col===null){ ml.beacon=null; return; } ml.beacon=makeBeacon(col); ml.beacon.position.set(x,surfaceAt(Math.floor(x),Math.floor(z)).y+1,z); }
+// called from updatePlayer: cutscenes move the camera themselves; otherwise you walk in 1/6 gravity
+function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],ML_G,ML_LEM[1]];
+  if(ml.phase==='landing'){ ml.t+=dt; const u=Math.min(1,ml.t/7), e=1-Math.pow(1-u,2.4); L.g.position.y=ML_G+30*(1-e); L.flame.visible=u<1; L.flame.scale.y=0.8+rand()*0.5;
+    if(u>0.6&&rand()<0.6)puff(base[0]+(rand()-.5)*6,ML_G+0.3,base[2]+(rand()-.5)*6,[0xa8a49a,0xc8c4b8],3,8,0.6,0.4,1.4);
+    pl.p=[base[0]+12,ML_G+2,base[2]+16]; mlLookAt([base[0],L.g.position.y+2,base[2]]); if(u>=1&&ml.t>8){ ml.phase='ladder'; ml.t=0; L.flame.visible=false; mlSay('🌕 The Eagle has landed!','Climbing down the ladder…',3.5); } return true; }
+  if(ml.phase==='ladder'){ ml.t+=dt; const u=Math.min(1,ml.t/3.2); pl.p=[base[0],ML_G+3.15*(1-u)+0.02,base[2]+3.35]; yaw=0; pitch=-0.15;
+    if(u>=1){ ml.phase='explore'; ml.ct=0; yaw=Math.PI; pitch=0.05; mlSay('👣 One small step…','Collect '+ML_NEED+' rock samples (look for the glowing markers). Purple crystals are rare!',5); sfx('buy'); } return true; }
+  if(ml.phase==='launch'){ ml.t+=dt; const a=L.as, k=Math.max(0,ml.t-1); a.position.y=3+0.6*k*k; L.flame2.visible=ml.t>0.6; L.flame2.scale.y=0.8+rand()*0.6;
+    if(ml.t>0.6&&ml.t<2.5&&rand()<0.7)puff(base[0]+(rand()-.5)*3,ML_G+3,base[2]+(rand()-.5)*3,[0xffb040,0xc8c4b8],3,6,1,1,1.0);
+    pl.p=[base[0]+14,ML_G+2,base[2]+18]; mlLookAt([base[0],ML_G+4+a.position.y,base[2]]); if(ml.t>3.5)twFade.style.opacity=1; if(ml.t>4.8&&ml.phase==='launch'){ ml.phase='done'; moonFinish(true); } return true; }
+  return false; }
+function moonShoot(){ if(!ml||!['explore','flag','meteor','scout','fight','return'].includes(ml.phase)||atkCd>0)return; if(ml.hot>0){ toast('🔥 Laser overheated! Wait for it to cool down…'); return; }
+  const d=lookDir(), o=camera.position.clone().addScaledVector(d,0.5); addShot(o,d,70,0,10,'laser',false); sfx('laser'); atkCd=0.14;
+  ml.heat+=0.085; if(ml.heat>=1){ ml.heat=1; ml.hot=2; sfx('sizzle'); toast('🔥 Overheated! 2 seconds to cool down'); } }
+function updateMoon(dt){ moonSky.visible=mode==='moon'; if(mode!=='moon'||!ml)return; moonSky.position.copy(camera.position);
+  if(ml.beacon)ml.beacon.children[0].material.opacity=0.25+Math.sin(performance.now()/300)*0.1;
+  ml.hot=Math.max(0,ml.hot-dt); ml.heat=Math.max(0,ml.heat-dt*(ml.hot>0?0.5:0.35)); ml.fireT-=dt; updateMoonHud();
+  for(const s of ml.samples)if(!s.got){ s.tag.rotation.y+=dt*2; s.tag.position.y=1.1+Math.sin(performance.now()/400+s.x)*0.15; }
+  const live=['explore','flag','meteor','scout','fight','return'].includes(ml.phase); if(!live)return; ml.ct+=dt;
+  // samples: walk over them
+  for(const s of ml.samples)if(!s.got&&Math.hypot(pl.p[0]-s.x,pl.p[2]-s.z)<1.6&&Math.abs(pl.p[1]-s.g.position.y)<2.5){ s.got=true; moonRoot.remove(s.g); ml.got++; if(s.rare)ml.rare++; const p=s.rare?300:100; ml.score+=p;
+    tgPopup('+'+p,s.rare?'#c8a8ff':'#7fe3ff',[s.x,s.g.position.y+1.5,s.z]); sfx('coin'); toast((s.rare?'💜 Rare moon crystal!':'🪨 Rock sample!')+' ('+ml.got+'/'+ML_NEED+')');
+    if(ml.phase==='explore'&&ml.got>=ML_NEED){ ml.phase='flag'; mlBeacon(0xff4a4a,ML_FLAG[0],ML_FLAG[1]); mlSay('📡 Houston: Great samples!','Now go plant the flag next to the lander (follow the red beam)',5); } }
+  // the suit: hearts first, then the oxygen leaks; the lander patches you up
+  const atLem=Math.hypot(pl.p[0]-ML_LEM[0],pl.p[2]-ML_LEM[1])<4.5;
+  if(ml.leak){ ml.o2-=dt; if(atLem){ ml.leak=false; ml.o2=30; hp=MAXHP; updateHUD(); toast('🔧 Suit patched and oxygen refilled!'); sfx('buy'); }
+    else if(ml.o2<=0){ ml.o2=0; ml.phase='failed'; moonFinish(false); return; } }
+  if(ml.phase==='flag'&&Math.hypot(pl.p[0]-ML_FLAG[0],pl.p[2]-ML_FLAG[1])<2.2){ // plant the flag
+    const g=new THREE.Group(), pole=box(0.07,3.2,0.07,lm(0xdddddd)); pole.position.y=1.6; g.add(pole); const c=document.createElement('canvas'); c.width=96; c.height=64; const x=c.getContext('2d');
+    for(let i=0;i<13;i++){ x.fillStyle=i%2?'#ffffff':'#c8202a'; x.fillRect(0,i*64/13,96,64/13+1); } x.fillStyle='#1c2f7a'; x.fillRect(0,0,40,34); x.fillStyle='#fff'; for(let i=0;i<5;i++)for(let j=0;j<4;j++)x.fillRect(4+i*7,4+j*7,2,2);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.0),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),side:THREE.DoubleSide})); fl.position.set(0.78,2.6,0); g.add(fl); const bar=box(1.5,0.05,0.05,lm(0xdddddd)); bar.position.set(0.78,3.12,0); g.add(bar);
+    g.position.set(ML_FLAG[0],surfaceAt(ML_FLAG[0],ML_FLAG[1]).y+1,ML_FLAG[1]); moonRoot.add(g); ml.flag=g; ml.score+=500; tgPopup('+500','#ffd84a',[ML_FLAG[0],ML_G+4,ML_FLAG[1]]); sfx('buy');
+    mlBeacon(null); ml.phase='meteor'; ml.t=0; mlSay('🇺🇸 Flag planted!','Houston: "Great job! Take a moment to enjoy the view…"',3.5); }
+  if(ml.phase==='meteor'){ ml.t+=dt;
+    if(ml.t>3&&!ml.meteor){ const m=new THREE.Group(), r=box(1.4,1.4,1.4,lm(0x6a5a4a,{emissive:0x401800})); m.add(r); const glow=box(2,2,2,new THREE.MeshBasicMaterial({color:0xff8a1a,transparent:true,opacity:0.45})); m.add(glow);
+      moonRoot.add(m); ml.meteor={m,t:0,from:[ML_CRATER[0]-70,70,ML_CRATER[1]-20]}; sfx('screech'); toast('☄️ Look up! Something is coming!'); }
+    if(ml.meteor){ const M=ml.meteor; M.t+=dt; const u=Math.min(1,M.t/2.6), to=[ML_CRATER[0],ML_G,ML_CRATER[1]], p=M.from.map((v,i)=>v+(to[i]-v)*u); M.m.position.set(p[0],p[1],p[2]); M.m.rotation.x+=dt*5; M.m.rotation.z+=dt*3;
+      if(rand()<0.9)puff(p[0],p[1],p[2],[0xff8a1a,0xffd84a,0x555555],3,1.5,0.5,0,1.2);
+      if(u>=1){ moonRoot.remove(M.m); mlImpact(); ml.phase='scout'; mlBeacon(0x6aff6a,ML_CRATER[0],ML_CRATER[1]); mlSay('💥 IMPACT!','Houston: "Something just crashed out there! Go check it out (follow the green beam)."',5); } } }
+  if(ml.phase==='scout'&&Math.hypot(pl.p[0]-ML_CRATER[0],pl.p[2]-ML_CRATER[1])<28){ ml.phase='fight'; mlBeacon(null); mlWave(1); }
+  if(ml.phase==='fight'){ ml.spawnT-=dt; if(ml.todo.length&&ml.spawnT<=0){ ml.spawnT=ml.wave===1?0.7:ml.wave===2?1.6:2.2; mlSpawn(ml.todo.shift()); }
+    if(!ml.todo.length&&!mobs.length){ if(ml.wave<3)mlWave(ml.wave+1); else { ml.phase='return'; mlBeacon(0x7fe3ff,ML_LEM[0],ML_LEM[1]); mlSay('🏆 You beat the alien invasion!','Houston: "Get back to the lander, we\'re bringing you home!"',5); sfx('buy'); } } }
+  if(ml.phase==='return'&&atLem){ ml.phase='launch'; ml.t=0; mlBeacon(null); mlSay('🚀 3… 2… 1… Liftoff!','',3); sfx('boom'); } }
+function mlImpact(){ const [cx,cz,r]=ML_CRATER; sfx('boom'); ml.shake=1.6; puff(cx,ML_G+2,cz,[0xa8a49a,0xc8c4b8,0xff8a1a,0x555555],80,14,10,4,2.5);
+  for(let z=cz-r-3;z<=cz+r+3;z++)for(let x=cx-r-3;x<=cx+r+3;x++){ if(!inB(x,0,z))continue; const d=Math.hypot(x+0.5-cx,z+0.5-cz)/r, su=surfaceAt(x,z);
+    if(d<1){ const want=Math.max(3,Math.round(ML_G-4*(1-d*d))); for(let y=su.y;y>=want;y--)setBlock(x,y,z,0); }
+    else if(d<1.3){ const top=su.y+1+(d<1.15?1:0); for(let y=su.y+1;y<top;y++)setBlock(x,y,z,ID.regolith); } }
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){ const su=surfaceAt(cx+dx,cz+dz); setBlock(cx+dx,su.y+1,cz+dz,ID.meteor); if(!dx&&!dz)setBlock(cx,su.y+2,cz,ID.meteor); } }
+const ML_WAVES={1:()=>Array(14).fill('crawler'),2:()=>['alien','crawler','alien','crawler','alien','alien','crawler','alien','alien','crawler','alien','alien'],3:()=>['robot','alien','robot','robot','crawler','robot','mech','robot','alien','robot']};
+const ML_PTS={crawler:50,alien:150,robot:300,mech:2000};
+const ML_SHOT={alien:{kind:'plasma',spd:15,g:1,cd:[2.6,4]},robot:{kind:'rlaser',spd:26,g:0,cd:[3,4.5]},mech:{kind:'rlaser',spd:26,g:0,cd:[2,2.8]}};
+function mlWave(n){ ml.wave=n; ml.todo=ML_WAVES[n](); ml.spawnT=1;
+  mlSay(n===1?'👾 Something is crawling out of the crater!':n===2?'👽 Wave 2: ALIENS!':'🤖 Wave 3: Robot aliens!',n===1?'Moon crawlers! One laser blast each.':n===2?'They take 3 hits and shoot green plasma.':'They take 5 hits, and something BIG is coming…',3.5); sfx('screech'); }
+function mlSpawn(type){ const [cx,cz]=ML_CRATER, x=cx+(rand()-.5)*5, z=cz+(rand()-.5)*5, su=surfaceAt(Math.floor(x),Math.floor(z));
+  const m=spawnMob(type,x,su.y+1.01,z); m.hp=MOBT[type].hp; m.ml={cd:1,shootT:1.5+rand()*2.5,keep:type==='alien'?7+rand()*5:0};
+  puff(x,su.y+1.3,z,[0x6aff6a,0xa8a49a],10,4,4,2,1.0); if(type==='mech'){ mlSay('🤖 GIANT ROBOT!','It takes 30 hits. Keep moving!',3); ml.shake=1; sfx('boom'); } }
+function mlThrow(m,sh,spread){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.75,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.2+(spread||0),pl.p[1]+1.0+(rand()-.5)*0.6,pl.p[2]+(rand()-.5)*1.2);
+  const fl=o.distanceTo(tg)/sh.spd; tg.y+=0.5*sh.g*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.8); addShot(o,d,sh.spd,sh.g,1,sh.kind,true); m.atk=0.3; sfx('laser'); }
+function moonMob(m,dt){ const t=m.t, g=m.g, R=m.ml||(m.ml={cd:1,shootT:3,keep:0}), active=ml&&ml.phase==='fight'&&!paused;
+  m.flash=Math.max(0,m.flash-dt); m.atk=Math.max(0,m.atk-dt); const dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dist=Math.hypot(dx,dz)||0.001, sh=ML_SHOT[m.type]; let mx=0,mz=0; const reach=1.2+m.hw;
+  if(active&&dist>Math.max(reach,R.keep)){ mx=dx/dist; mz=dz/dist; }
+  m.mv=[mx*t.spd,mz*t.spd]; m.v[0]=m.mv[0]; m.v[2]=m.mv[1]; m.v[1]=Math.max(-20,m.v[1]-5*dt); physStep(m,dt); // moon gravity for them too
+  if(m.wall&&m.onGround&&(mx||mz))m.v[1]=4.6; if(m.type==='crawler'&&m.onGround&&(mx||mz)&&rand()<dt*0.8)m.v[1]=3.5;
+  if(m.p[1]<-5){ removeMob(m); return; }
+  R.cd-=dt; if(active&&dist<=reach+0.35&&Math.abs(pl.p[1]-m.p[1])<2.5&&R.cd<=0){ R.cd=1.4; m.atk=0.3; hurtPlayer(1,dx/dist,dz/dist,'A '+t.name); }
+  if(sh&&active&&dist<30&&dist>2.5){ R.shootT-=dt; if(R.shootT<=0){ if(ml.fireT>0)R.shootT=0.3+rand()*0.6; else { R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0]); ml.fireT=0.9; if(m.type==='mech'){ mlThrow(m,sh,-1.5); mlThrow(m,sh,0); mlThrow(m,sh,1.5); } else mlThrow(m,sh); } } }
+  if(m.type==='mech'&&m.onGround&&(mx||mz)){ R.stomp=(R.stomp||0)+dt; if(R.stomp>0.7){ R.stomp=0; ml.shake=Math.max(ml.shake,0.35); sfx('rock'); } }
+  m.yaw=mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz); g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
+  if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3; for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; } }
+  else if(g.legL){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a; g.armL.rotation.x=-a*0.5; g.armR.rotation.x=sh?(m.atk>0?-1.3:-1.5):a*0.5; }
+  for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
+  if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); } }
+function mlKill(m){ const p=ML_PTS[m.type]||50; ml.score+=p; ml.kills[m.type]=(ml.kills[m.type]||0)+1; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); if(m.type==='mech'){ ml.shake=1.2; puff(m.p[0],m.p[1]+2,m.p[2],[0xff3a10,0xff8a1a,0xffd84a,0x555555],60,10,6,4,1.6); sfx('boom'); } }
+function mlHurt(){ if(!ml)return; invuln=0.8; hurtFlash=0.35; sfx('hurt');
+  if(ml.leak){ ml.o2=Math.max(0,ml.o2-3); } else { hp=Math.max(0,hp-1); updateHUD(); if(hp<=0){ ml.leak=true; ml.o2=30; ml.deaths++; mlSay('⚠️ Your suit is cracked!','Oxygen is leaking! Get back to the lander to patch it up',4); } } }
+function updateMoonHud(){ const el=$('cartHud'); el.style.display='inline-block'; let obj='';
+  const P=ml.phase; if(P==='explore')obj='🪨 Rock samples '+ml.got+'/'+ML_NEED; else if(P==='flag')obj='🇺🇸 Plant the flag (red beam)'; else if(P==='meteor')obj='🌍 Enjoy the view…'; else if(P==='scout')obj='☄️ Check out the crash (green beam)';
+  else if(P==='fight')obj='👾 Wave '+ml.wave+'/3 · '+(mobs.length+ml.todo.length)+' left'; else if(P==='return')obj='🚀 Back to the lander (blue beam)'; else obj='🌕 Moon Landing';
+  const bars=Math.round((1-ml.heat)*8); let h=obj+'<br>🔫 '+(ml.hot>0?'<span style="color:#ff6a3a">OVERHEATED</span>':'<span style="color:'+(ml.heat>0.7?'#ffb347':'#7fe3ff')+'">'+'▮'.repeat(bars)+'▯'.repeat(8-bars)+'</span>');
+  if(ml.leak)h+=' &nbsp;<span style="color:#ff5a4a">🫧 O₂ '+Math.ceil(ml.o2)+'s</span>';
+  h+=' &nbsp;<span style="color:#7fe3cf">⭐ '+ml.score+'</span> &nbsp;<span style="opacity:.8">⏱ '+Math.floor(ml.ct/60)+':'+('0'+Math.floor(ml.ct%60)).slice(-2)+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function moonBest(){ try{ return +localStorage.getItem(ML_BEST)||0; }catch(e){ return 0; } }
+function moonIntro(){ if(!ml)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=ml.phase!=='intro'&&ml.phase!=='done'&&ml.phase!=='failed';
+  $('mbox').innerHTML='<h2>🌕 Moon Landing</h2><div class="say">Ride the lunar lander down to the Moon. Climb down the ladder and explore in <b>1/6 gravity</b> (you can jump really high!). Collect '+ML_NEED+' rock samples, then plant the flag. But something is about to crash nearby… Your <b>laser blaster</b> never runs out, but it can overheat.</div>'+
+    '<div class="board"><div>🏆 High score<div class="n" style="color:#ffd84a">'+moonBest()+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="mGo">'+(mid?'Keep going':'Begin the landing!')+'</button><button class="mbtn gray" id="mMenu2">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('mGo'),()=>{ closeMenu(); if(!mid){ if(ml.phase!=='intro')moonSetup(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; sfx('rock'); } }); tap($('mMenu2'),openMenu); }
+function moonFinish(won){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; rdBan.style.display='none';
+  for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
+  const tb=won?Math.max(0,Math.round((ML_PAR-ml.ct)*10)):0, total=ml.score+tb, best=moonBest(), rec=won&&total>best; if(rec)try{ localStorage.setItem(ML_BEST,String(total)); }catch(e){}
+  const K=ml.kills, kills=['crawler','alien','robot','mech'].filter(k=>K[k]).map(k=>MOBT[k].name+'s: '+K[k]).join(' · ');
+  $('mbox').innerHTML='<h2>'+(won?(rec?'🏆 NEW HIGH SCORE!':'🚀 Mission complete!'):'💀 Mission failed')+'</h2>'+
+    (won?'<div class="say">Welcome home, astronaut! You collected '+ml.got+' samples ('+ml.rare+' rare crystals), planted the flag and stopped an alien invasion.</div>':'<div class="say">Your oxygen ran out. Houston says: "Remember to get back to the lander to patch your suit when your hearts run out!"</div>')+
+    '<div class="board"><div>⭐ Score<div class="n" style="color:#7fe3cf">'+total+'</div></div><div>🏆 Best<div class="n" style="color:#ffd84a">'+Math.max(best,total)+'</div></div></div>'+
+    '<ul style="margin-top:10px"><li>🪨 Samples and flag: '+(ml.got*100+ml.rare*200+(ml.flag?500:0))+'</li><li>👾 Aliens: '+(kills||'none')+'</li>'+(won?'<li>⏱ Mission time '+Math.floor(ml.ct/60)+':'+('0'+Math.floor(ml.ct%60)).slice(-2)+' · time bonus +'+tb+'</li>':'')+'</ul>'+
+    '<div class="row"><button class="mbtn" id="mAgain">'+(won?'Fly again':'Try again')+'</button><button class="mbtn gray" id="mMenu2">Menu</button></div>';
+  $('modal').style.display='flex'; twFade.style.opacity=0; if(rec)sfx('buy'); saveNow();
+  tap($('mAgain'),()=>{ closeMenu(); moonSetup(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; }); tap($('mMenu2'),openMenu); }
+function moonHelp(){
+  return '<h2>🌕 Moon Landing</h2>Land on the Moon in the lunar lander and complete your mission. Gravity is only 1/6 of Earth\'s, so you bounce and jump really high!'+
+  '<h3>The mission</h3><ul><li>🪨 Walk over '+ML_NEED+' rock samples to collect them (100 points each, purple crystals 300). Follow the glowing markers</li><li>🇺🇸 Plant the flag next to the lander (red beam): +500</li><li>☄️ Then… something crashes nearby. Go check it out (green beam)</li>'+
+  '<li>👾 Fight 3 waves: moon crawlers (1 hit), aliens that shoot green plasma (3 hits), and robot aliens with red lasers (5 hits), plus a giant robot (30 hits!)</li><li>🚀 Get back to the lander (blue beam) to fly home. The faster you finish, the bigger your time bonus</li></ul>'+
+  '<h3>Your suit</h3><ul><li>When your hearts run out, your suit cracks and your oxygen starts leaking (30 seconds). Get back to the lander to patch it up. If your oxygen runs out, the mission fails</li><li>🔫 Your laser never runs out, but fire too fast and it overheats for 2 seconds</li></ul>'+
+  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit (or click) fires the laser · jump with the jump button or Space</li></ul>';
+}
+
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
@@ -2924,7 +3126,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); else if(mode==='moon')moonIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -3017,6 +3219,7 @@ function updatePlayer(dt){
   if(mode==='cart'){ ridePlayer(dt); return {hs:0}; }
   if(mode==='raid'){ rideRaid(dt); return {hs:0}; }
   if(mode==='tour'){ rideTour(dt); return {hs:0}; }
+  if(mode==='moon'&&moonCutscene(dt)){ invuln-=dt; return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -3027,11 +3230,11 @@ function updatePlayer(dt){
   const up=upHeld||keys.Space, down=downHeld||keys.ShiftLeft||keys.ShiftRight;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
-  else { pl.v[1]-=28*dt; if(up&&pl.onGround)pl.v[1]=8.6; if(pl.v[1]<-30)pl.v[1]=-30; }
+  else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30; } // the Moon has 1/6 of Earth's gravity
   edgeOpen=mode==='survival'; physStep(pl,dt);
   if(!fly && pl.wall && pl.onGround && m>0.2){
     const dx=(-s*fwd+c*str), dz=(-c*fwd-s*str), l=Math.hypot(dx,dz)||1;
-    if(!boxHits(pl.p[0]+dx/l*0.35,pl.p[1]+1.05,pl.p[2]+dz/l*0.35,pl.hw,pl.h)) pl.v[1]=8.6;
+    if(!boxHits(pl.p[0]+dx/l*0.35,pl.p[1]+1.05,pl.p[2]+dz/l*0.35,pl.hw,pl.h)) pl.v[1]=mode==='moon'?4.6:8.6;
   }
   edgeOpen=false;
   // side view: outside the world edge the player flies so they can look at the rock layers
@@ -3047,7 +3250,7 @@ function updatePlayer(dt){
   if(burning>0){ burning-=dt; burnT-=dt; if(burnT<=0){ burnT=1; hurtPlayer(1,undefined,undefined,'Fire'); } }
   // regen
   invuln-=dt; sinceHurt+=dt;
-  if(sinceHurt>6 && hp<MAXHP && mode!=='targets'){ regenT+=dt; if(regenT>3){ regenT=0; hp++; updateHUD(); } }
+  if(sinceHurt>6 && hp<MAXHP && mode!=='targets' && mode!=='moon'){ regenT+=dt; if(regenT>3){ regenT=0; hp++; updateHUD(); } }
   // tint
   const ce=get(Math.floor(camera.position.x),Math.floor(camera.position.y),Math.floor(camera.position.z));
   const tn=$('tint'); if(ce===ID.water){tn.style.background='rgba(30,80,200,.45)';tn.style.opacity=1;} else if(ce===ID.lava){tn.style.background='rgba(255,90,0,.7)';tn.style.opacity=1;} else tn.style.opacity=0;
@@ -3059,6 +3262,7 @@ function updateMobs(dt){
   for(const m of mobs.slice()){
     if(mode==='raid'){ raidMob(m,dt); continue; }
     if(mode==='tour'){ twMob(m,dt); continue; }
+    if(mode==='moon'){ moonMob(m,dt); continue; }
     const V=victimFor(m); mobVictim=V;
     const t=m.t, dx=V.p[0]-m.p[0], dz=V.p[2]-m.p[2], dy=V.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
     if(m.home===undefined&&Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2])>(t.flyer?60:48)){ removeMob(m); continue; }
@@ -3208,7 +3412,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt); updateMoon(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid'&&mode!=='tour')hitAction(); if(placeHeld)placeAction(); } }
 
@@ -3230,6 +3434,7 @@ function update(dt){
     const want=eye.clone().addScaledVector(d,-4).addScaledVector(right,0.6).add(new THREE.Vector3(0,0.25,0));
     let tt=1; for(let t=0.05;t<=1.0001;t+=0.05){ tmp.lerpVectors(eye,want,t); const b=get(Math.floor(tmp.x),Math.floor(tmp.y),Math.floor(tmp.z)); if(b&&B[b].solid){ tt=Math.max(0,t-0.1); break; } }
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
+  if(mode==='moon'&&ml&&ml.shake>0){ ml.shake=Math.max(0,ml.shake-dt*1.5); const k=Math.min(0.6,ml.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='tour'&&tw&&tw.shake>0){ tw.shake=Math.max(0,tw.shake-dt*1.5); const k=Math.min(0.5,tw.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='raid'&&rd&&rd.shake>0){ rd.shake=Math.max(0,rd.shake-dt*1.5); const k=Math.min(0.5,rd.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   camera.updateMatrixWorld();
@@ -3275,7 +3480,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
