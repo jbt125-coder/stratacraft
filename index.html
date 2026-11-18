@@ -890,7 +890,7 @@ function updateTarget(){
 let atkCd=0;
 function hitAction(){
   swingT=0.25;
-  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); atkCd=0.35; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
+  if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } shoot(WP.bow); atkCd=0.15; const sh=shots[shots.length-1]; if(sh)sh.owner='you'; } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
     if(tgm&&tgm.out[0]){ toast('💤 You\'re out until this round ends.'); return; }
@@ -2359,7 +2359,7 @@ function update(dt){
   if(paused){ return; }
   const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt);
   atkCd-=dt;
-  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld)hitAction(); if(placeHeld)placeAction(); } }
+  if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart')hitAction(); if(placeHeld)placeAction(); } }
 
   // player model
   model.position.set(pl.p[0],pl.p[1],pl.p[2]); model.rotation.y=yaw;
