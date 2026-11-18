@@ -2161,12 +2161,12 @@ function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; r
   raidBanner('Round '+(rd.r+1)+' of 6: '+R.name, R.type==='bomb'?'You get '+RD_BOMBS+' bomb arrows. Blow up as much as you can!':R.style==='lines'?'Monsters march at you in lines. 🍎 Shoot an apple to heal!':R.style==='mixed'?'Everything at once, and eagles too! 🍎 Shoot an apple to heal!':'Monsters are coming! 🍎 Shoot an apple to heal!',3); }
 function raidStartRound(){ const R=RD_ROUNDS[rd.r]; rd.phase='round'; rd.time=RD_LEN; rd.rk=0; rd.rb=0; rd.rt=0; rd.idle=0; rd.spawnT=0.5; rd.lineT=0.5; rd.eagleT=8; rd.lineN=0; rd.ko=false;
   arrows=cleanArrows(); rd.bonusAt=[]; rd.bonusKinds=['rabbit','deer','eagle'].sort(()=>rand()-0.5);
-  if(R.type==='bomb'){ arrows.explode=RD_BOMBS; arrowSel='explode'; toast('💣 GO! Blow it all up!'); } else { arrowSel='normal'; rd.bonusAt=[7+rand()*6,25+rand()*6,42+rand()*6]; toast('🏹 GO! Here they come!'); }
+  if(R.type==='bomb'){ arrows.explode=RD_BOMBS; arrowSel='explode'; toast('💣 GO! Blow it all up!'); } else { arrowSel='normal'; rd.bonusAt=[7+rand()*6,25+rand()*6,42+rand()*6]; rd.boomAt=15+rand()*22; rd.fireT=2; toast('🏹 GO! Here they come!'); }
   sfx('buy'); }
 function raidEndRound(ko){ const R=RD_ROUNDS[rd.r]; if(rd.phase!=='round')return; rd.phase='post'; rd.t=3.2;
   for(const m of mobs.slice()){ puff(m.p[0],m.p[1]+0.8,m.p[2],[0x888888,0xcccccc,0x555555],10,3,2,2,0.9); removeMob(m); }
   for(const sh of shots.slice()) if(sh.fromMob)freeShot(sh);
-  for(const b of rd.bonus.slice())rdBonusFree(b,false); arrows.split=0; arrowSel='normal';
+  for(const b of rd.bonus.slice())rdBonusFree(b,false); arrows.split=0; arrows.explode=0; arrowSel='normal';
   if(R.type==='bomb'){ arrows.explode=0;
     raidBanner('Round '+(rd.r+1)+' done! +'+rd.rs[rd.r],'🧱 '+rd.rb+' blocks blown up · 🏚️ '+rd.rt+' knocked down',3); }
   else { let bonus=0; if(ko){ rd.kos[rd.r]=true; hp=MAXHP; updateHUD(); } else { bonus=hp*25; rdAdd(bonus); }
@@ -2192,13 +2192,13 @@ function raidIntro(){ if(!rd)return; if(document.pointerLockElement)document.exi
   tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'); }); tap($('rMenu'),openMenu); }
 function updateRaidHud(){ const el=$('cartHud'); el.style.display='inline-block'; const R=RD_ROUNDS[Math.min(5,rd.r)];
   let h=rd.phase==='ride'||rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
-  if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; else if(arrows.split>0)h+=' &nbsp;<span style="color:#ffc81a">🔱×'+arrows.split+'</span>'; }
+  if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; else { if(arrows.explode>0)h+=' &nbsp;<span style="color:#ff8a5a">💥×'+arrows.explode+'</span>'; if(arrows.split>0)h+=' &nbsp;<span style="color:#ffc81a">🔱×'+arrows.split+'</span>'; } }
   h+='<br><span style="color:#7fe3cf">⭐ '+rd.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(raidBest(),rd.score)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 // --- shooting
 function raidShoot(){ if(!rd||rd.phase!=='round'||atkCd>0)return; const bomb=RD_ROUNDS[rd.r].type==='bomb';
   if(bomb&&arrows.explode<=0){ toast('💣 Out of bomb arrows!'); return; }
-  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb?'explode':arrows.split>0?'split':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
+  if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } arrowSel=bomb||arrows.explode>0?'explode':arrows.split>0?'split':'normal'; shoot(WP.bow); atkCd=bomb?0.6:0.3; updateRaidHud(); }
 function raidApple(s,x0,y0,z0){ // shooting a ripe apple heals you
   for(const tr of appleTrees) for(const sl of tr.slots){ if(sl.st!==2)continue; const c=sl.pos, ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
     let t=((c[0]-x0)*ex+(c[1]-y0)*ey+(c[2]-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-c[0], dy=y0+ey*t-c[1], dz=z0+ez*t-c[2];
@@ -2236,18 +2236,21 @@ function rdSink(s){ const cells=rdCells(s), tag=s.n+1; if(!cells.length){ s.stat
   for(let k=0;k<3;k++) puff(x0+rand()*(x1-x0+1),s.base+0.4,z0+rand()*(z1-z0+1),[0x9a9a96,0xc8c4b8,0x77776f],7,6,2.5,3,1.3);
   if(rand()<0.4)sfx('break'); }
 // --- monster waves
-function rdSpawn(type,u,d,o){ const A=rdArena(), info=RD_MON[type], t=MOBT[type], x=A.x+u, z=A.tz+A.side*d;
+function rdSpawn(type,u,d,o){ if(SHOT[type]&&mobs.filter(m=>SHOT[m.type]).length>=[2,0,3,0,4,0][rd.r])type='zombie'; // only a few shooters at a time
+  const A=rdArena(), info=RD_MON[type], t=MOBT[type], x=A.x+u, z=A.tz+A.side*d;
   const y=t.flyer?RD_GY+9+rand()*4:surfaceAt(Math.floor(x),Math.floor(z)).y+1;
   const m=spawnMob(type,x,y+0.01,z); m.hp=m.mhp=info.hits*WP.bow.dmg; m.yaw=A.side>0?0:Math.PI;
-  m.rdi={spd:(o&&o.spd)||info.spd*(0.9+rand()*0.2),line:!!(o&&o.line),cd:0.6,shootT:1.5+rand()*3,pts:info.pts,keep:type==='skeleton'?8+rand()*4:0};
+  m.rdi={spd:(o&&o.spd)||info.spd*(0.9+rand()*0.2),line:!!(o&&o.line),cd:0.6,shootT:3+rand()*5,pts:info.pts,keep:type==='skeleton'?8+rand()*4:0};
   if(!t.flyer)puff(x,y+0.3,z,[0x5a4a3a,0x7a6a5a],6,2,2,4,0.6); return m; }
 const RD_PAT=[['zombie'],['zombie','skeleton'],['slime'],['golem','zombie'],['skeleton'],['spider'],['orc','zombie']];
 const RD_PAT2=[['zombie','orc'],['golem','skeleton'],['troll','zombie'],['spider','magma'],['orc','skeleton'],['zombie','troll','zombie']];
 function rdLine(big){ const pat=big?RD_PAT2[rd.lineN%RD_PAT2.length]:RD_PAT[rd.lineN%RD_PAT.length], n=big?7:6; rd.lineN++;
   const sp=Math.min(...pat.map(k=>RD_MON[k].spd))*(1+rd.lineN*0.04);
-  for(let i=0;i<n;i++) rdSpawn(pat[i%pat.length],-9+i*18/(n-1),36,{spd:sp,line:true});
+  for(let i=0;i<n;i++) rdSpawn(pat[i%pat.length],-9+i*18/(n-1),35+(i%2)*3,{spd:sp,line:true}); // a staggered line
   toast('⚠️ A line of monsters is coming!'); }
 function raidWave(dt,style){ if(rd.bonusAt.length&&RD_LEN-rd.time>=rd.bonusAt[0]){ rd.bonusAt.shift(); rdBonusSpawn(rd.bonusKinds.pop()); }
+  if(rd.boomAt&&RD_LEN-rd.time>=rd.boomAt){ rd.boomAt=0; rdBonusSpawn('bombeagle'); } // one red eagle per monster round carries 3 bomb arrows
+  rd.fireT-=dt;
   const prog=1-rd.time/RD_LEN, alive=mobs.length, pick=L=>L[Math.floor(rand()*L.length)];
   if(style!=='lines'){ rd.spawnT-=dt; if(rd.spawnT<=0&&rd.time>6&&alive<(style==='mixed'?16:12)){ rd.spawnT=(style==='mixed'?2.6:2.3)-prog*1.0;
       const L=style==='mixed'?['zombie','zombie','slime','spider','magma','skeleton','orc']:['zombie','zombie','zombie','slime','slime','spider','skeleton','skeleton'];
@@ -2255,18 +2258,18 @@ function raidWave(dt,style){ if(rd.bonusAt.length&&RD_LEN-rd.time>=rd.bonusAt[0]
   if(style!=='random'){ rd.lineT-=dt; if(rd.lineT<=0&&rd.time>10&&alive<18){ rd.lineT=style==='mixed'?11:8.5; rdLine(style==='mixed'); } }
   if(style==='mixed'){ rd.eagleT-=dt; if(rd.eagleT<=0&&rd.time>6){ rd.eagleT=8+rand()*4; rdSpawn(rand()<0.7?'eagle':'griffin',(rand()-.5)*24,34); toast('🦅 Look up!'); } } }
 // --- golden bonus creatures: 3 per monster round run across the field carrying a gold-ring target. Hit it for 10 split arrows
-const rdGold=lm(0xffc81a,{emissive:0x5a3a00});
+const rdGold=lm(0xffc81a,{emissive:0x5a3a00}), rdRed=lm(0xd8322a,{emissive:0x4a0a00});
 function rdBonusSpawn(kind){ const A=rdArena(), dir=rand()<0.5?1:-1, d=12+rand()*12; let g,legs=[],wings=null,R=0.62,spd,top;
-  if(kind==='eagle'){ const r=mobModel('eagle'); g=r.root; wings=r.wings; r.bar.visible=false; spd=5; top=-0.9; }
+  const bomb=kind==='bombeagle'; if(kind==='eagle'||bomb){ const r=mobModel('eagle'); g=r.root; wings=r.wings; r.bar.visible=false; spd=bomb?5.5:5; top=-0.9; }
   else { const a=makeAnimal(kind); cartRoot.remove(a.g); for(const dd of a.discs)dd.parent.remove(dd); g=a.g; legs=a.legs; spd=kind==='rabbit'?3.4:4.3; top=kind==='rabbit'?0.9:2.1; }
-  g.traverse(o=>{ if(o.isMesh&&o.material&&o.material.isMeshLambertMaterial)o.material=rdGold; });
+  g.traverse(o=>{ if(o.isMesh&&o.material&&o.material.isMeshLambertMaterial)o.material=bomb?rdRed:rdGold; });
   const pole=box(0.07,1.0,0.07,lm(0x6b4a2a)); pole.position.y=top+(top<0?-0.5:0.5); g.add(pole);
-  const disc=discMesh(R); disc.position.y=top+(top<0?-1.1:1.1); g.add(disc); powerTag(disc,'split');
-  cartRoot.add(g); const b={kind,g,legs,wings,disc,u:-17*dir,dir,d,spd,ph:0,hop:0,A};
+  const disc=discMesh(R); disc.position.y=top+(top<0?-1.1:1.1); g.add(disc); powerTag(disc,bomb?'explode':'split');
+  cartRoot.add(g); const b={kind,g,legs,wings,disc,u:-17*dir,dir,d,spd,ph:0,hop:0,A,bomb,air:bomb||kind==='eagle'};
   rdBonusPlace(b,0); rd.bonus.push(b); sfx('coin');
-  toast('✨ A golden '+(kind==='eagle'?'eagle':kind)+'! Hit its gold target for 🔱 split arrows!'); }
+  toast(bomb?'🦅 A red eagle! Hit its 💥 target for 3 bomb arrows!':'✨ A golden '+(kind==='eagle'?'eagle':kind)+'! Hit its gold target for 🔱 split arrows!'); }
 function rdBonusPlace(b,dt){ const A=b.A, x=A.x+b.u, z=A.tz+A.side*b.d; b.ph+=dt*b.spd*3;
-  let y; if(b.kind==='eagle')y=RD_GY+7+Math.sin(b.ph*0.3)*1.2; else { const su=surfaceAt(Math.max(0,Math.min(W-1,Math.floor(x))),Math.floor(z)); y=su.y+1+(b.kind==='rabbit'?Math.abs(Math.sin(b.ph*0.7))*0.45:0); }
+  let y; if(b.air)y=RD_GY+(b.bomb?9:7)+Math.sin(b.ph*0.3)*1.2; else { const su=surfaceAt(Math.max(0,Math.min(W-1,Math.floor(x))),Math.floor(z)); y=su.y+1+(b.kind==='rabbit'?Math.abs(Math.sin(b.ph*0.7))*0.45:0); }
   b.g.position.set(x,y,z); b.g.rotation.y=b.dir>0?-Math.PI/2:Math.PI/2;
   for(let i=0;i<b.legs.length;i++)b.legs[i].rotation.x=Math.sin(b.ph+(i%2)*Math.PI)*0.6;
   if(b.wings)for(const w of b.wings)w.rotation.z=Math.sin(b.ph*1.5)*0.55*w.userData.sd;
@@ -2278,13 +2281,14 @@ function updateRdBonus(dt){ for(const b of rd.bonus.slice()){ b.u+=b.dir*b.spd*d
 function raidBonusHit(s,x0,y0,z0){ const w=new THREE.Vector3();
   for(const b of rd.bonus){ b.disc.getWorldPosition(w); const ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
     let t=((w.x-x0)*ex+(w.y-y0)*ey+(w.z-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-w.x, dy=y0+ey*t-w.y, dz=z0+ez*t-w.z;
-    if(dx*dx+dy*dy+dz*dz<0.8*0.8){ arrows.split=Math.max(arrows.split,10); arrowSel='split'; rdAdd(150); tgPopup('🔱 +150','#ffc81a',[w.x,w.y+0.6,w.z]);
-      toast('🔱 Split arrows for your next 10 shots! (3 arrows each)'); sfx('buy'); rdBonusFree(b,true); updateRaidHud(); return true; } }
+    if(dx*dx+dy*dy+dz*dz<0.8*0.8){ rdAdd(150);
+      if(b.bomb){ arrows.explode=Math.max(arrows.explode,3); tgPopup('💥 +150','#ff8a5a',[w.x,w.y+0.6,w.z]); toast('💥 3 bomb arrows! They blow up every monster near where they land!'); }
+      else { arrows.split=Math.max(arrows.split,10); tgPopup('🔱 +150','#ffc81a',[w.x,w.y+0.6,w.z]); toast('🔱 Split arrows for your next 10 shots! (3 arrows each)'); } sfx('buy'); rdBonusFree(b,true); updateRaidHud(); return true; } }
   return false; }
 function raidKill(m){ const p=(m.rdi&&m.rdi.pts)||50; rdAdd(p); rd.kills[m.type]=(rd.kills[m.type]||0)+1; rd.rk++; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
 function rdThrow(m,sh){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.6,pl.p[1]+1.0+(rand()-.5)*0.8,pl.p[2]+(rand()-.5)*1.6);
   const fl=o.distanceTo(tg)/sh.spd; tg.y+=0.5*sh.g*fl*fl; const d=tg.sub(o).normalize(); o.addScaledVector(d,0.6);
-  addShot(o,d,sh.spd,sh.g,sh.dmg,sh.kind,true); m.atk=0.3; sfx(sh.kind==='arrow'?'bow':'throw'); }
+  addShot(o,d,sh.spd,sh.g,1,sh.kind,true); m.atk=0.3; sfx(sh.kind==='arrow'?'bow':'throw'); } // every arrow, spear or rock costs just 1 heart
 function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shootT:3,pts:50,keep:0}); if(!rd)return;
   const A=rdArena(), active=rd.phase==='round'; m.flash=Math.max(0,m.flash-dt); m.atk=Math.max(0,m.atk-dt);
   const dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dist=Math.hypot(dx,dz)||0.001;
@@ -2305,10 +2309,12 @@ function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shoo
     if(t.hop){ if(m.onGround){ m.mv=[0,0]; m.hopT-=dt; if(m.hopT<=0&&(mx||mz)){ m.v[1]=7.6; m.mv=[mx*R.spd*1.4,mz*R.spd*1.4]; m.hopT=0.35+rand()*0.4; } } }
     else m.mv=[mx*R.spd,mz*R.spd];
     m.v[0]=m.mv[0]; m.v[2]=m.mv[1]; m.v[1]=Math.max(-30,m.v[1]-25*dt); physStep(m,dt);
-    if(!t.hop&&m.wall&&m.onGround&&(mx||mz))m.v[1]=7.5;
+    if(m.wall&&(m.onGround||t.hop)&&(mx||mz)){ const nx=m.p[0]+mx*0.4, nz=m.p[2]+mz*0.4; // step up onto a 1-block rise
+      if(!boxHits(nx,Math.floor(m.p[1]+0.5)+1.01,nz,m.hw,m.h)){ m.p[1]=Math.floor(m.p[1]+0.5)+1.01; m.p[0]=nx; m.p[2]=nz; m.v[1]=0; } }
     if(m.p[1]<-5){ removeMob(m); return; }
     R.cd-=dt; if(active&&dist<=reach+0.35&&R.cd<=0){ R.cd=1.5; m.atk=0.3; hurtPlayer(t.dmg>=3?2:1,dx/dist,dz/dist,'A '+t.name); }
-    const sh=SHOT[m.type]; if(sh&&active&&dist<32&&dist>3){ R.shootT-=dt; if(R.shootT<=0){ R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0])+0.5; rdThrow(m,sh); } }
+    const sh=SHOT[m.type]; if(sh&&active&&dist<26&&dist>3){ R.shootT-=dt; if(R.shootT<=0){ // monsters take turns: only one shot every second or two from the whole field
+      if(rd.fireT>0)R.shootT=0.4+rand()*0.8; else { R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0])+1.5; rd.fireT=RD_ROUNDS[rd.r].style==='mixed'?1.4:2.0; rdThrow(m,sh); } } }
     m.yaw=mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz);
     g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
     if(t.hop){ const sq=m.onGround?1:1+Math.max(-0.2,Math.min(0.25,m.v[1]*0.04)); g.body.scale.set(1/Math.sqrt(sq),sq,1/Math.sqrt(sq)); }
@@ -2332,8 +2338,8 @@ function updateRaid(dt){ if(mode!=='raid'||!rd)return; updateRaidHud();
 function raidHelp(){
   return '<h2>💣 Rail Rampage</h2>Ride a cart past 6 stations. The cart stops at each one for about a minute, and the action is always out the right side of the cart. Drag anywhere on the screen to aim. Monster rounds and bomb rounds take turns. Get the highest total score you can!'+
   '<h3>🧟 Monster rounds (1, 3 and 5)</h3><ul><li>Monsters walk at your cart. Shoot them before they reach you! Round 1 comes in random bunches, Round 3 marches in lines, and Round 5 is everything at once, with eagles diving from the sky</li>'+
-  '<li>🧟 Zombies and 🟫 slimes go down in 1–2 arrows, 💀 skeletons in 2, 🗿 golems and 🧌 trolls take 3–4</li><li>💀 Skeletons, 👹 orcs and 🧌 trolls shoot or throw at you slowly as they come</li>'+
-  '<li>✨ 3 golden creatures (a rabbit, a deer and an eagle) run past in every monster round carrying a gold-ring target. Hit the target for 🔱 split arrows: your next 10 shots fire 3 arrows each!</li><li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
+  '<li>🧟 Zombies and 🟫 slimes go down in 1–2 arrows, 💀 skeletons in 2, 🗿 golems and 🧌 trolls take 3–4</li><li>💀 Skeletons, 👹 orcs and 🧌 trolls shoot or throw at you as they come, but only a few at a time and they take turns. Each hit costs 1 heart</li>'+
+  '<li>✨ 3 golden creatures (a rabbit, a deer and an eagle) run past in every monster round carrying a gold-ring target. Hit the target for 🔱 split arrows: your next 10 shots fire 3 arrows each!</li><li>🦅 A red eagle also flies over once per monster round. Hit its 💥 target for 3 bomb arrows that blow up every monster near where they land</li><li>🍎 There are two apple trees beside every monster station. Shoot a red apple: +2 hearts</li><li>Run out of hearts and that round ends early. Your hearts fill up again for the next one. Finish a round with hearts left for a bonus</li></ul>'+
   '<h3>💣 Bomb rounds (2, 4 and 6)</h3><ul><li>You get '+RD_BOMBS+' bomb arrows to blow up a town: skyscrapers, apartments, castle towers, houses, gold statues, water towers, billboards, cars, buses, crates and explosive barrels. Every town is different</li>'+
   '<li>Every block you blow up scores points. Hurt a building enough and it comes crashing down for a big bonus. Hits low on a building, or on water tower legs, do extra damage</li><li>🚗 Cars and buses explode, and 🛢️ barrels blow up everything around them!</li></ul>'+
   '<h3>Controls</h3><ul><li>Look around and tap ⛏ Hit (or click) to shoot. Arrows drop over distance, so aim a little high for faraway targets</li></ul>';
