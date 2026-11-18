@@ -2085,10 +2085,11 @@ function generateRaid(s){
   const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
   const arenaAt=(x,z,m)=>{ for(let k=0;k<6;k++){ const st=RD_ST[k], d=(z-st.tz)*st.side; if(Math.abs(x+0.5-st.x)<=15+m&&d>=1-m&&d<=38+m)return k; } return -1; };
   const HM=rdHM=new Int16Array(W*D), AR=new Int8Array(W*D);
+  const hilly=RD_ST.map(()=>rnd()<0.5); if(hilly.every(v=>v===hilly[0]))hilly[Math.floor(rnd()*6)]=!hilly[0]; // each stage is randomly hilly or flat, never all the same
   for(let z=0;z<D;z++)for(let x=0;x<W;x++){
     let h=RD_GY; if(z>=43&&z<=52) h=RD_GY+Math.round(Math.sin((z-42.5)/10*Math.PI)*(3+n1(x/8,z/8)*4)); // a wooded ridge splits the two rows
     const k=arenaAt(x,z,0); AR[x+z*W]=k;
-    if(k>=0){ const d=(z-RD_ST[k].tz)*RD_ST[k].side, ramp=Math.max(0,Math.min(1,(d-5)/14)), b=n1(x/10+40,z/10+40)*0.7+n3(x/5+70,z/5)*0.3; // rolling hills that rise toward the back, flat next to the track
+    if(k>=0&&hilly[k]){ const d=(z-RD_ST[k].tz)*RD_ST[k].side, ramp=Math.max(0,Math.min(1,(d-5)/14)), b=n1(x/10+40,z/10+40)*0.7+n3(x/5+70,z/5)*0.3; // rolling hills that rise toward the back, flat next to the track
       h=RD_GY+Math.max(0,Math.round(ramp*(b*7.5-2.2))); }
     HM[x+z*W]=h; }
   for(let pass=0;pass<8;pass++)for(let z=1;z<D-1;z++)for(let x=1;x<W-1;x++){ const i=x+z*W; if(AR[i]<0)continue; // never more than a 1-block step, so monsters can climb
