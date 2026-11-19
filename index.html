@@ -3381,19 +3381,36 @@ function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a),
   const lL=limbOn(hero,-0.125,0.72,0.24,0.72,pants,shoe), lR=limbOn(hero,0.125,0.72,0.24,0.72,pants,shoe); const bd=box(0.5,0.72,0.26,shirt); bd.position.y=1.08; hero.add(bd);
   const aL=limbOn(hero,-0.37,1.42,0.22,0.7,shirt,skin), aR=limbOn(hero,0.37,1.42,0.22,0.7,shirt,skin);
   const hd=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[hairSideR,hairSideL,hairM,skin,hairM,faceM]); hd.position.y=1.67; hero.add(hd);
-  const sw=weaponMesh('diamond',false); sw.position.set(0,-0.62,-0.08); sw.rotation.x=-Math.PI/2; aR.add(sw);
+  const bow=weaponMesh('bow',false); bow.position.set(0,-0.62,-0.08); bow.rotation.x=-Math.PI/2; aL.add(bow); // an archer now
   // skeletons with bows, and zombies coming at him
   const skels=[]; for(const [x,y,z] of [[-6,2,-3],[-5,3,4],[5,2,-6]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.5; r.armR.rotation.x=1.5; skels.push({r,t:Math.random()*1.5}); }
-  const zombies=[]; for(let k=0;k<2;k++){ const r=mobModel('zombie'); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.45; r.armR.rotation.x=1.45; zombies.push({r,t:k*1.6}); }
-  titleK={hero,lL,lR,aL,aR,skels,zombies,arrows:[],bits:[],R,t:0}; }
+  const mons=[{st:'wait',t:0.3,r:null},{st:'wait',t:2.4,r:null}]; // two monsters take turns walking up with a bullseye
+  titleK={hero,lL,lR,aL,aR,skels,mons,arrows:[],shots:[],bits:[],R,t:0,aim:null,fireT:0}; }
 function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12; const T=K.t, H=K.hero;
   const rad=camera.aspect<1?17:12, ang=0.25+Math.sin(titleA)*0.6, cx=TT.x+Math.sin(ang)*rad, cz=TT.z+Math.cos(ang)*rad+2; camera.position.set(cx,TT.y+(camera.aspect<1?5:3.8),cz); camera.lookAt(TT.x+1,TT.y+(camera.aspect<1?3.2:2.6),TT.z-0.5); // further back on tall phone screens
-  // the hero strafes toward the rocket and swings at whatever gets close
-  H.position.x=Math.sin(T*0.7)*1.2; const swing=(T%1.6)<0.35; H.rotation.y=Math.PI*0.85+Math.sin(T*0.7)*0.3;
-  const w=Math.sin(T*9)*0.6; K.lL.rotation.x=w; K.lR.rotation.x=-w; K.aL.rotation.x=-w*0.6; K.aR.rotation.x=swing?-2.4+((T%1.6)/0.35)*2.6:w*0.6;
-  for(const Z of K.zombies){ Z.t+=dt; const u=(Z.t%3.2)/3.2, side=Z===K.zombies[0]?1:-1; const zx=H.position.x+side*(5-u*3.6), zz=H.position.z-2.5+u*1.8;
-    Z.r.root.position.set(zx,0,zz); Z.r.root.rotation.y=Math.atan2(-(H.position.x-zx),-(H.position.z-zz)); const zw=Math.sin(Z.t*6)*0.5; Z.r.legL.rotation.x=zw; Z.r.legR.rotation.x=-zw;
-    if(u>0.96&&!Z.hit){ Z.hit=true; for(let i=0;i<10;i++)K.bits.push({m:titleBit(0x6fae4a,zx,1,zz),v:[(Math.random()-.5)*4,Math.random()*4+1,(Math.random()-.5)*4],life:0.7}); } if(u<0.5)Z.hit=false; Z.r.root.visible=u<0.97; }
+  // the hero shoots the bullseye a monster is carrying; hit monsters run away and a new one comes
+  const tg=K.mons.find(M=>M.st==='stand'); let face=Math.PI*0.85;
+  if(tg){ const P=tg.r.root.position; face=Math.atan2(-(P.x-H.position.x),-(P.z-H.position.z)); }
+  let d=face-H.rotation.y; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; H.rotation.y+=d*Math.min(1,dt*6);
+  const aiming=!!tg; K.lL.rotation.x=0; K.lR.rotation.x=0; K.aL.rotation.x=aiming?1.5:0.2; K.aR.rotation.x=aiming?1.25:-0.1;
+  for(const M of K.mons){ M.t-=dt;
+    if(M.st==='wait'&&M.t<=0){ const types=['zombie','spider','orc','golem','troll','mummy','slime','wolf','lion','magma','skeleton'], type=types[Math.floor(Math.random()*types.length)];
+      const r=mobModel(type); r.bar.visible=false; titleRoot.add(r.root); const R0=MOBT[type].h, disc=discMesh(0.42); disc.position.set(0,Math.max(0.55,R0*0.55),-Math.max(0.45,MOBT[type].hw+0.18)); disc.rotation.y=Math.PI; r.body.add(disc);
+      if(r.armL&&type!=='wolf'&&type!=='lion'){ r.armL.rotation.x=1.3; r.armR.rotation.x=1.3; } // holding the target out in front
+      const a=(M===K.mons[0]?-1:1)*(0.5+Math.random()*0.7)-0.1; M.from=[H.position.x+Math.sin(a+Math.PI)*8.5,H.position.z+Math.cos(a+Math.PI)*8.5]; { const l=Math.hypot(M.from[0],M.from[1]); if(l>6.8){ M.from[0]*=6.8/l; M.from[1]*=6.8/l; } } /* stay on the island */ M.to=[H.position.x+Math.sin(a+Math.PI)*4.6,H.position.z+Math.cos(a+Math.PI)*4.6];
+      M.r=r; M.type=type; M.disc=disc; M.st='enter'; M.t=2; M.ph=0; for(let i=0;i<8;i++)K.bits.push({m:titleBit(0xffffff,M.from[0],0.6,M.from[1]),v:[(Math.random()-.5)*3,Math.random()*2,(Math.random()-.5)*3],life:0.6}); }
+    if(!M.r)continue; const P=M.r.root.position; M.ph+=dt*(M.st==='flee'?14:7);
+    if(M.st==='enter'){ const u=1-Math.max(0,M.t)/2; P.set(M.from[0]+(M.to[0]-M.from[0])*u,0,M.from[1]+(M.to[1]-M.from[1])*u); if(M.t<=0&&!K.mons.some(o=>o!==M&&o.st==='stand')){ M.st='stand'; M.t=0.9; } }
+    if(M.st==='stand'&&M.t<=0&&!M.shot){ M.shot=true; const o=H.position.clone().add(new THREE.Vector3(-Math.sin(H.rotation.y)*0.6,1.45,-Math.cos(H.rotation.y)*0.6)), w=new THREE.Vector3(); M.disc.getWorldPosition(w); w.sub(titleRoot.position);
+      const a=arrowMesh(false); titleRoot.add(a); K.shots.push({m:a,o,w,t:0,M}); }
+    if(M.st==='flee'){ P.x+=M.run[0]*dt*6; P.z+=M.run[1]*dt*6; if(Math.hypot(P.x,P.z)>7.4&&M.t>0.15){ M.t=0.15; for(let i=0;i<8;i++)K.bits.push({m:titleBit(0xffffff,P.x,0.6,P.z),v:[(Math.random()-.5)*3,Math.random()*2,(Math.random()-.5)*3],life:0.5}); } if(M.t<=0){ titleRoot.remove(M.r.root); M.r=null; M.st='wait'; M.t=0.5+Math.random()*0.8; M.shot=false; continue; } }
+    const mv=M.st==='enter'||M.st==='flee', look=M.st==='flee'?Math.atan2(-M.run[0],-M.run[1]):Math.atan2(-(H.position.x-P.x),-(H.position.z-P.z)); M.r.body.rotation.y=look; M.r.root.rotation.y=0;
+    const sw=mv?Math.sin(M.ph)*0.6:0; if(M.r.legL){ M.r.legL.rotation.x=sw; M.r.legR.rotation.x=-sw; } if(M.r.legs)for(const lg of M.r.legs)lg.rotation.y=mv?Math.sin(M.ph+lg.userData.i*1.6)*0.35:0;
+    if((M.type==='wolf'||M.type==='lion')&&M.r.armL){ M.r.armL.rotation.x=-sw; M.r.armR.rotation.x=sw; }
+    if(MOBT[M.type].hop){ M.r.root.position.y=mv?Math.abs(Math.sin(M.ph*0.7))*0.5:0; } }
+  for(let i=K.shots.length-1;i>=0;i--){ const S=K.shots[i]; S.t+=dt/0.32; const p=S.o.clone().lerp(S.w,Math.min(1,S.t)); p.y+=Math.sin(Math.min(1,S.t)*Math.PI)*0.25; S.m.position.copy(p); S.m.lookAt(S.w.clone().add(titleRoot.position)); S.m.rotateY(Math.PI);
+    if(S.t>=1){ titleRoot.remove(S.m); K.shots.splice(i,1); const M=S.M; if(M.disc){ M.disc.visible=false; for(let k=0;k<14;k++)K.bits.push({m:titleBit(k%2?0xff3030:0xffffff,S.w.x,S.w.y,S.w.z),v:[(Math.random()-.5)*4,Math.random()*3+1,(Math.random()-.5)*4],life:0.7}); }
+      const P=M.r.root.position, dx=P.x-H.position.x, dz=P.z-H.position.z, l=Math.hypot(dx,dz)||1; M.run=[dx/l,dz/l]; M.st='flee'; M.t=1.4; } }
   for(const S of K.skels){ S.t-=dt; S.r.root.rotation.y=Math.atan2(-(H.position.x-S.r.root.position.x),-(H.position.z-S.r.root.position.z));
     if(S.t<=0){ S.t=1.3+Math.random()*1.2; const a=arrowMesh(true); g2(a); const o=S.r.root.position.clone().add(new THREE.Vector3(0,1.5,0)), tg=H.position.clone().add(new THREE.Vector3((Math.random()-.5)*2.5,1.2+Math.random(),(Math.random()-.5)*2.5));
       const d=tg.sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl+0.6}); S.r.armR.rotation.x=1.2; } else if(S.t<1)S.r.armR.rotation.x=1.5; }
