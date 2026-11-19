@@ -3041,8 +3041,8 @@ function mlBeacon(col,x,z){ if(ml.beacon){ moonRoot.remove(ml.beacon); } if(col=
 function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],ML_G,ML_LEM[1]];
   if(ml.phase==='landing'){ ml.t+=dt; const u=Math.min(1,ml.t/7), e=1-Math.pow(1-u,2.4); L.g.position.y=ML_G+30*(1-e); L.flame.visible=u<1; L.flame.scale.y=0.8+rand()*0.5;
     if(u>0.6&&rand()<0.6)puff(base[0]+(rand()-.5)*6,ML_G+0.3,base[2]+(rand()-.5)*6,[0xa8a49a,0xc8c4b8],3,8,0.6,0.4,1.4);
-    pl.p=[base[0]+12,ML_G+2,base[2]+16]; mlLookAt([base[0],L.g.position.y+2,base[2]]); if(u>=1&&ml.t>8){ ml.phase='ladder'; ml.t=0; L.flame.visible=false; mlSay('🌕 The Eagle has landed!','Climbing down the ladder…',3.5); } return true; }
-  if(ml.phase==='ladder'){ if(!ml.saidStep){ ml.saidStep=true; mlRadio('That\'s one small step for man. One giant leap for mankind.'); } ml.t+=dt; const u=Math.min(1,ml.t/3.2); pl.p=[base[0],ML_G+3.15*(1-u)+0.02,base[2]+3.35]; yaw=0; pitch=-0.15;
+    pl.p=[base[0]+12,ML_G+2,base[2]+16]; mlLookAt([base[0],L.g.position.y+2,base[2]]); if(u>=1&&ml.t>8){ ml.phase='ladder'; ml.t=0; L.flame.visible=false; mlSay('🌕 Houston… the Eagle has landed.','Climbing down the ladder…',3.5); mlRadio('Houston... the Eagle has landed.'); } return true; }
+  if(ml.phase==='ladder'){ if(!ml.saidStep&&ml.t>2.6){ ml.saidStep=true; mlRadio('That\'s one small step for man. One giant leap for mankind.',true); } ml.t+=dt; const u=Math.min(1,ml.t/3.2); pl.p=[base[0],ML_G+3.15*(1-u)+0.02,base[2]+3.35]; yaw=0; pitch=-0.15;
     if(u>=1){ ml.phase='explore'; ml.ct=0; yaw=Math.PI; pitch=0.05; mlSay('👣 One small step…','Collect '+ML_NEED+' rock samples (look for the glowing markers). Purple crystals are rare!',5); sfx('buy'); } return true; }
   if(ml.phase==='photo'){ mlPhoto(dt); return true; }
   if(ml.phase==='failcam'){ ml.t+=dt; const fw=[-Math.sin(yaw),-Math.cos(yaw)]; // the camera swings around to your cracked helmet
@@ -3057,7 +3057,7 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
 const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
 const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
 document.body.appendChild(mlPola);
-function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){} u.volume=1;
+function mlRadio(text,queue){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; if(!queue)speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){} u.volume=1;
   setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} },380); u.onend=()=>sfx('radio'); }catch(e){} }
 function mlFlashOn(){ mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
 function mlShowPhoto(url,cap){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">'+(cap||'Me on the Moon! 🌕')+'</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
@@ -3961,6 +3961,7 @@ function dmSplashTick(dt){ demo.splash-=dt; dmDrawSky(dt); const left=Math.max(0
   $('dmRing').style.strokeDashoffset=(119.4*(1-left/DEMO_SPLASH)).toFixed(1); if(left<=0){ dmSplash.style.display='none'; return true; } return false; }
 // --- the Moon autopilot: walk to the samples, plant the flag, then head for the crash site
 function demoPilot(dt){ if(!demo||mode!=='moon'||!ml)return null; invuln=Math.max(invuln,1); let tgt=null;
+  if(ml.phase==='fight'&&ml.problemPic&&!ml.cam)return demoFightRun(dt);
   if(ml.phase==='explore'){ let best=1e9; for(const s of ml.samples)if(!s.got){ const d=Math.hypot(s.x-pl.p[0],s.z-pl.p[2]); if(d<best){ best=d; tgt=[s.x,s.z]; } } }
   else if(ml.phase==='flag')tgt=ML_FLAG; else if(ml.phase==='scout')tgt=[ML_CRATER[0],ML_CRATER[1]];
   const look=tgt||(ml.phase==='fight'?[ML_CRATER[0],ML_CRATER[1]]:null); if(!look)return {ix:0,iz:0};
@@ -3971,19 +3972,31 @@ function demoPilot(dt){ if(!demo||mode!=='moon'||!ml)return null; invuln=Math.ma
   if(P.t>1.2){ if(P.d-dist<0.4){ P.up=0.45; P.n=(P.n||0)+1; if(P.n>=2){ P.side=1.0; P.dir=Math.random()<0.5?-1:1; } } else P.n=0; P.t=0; P.d=dist; } // stuck on a rock? hop, then sidestep
   P.side=Math.max(0,(P.side||0)-dt); if(P.side>0)return {ix:P.dir,iz:-0.4};
   return {ix:0,iz:Math.abs(d)<1.1?-1:-0.25}; }
+// after the "Houston" photo: blast the green spiders while running back to the lander
+function demoFightRun(dt){ const P=demo.pil, lx=ML_LEM[0]-pl.p[0], lz=ML_LEM[1]-pl.p[2], ld=Math.hypot(lx,lz)||1;
+  let foe=null, fd=24; for(const m of mobs){ const q=Math.hypot(m.p[0]-pl.p[0],m.p[2]-pl.p[2]); if(q<fd){ fd=q; foe=m; } }
+  const aim=foe?[foe.p[0],foe.p[2]]:[ML_LEM[0],ML_LEM[1]]; let d=Math.atan2(-(aim[0]-pl.p[0]),-(aim[1]-pl.p[2]))-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+  yaw+=Math.max(-4*dt,Math.min(4*dt,d)); const want=foe?Math.atan2(foe.p[1]+(foe.h||1)*0.5-(pl.p[1]+EYE),Math.max(1,fd)):-0.1; pitch+=(want-pitch)*Math.min(1,dt*5);
+  if(foe&&aimMob&&Math.abs(d)<0.35&&atkCd<=0&&ml.hot<=0)moonShoot();
+  if(ld<3||demo.picT<4.5)return {ix:0,iz:0}; // hold the ground and fight for a few seconds, then run for it
+  P.t+=dt; P.up=Math.max(0,P.up-dt); demoUp=P.up>0; if(P.t>1.2){ if(P.d-ld<0.4)P.up=0.45; P.t=0; P.d=ld; } // hop over rocks
+  const mx=lx/ld, mz=lz/ld, s=Math.sin(yaw), c=Math.cos(yaw); // run toward the lander, whichever way he is aiming
+  return {ix:c*mx-s*mz,iz:s*mx+c*mz}; }
 // --- the loop
 function demoStart(){ if(document.pointerLockElement)document.exitPointerLock(); saveNow(); demo={stage:'',t:0,quiz:null,splash:0,pil:{t:0,d:1e9,up:0}}; document.body.classList.add('demo'); demoGo('aqua'); }
 function demoStop(){ if(!demo)return; demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
   closeMenu(); hadSave=loadCurrent(); if(!hadSave)startSurvival(); showTitle(); }
 function demoGo(stage){ demo.stage=stage; demo.t=0; demo.quiz=null; demo.splash=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
   if(stage==='aqua'){ closeMenu(); startAqua(true); }
-  else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=3; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
+  else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=1; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
   else { gwStopVoice(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
     if(stage==='quizA')dmQuizStart('aqua'); else if(stage==='quizM')dmQuizStart('moon'); else dmSplashStart(); } }
 const DEMO_NEXT={aqua:'quizA',quizA:'splashA',splashA:'moon',moon:'quizM',quizM:'splashM',splashM:'aqua'};
 function demoTick(dt){ if(!demo||$('modal').style.display==='flex')return; demo.t+=dt; const S=demo.stage;
   if(S==='aqua'){ if(!gw||gw.phase==='done'||demo.t>600)demoGo(DEMO_NEXT[S]); }
-  else if(S==='moon'){ if(ml&&ml.problemPic)demo.picT+=dt; if(!ml||demo.picT>5.5||demo.t>240||['failcam','failed','done'].includes(ml.phase))demoGo(DEMO_NEXT[S]); }
+  else if(S==='moon'){ if(ml&&camMode===1&&!['intro','landing','ladder'].includes(ml.phase))camMode=3; // see the astronaut once he is out on the Moon
+    if(ml&&ml.problemPic)demo.picT+=dt; const home=ml&&Math.hypot(pl.p[0]-ML_LEM[0],pl.p[2]-ML_LEM[1])<4;
+    if(!ml||demo.picT>18||(demo.picT>9&&home)||demo.t>260||['failcam','failed','done'].includes(ml.phase))demoGo(DEMO_NEXT[S]); }
   else if(S==='quizA'||S==='quizM'){ paused=true; if(dmQuizTick(dt))demoGo(DEMO_NEXT[S]); }
   else { paused=true; if(dmSplashTick(dt))demoGo(DEMO_NEXT[S]); } }
 
