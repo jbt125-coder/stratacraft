@@ -102,6 +102,16 @@
   #toast{left:50%;top:38%;transform:translate(-50%,-50%);background:rgba(15,18,26,.85);padding:8px 14px;border-radius:10px;
     font-size:14px;font-weight:700;display:none;pointer-events:none;text-align:center;max-width:80vw}
 
+  #title{inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:calc(6vh + env(safe-area-inset-top)) 16px calc(7vh + env(safe-area-inset-bottom));z-index:10;pointer-events:none;box-sizing:border-box;display:none}
+  body.title #title{display:flex} body.title .ui:not(#title):not(#modal):not(#toast){display:none!important}
+  #title .tbox{text-align:center}
+  #title .tname{font:900 clamp(46px,11vw,96px)/1 'Trebuchet MS',Verdana,sans-serif;letter-spacing:2px;color:#f4f0e6;-webkit-text-stroke:2px #3a2a1a;
+    text-shadow:0 4px 0 #6aa83a,0 8px 0 #86603f,0 12px 0 #5a4030,0 18px 24px rgba(0,0,0,.6)}
+  #title .tsub{margin-top:18px;font:800 clamp(17px,4vw,26px) sans-serif;color:#fff;text-shadow:0 2px 6px #000;letter-spacing:3px}
+  #title .tbtns{display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:auto}
+  #title button{font:900 clamp(20px,5vw,28px) sans-serif;padding:14px 34px;border-radius:14px;border:3px solid #fff;background:#3fa34d;color:#fff;box-shadow:0 6px 0 #22662c,0 10px 20px rgba(0,0,0,.4);cursor:pointer;animation:tpulse 1.6s ease-in-out infinite}
+  #title #tCont{font-size:clamp(15px,3.6vw,18px);padding:9px 20px;background:rgba(20,24,32,.75);box-shadow:none;animation:none;border-width:2px}
+  @keyframes tpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
   #modal{inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
   #modal .box{width:min(560px,calc(100vw - 30px));max-height:calc(100vh - 30px);overflow:auto;background:#1a1f2b;border-radius:16px;
     padding:16px 18px;border:2px solid rgba(255,255,255,.2);font-size:14px;line-height:1.45;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -1421,8 +1431,10 @@ function openMenu(){
   $('mbox').innerHTML=(mode==='earth'?earthHelp():mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
+    '<div class="row"><button class="mbtn gray" id="mTitle">🏠 Main Menu</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
+  tap($('mTitle'),toTitle);
   tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); if(mode==='earth'&&ea&&['intro','won'].includes(ea.phase))earthIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
@@ -1517,7 +1529,7 @@ function openSaves(tab){
   $('mbox').querySelectorAll('[data-file]').forEach(b=>onClick(b,()=>{ const r=recs[+b.dataset.file]; exportGame(r.data,r.name); }));
   onClick($('sExport'),()=>exportGame(snapshot(),saveName)); onClick($('sImport'),()=>fileIn.click()); tap($('sBack'),openMenu);
 }
-function openNewGame(){
+function openNewGame(fromTitle){
   let h='<h2>🎮 New Game</h2><div class="say">A new game replaces the one you are playing now. <b>Save it first</b> if you want to come back to it.</div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Survival</b><div class="fx">Free mode. Build with real rocks, fight monsters for coins and shop at Flint\'s. Your coins and weapons carry over.</div></div><button class="ibtn" data-new="survival">Start</button></div>'+
     '<div class="item"><div class="ic">🏰</div><div class="tx"><b>Four Corners</b><div class="fx">Four cliff caves around a lava valley. Shoot across with your bow, mine blocks to build walls and bridges, and break the skeleton, orc and troll spawn blocks. Keep your bed safe!</div></div><button class="ibtn" data-new="corners">Start</button></div>'+
@@ -1538,11 +1550,11 @@ function openNewGame(){
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
     closeMenu(); if(md==='corners')startCorners(); else { startSurvival(); toast('🌍 Fresh world!'); } }));
-  tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),openMenu);
+  tap($('nSave'),()=>openSaves(mode)); tap($('nBack'),()=>{ if(titleOn){ $('modal').style.display='none'; } else openMenu(); });
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearEarth(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ if(titleOn)hideTitle(); rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearEarth(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
 function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth')?'none':''; { const mo=mode==='moon'; const ew=mode==='earth'; scene.background.setHex(mo?0x000000:ew?EA_SKY:SKY); scene.fog.color.setHex(mo?0x000000:ew?EA_SKY:SKY); for(const c of clouds)c.visible=!mo&&!ew; moonSky.visible=mo; }
   $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth');
@@ -3343,6 +3355,62 @@ function earthHelp(){
   '<h3>Your gear</h3><ul><li>🔫 Laser (it can overheat) and 🎒 jetpack: press jump again in the air for a boost</li><li>🔧 Stand near your capsule on the beach to heal. Get knocked out and you reboot at the beach (−500 points)</li></ul>';
 }
 
+
+// ================= TITLE SCREEN =================
+// A live scene up in the sky: our hero fights his way to a rocket while skeletons shoot arrows at him.
+const TT=new THREE.Vector3(48,300,48); let titleOn=false, titleA=0, hadSave=false, titleK=null;
+const titleRoot=new THREE.Group(); titleRoot.position.copy(TT); titleRoot.visible=false; scene.add(titleRoot);
+function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a), dirt=lm(0x86603f), stone=lm(0x8a8580), dk=lm(0x5a5654);
+  const add=(m,x,y,z)=>{ m.position.set(x,y,z); g.add(m); return m; };
+  for(let x=-9;x<=9;x++)for(let z=-9;z<=9;z++){ const d=Math.hypot(x,z); if(d>9.3)continue; const h=d<7?0:-(d-7)*0.6; add(box(1,1,1,grass),x,h-0.5,z); add(box(1,3,1,dirt),x,h-2.5,z); if(d>7.6)add(box(1,2,1,stone),x,h-5,z); } // a floating island
+  for(const [x,z,h] of [[-6,-3,2],[-5,4,3],[5,-6,2]])for(let y=0;y<h;y++)add(box(1,1,1,y===h-1?stone:dk),x,y+0.5,z); // rocks for the skeletons
+  for(const [x,z] of [[7,-6],[-7,-7]]){ for(let y=0;y<4;y++)add(box(1,1,1,lm(0x6b4a2a)),x,y+0.5,z); for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(let dy=0;dy<2;dy++)add(box(1,1,1,lm(0x3f8a2e)),x+dx,4+dy,z+dz); }
+  // the rocket on its launch pad
+  const R=new THREE.Group(); R.position.set(3,0,-3); g.add(R); const W=lm(0xf2f2ee), red=lm(0xd8202a);
+  const pad=box(3.4,0.4,3.4,stone); pad.position.y=0.2; R.add(pad);
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,6,12),W); body.position.y=3.6; R.add(body);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(0.75,1.6,12),red); nose.position.y=7.4; R.add(nose);
+  for(let i=0;i<4;i++){ const f=box(0.12,1.4,1,red); const a=i*Math.PI/2; f.position.set(Math.cos(a)*0.8,1.3,Math.sin(a)*0.8); f.rotation.y=-a; R.add(f); }
+  const win=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.1,12),bm(0x40b0ff)); win.rotation.x=Math.PI/2; win.position.set(0,5.2,0.74); R.add(win);
+  // our hero, with a diamond sword
+  const hero=new THREE.Group(); g.add(hero); hero.position.set(0,0,2.5);
+  const lL=limbOn(hero,-0.125,0.72,0.24,0.72,pants,shoe), lR=limbOn(hero,0.125,0.72,0.24,0.72,pants,shoe); const bd=box(0.5,0.72,0.26,shirt); bd.position.y=1.08; hero.add(bd);
+  const aL=limbOn(hero,-0.37,1.42,0.22,0.7,shirt,skin), aR=limbOn(hero,0.37,1.42,0.22,0.7,shirt,skin);
+  const hd=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[skin,skin,hairM,skin,hairM,faceM]); hd.position.y=1.67; hero.add(hd);
+  const sw=weaponMesh('diamond',false); sw.position.set(0,-0.62,-0.08); sw.rotation.x=-Math.PI/2; aR.add(sw);
+  // skeletons with bows, and zombies coming at him
+  const skels=[]; for(const [x,y,z] of [[-6,2,-3],[-5,3,4],[5,2,-6]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=-1.5; r.armR.rotation.x=-1.5; skels.push({r,t:Math.random()*1.5}); }
+  const zombies=[]; for(let k=0;k<2;k++){ const r=mobModel('zombie'); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=-1.45; r.armR.rotation.x=-1.45; zombies.push({r,t:k*1.6}); }
+  titleK={hero,lL,lR,aL,aR,skels,zombies,arrows:[],bits:[],R,t:0}; }
+function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12; const T=K.t, H=K.hero;
+  const rad=camera.aspect<1?17:12, ang=0.25+Math.sin(titleA)*0.6, cx=TT.x+Math.sin(ang)*rad, cz=TT.z+Math.cos(ang)*rad+2; camera.position.set(cx,TT.y+(camera.aspect<1?5:3.8),cz); camera.lookAt(TT.x+1,TT.y+(camera.aspect<1?3.2:2.6),TT.z-0.5); // further back on tall phone screens
+  // the hero strafes toward the rocket and swings at whatever gets close
+  H.position.x=Math.sin(T*0.7)*1.2; const swing=(T%1.6)<0.35; H.rotation.y=Math.PI*0.85+Math.sin(T*0.7)*0.3;
+  const w=Math.sin(T*9)*0.6; K.lL.rotation.x=w; K.lR.rotation.x=-w; K.aL.rotation.x=-w*0.6; K.aR.rotation.x=swing?-2.4+((T%1.6)/0.35)*2.6:w*0.6;
+  for(const Z of K.zombies){ Z.t+=dt; const u=(Z.t%3.2)/3.2, side=Z===K.zombies[0]?1:-1; const zx=H.position.x+side*(5-u*3.6), zz=H.position.z-2.5+u*1.8;
+    Z.r.root.position.set(zx,0,zz); Z.r.root.rotation.y=Math.atan2(-(H.position.x-zx),-(H.position.z-zz)); const zw=Math.sin(Z.t*6)*0.5; Z.r.legL.rotation.x=zw; Z.r.legR.rotation.x=-zw;
+    if(u>0.96&&!Z.hit){ Z.hit=true; for(let i=0;i<10;i++)K.bits.push({m:titleBit(0x6fae4a,zx,1,zz),v:[(Math.random()-.5)*4,Math.random()*4+1,(Math.random()-.5)*4],life:0.7}); } if(u<0.5)Z.hit=false; Z.r.root.visible=u<0.97; }
+  for(const S of K.skels){ S.t-=dt; S.r.root.rotation.y=Math.atan2(-(H.position.x-S.r.root.position.x),-(H.position.z-S.r.root.position.z));
+    if(S.t<=0){ S.t=1.3+Math.random()*1.2; const a=arrowMesh(true); g2(a); const o=S.r.root.position.clone().add(new THREE.Vector3(0,1.5,0)), tg=H.position.clone().add(new THREE.Vector3((Math.random()-.5)*2.5,1.2+Math.random(),(Math.random()-.5)*2.5));
+      const d=tg.sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl+0.6}); S.r.armR.rotation.x=-1.2; } else if(S.t<1)S.r.armR.rotation.x=-1.5; }
+  for(let i=K.arrows.length-1;i>=0;i--){ const A=K.arrows[i]; A.life-=dt; A.v.y-=7*dt; A.p.addScaledVector(A.v,dt); A.m.position.copy(A.p); A.m.lookAt(A.p.clone().add(A.v)); A.m.rotateY(Math.PI); if(A.life<=0){ titleRoot.remove(A.m); K.arrows.splice(i,1); } }
+  if(Math.random()<0.35)K.bits.push({m:titleBit(Math.random()<0.5?0xffffff:0xcccccc,K.R.position.x+(Math.random()-.5)*2,0.6,K.R.position.z+(Math.random()-.5)*2),v:[(Math.random()-.5)*2,1+Math.random(),(Math.random()-.5)*2],life:1.2}); // rocket steam
+  for(let i=K.bits.length-1;i>=0;i--){ const b=K.bits[i]; b.life-=dt; b.v[1]-=4*dt; b.m.position.x+=b.v[0]*dt; b.m.position.y+=b.v[1]*dt; b.m.position.z+=b.v[2]*dt; if(b.life<=0){ titleRoot.remove(b.m); K.bits.splice(i,1); } } }
+function g2(m){ titleRoot.add(m); }
+const titleBitGeo=new THREE.BoxGeometry(0.16,0.16,0.16);
+function titleBit(c,x,y,z){ const m=new THREE.Mesh(titleBitGeo,cfxMat(c)); m.position.set(x,y,z); titleRoot.add(m); return m; }
+const titleEl=document.createElement('div'); titleEl.id='title'; titleEl.className='ui';
+titleEl.innerHTML='<div class="tbox"><div class="tname">StrataCraft</div><div class="tsub">A Game from Earth</div></div><div class="tbtns"><button id="tStart">▶ Start New Game</button><button id="tCont"></button></div>';
+document.body.appendChild(titleEl);
+function showTitle(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; $('modal').style.display='none'; rdBan.style.display='none'; mlPola.style.display='none';
+  if(!titleK)buildTitle(); titleOn=true; titleRoot.visible=true; document.body.classList.add('title'); fpHolder.visible=false; model.visible=false;
+  scene.background.setHex(SKY); scene.fog.color.setHex(SKY); scene.fog.near=60; scene.fog.far=150; moonSky.visible=false; for(const c of clouds)c.visible=false;
+  const c=$('tCont'); c.style.display=hadSave?'':'none'; c.textContent='Continue: '+(MODE_NAME[mode]||'my game'); }
+function hideTitle(){ titleOn=false; titleRoot.visible=false; document.body.classList.remove('title'); viewF=-1; }
+tap($('tStart'),()=>{ audioInit(); openNewGame(true); });
+tap($('tCont'),()=>{ audioInit(); hideTitle(); applyMode(); closeMenu(); afterLoad(); });
+function toTitle(){ saveNow(); hadSave=true; showTitle(); }
+
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
   {name:'🪽 Wings on',tip:'You and your rival can fly! Eagles and griffins carry their targets underneath.'},
@@ -3839,7 +3907,7 @@ function animate(dt){
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
-  update(dt); animate(dt);
+  update(dt); if(titleOn)updateTitle(dt); animate(dt);
   let n=0; for(const k of dirty){ buildChunk(k%NCX,Math.floor(k/NCX)); dirty.delete(k); if(++n>=4)break; }
   renderer.render(scene,camera); if(moonSnap){ const f=moonSnap; moonSnap=null; try{ f(renderer.domElement.toDataURL('image/jpeg',0.8)); }catch(e){} } requestAnimationFrame(frame);
 }
@@ -3849,11 +3917,11 @@ graniteTex=tileTex('granite'); lavaTex=tileTex('lava');
 { const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d'); const r=mulberry32(7);
   for(let yy=0;yy<16;yy++)for(let xx=0;xx<16;xx++){ const v=0.8+r()*0.35; x.fillStyle='rgb('+cl(120*v)+','+cl(88*v)+','+cl(55*v)+')'; x.fillRect(xx,yy,1,1); }
   mudTex=new THREE.CanvasTexture(c); mudTex.magFilter=mudTex.minFilter=THREE.NearestFilter; mudTex.generateMipmaps=false; }
-if(!loadCurrent()) startSurvival();
+hadSave=loadCurrent(); if(!hadSave) startSurvival();
 $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
-if(!seen) openMenu(); else afterLoad();
+showTitle();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
   look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, startEarth, get ea(){return ea;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
