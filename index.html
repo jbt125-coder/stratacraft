@@ -1526,13 +1526,13 @@ function openNewGame(){
     '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
     '<div class="item"><div class="ic">🌕</div><div class="tx"><b>Moon Landing</b><div class="fx">Land on the Moon, bounce around in 1/6 gravity collecting rock samples and plant the flag. Then a meteorite crashes… and the aliens come out. Grab your laser!</div></div><button class="ibtn" data-new="moon">Start</button></div>'+
-    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon to a big welcome! It\'s '+EA_YEAR()+', and the whole planet is throwing a celebration for Earth\'s hero astronaut: you!</div></div><button class="ibtn" data-new="earth">Start</button></div>'+
+    (moonDone()?'<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon to a big welcome! It\'s '+EA_YEAR()+', and the whole planet is throwing a celebration for Earth\'s hero astronaut: you!</div></div><button class="ibtn" data-new="earth">Start</button></div>':'<div class="item" style="opacity:.6"><div class="ic">🔒</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Locked. Finish 🌕 Moon Landing to unlock Chapter 2!</div></div><button class="ibtn gray" data-new="earth">Locked</button></div>')+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
-    if(md==='earth'){ if(!confirm('Start Chapter 2: Return to Earth? The game you are playing now will be replaced.'))return; closeMenu(); startEarth(); return; }
+    if(md==='earth'){ if(!moonDone()){ toast('🔒 Finish Moon Landing first to unlock Chapter 2!'); return; } if(!confirm('Start Chapter 2: Return to Earth? The game you are playing now will be replaced.'))return; closeMenu(); startEarth(); return; }
     if(md==='moon'){ if(!confirm('Start the Moon Landing? The game you are playing now will be replaced.'))return; closeMenu(); startMoon(); return; }
     if(md==='tour'){ if(!confirm('Start the Wrecking World Tour? The game you are playing now will be replaced.'))return; closeMenu(); startTour(); return; }
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
@@ -3081,6 +3081,7 @@ function updateMoonHud(){ const el=$('cartHud'); el.style.display='inline-block'
   h+=' &nbsp;<span style="color:'+(ml.leak||ml.o2<25?'#ff5a4a':'#9fd8ff')+'">🫧 O₂ '+Math.ceil(ml.o2)+'%'+(ml.leak?' LEAK!':'')+'</span>'; if(ml.stam<99)h+=' &nbsp;<span style="color:#ffd84a">💪'+'▮'.repeat(Math.round(ml.stam/20))+'</span>';
   h+=' &nbsp;<span style="color:#7fe3cf">⭐ '+ml.score+'</span> &nbsp;<span style="opacity:.8">⏱ '+Math.floor(ml.ct/60)+':'+('0'+Math.floor(ml.ct%60)).slice(-2)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function moonDone(){ try{ if(localStorage.getItem('stratacraft_moon_done'))return true; }catch(e){} return moonBest()>0; } // a high score is only saved when you win
 function moonBest(){ try{ return +localStorage.getItem(ML_BEST)||0; }catch(e){ return 0; } }
 function moonIntro(){ if(!ml)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=ml.phase!=='intro'&&ml.phase!=='done'&&ml.phase!=='failed';
   $('mbox').innerHTML='<h2>🌕 Moon Landing</h2><div class="say">Ride the lunar lander down to the Moon. Climb down the ladder and explore in <b>1/6 gravity</b> (you can jump really high!). Collect '+ML_NEED+' rock samples, then plant the flag. But something is about to crash nearby… Your <b>laser blaster</b> never runs out, but it can overheat.</div>'+
@@ -3090,6 +3091,7 @@ function moonIntro(){ if(!ml)return; if(document.pointerLockElement)document.exi
   tap($('mGo'),()=>{ closeMenu(); if(!mid){ if(ml.phase!=='intro')moonSetup(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; sfx('rock'); } }); tap($('mMenu2'),openMenu); }
 function moonFinish(won){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; rdBan.style.display='none'; mlPola.style.display='none';
   for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
+  if(won)try{ localStorage.setItem('stratacraft_moon_done','1'); }catch(e){}
   const tb=won?Math.max(0,Math.round((ML_PAR-ml.ct)*10)):0, total=ml.score+tb, best=moonBest(), rec=won&&total>best; if(rec)try{ localStorage.setItem(ML_BEST,String(total)); }catch(e){}
   const K=ml.kills, kills=['crawler','alien','robot','mech'].filter(k=>K[k]).map(k=>MOBT[k].name+'s: '+K[k]).join(' · ');
   $('mbox').innerHTML='<h2>'+(won?(rec?'🏆 NEW HIGH SCORE!':'🚀 Mission complete!'):'💀 Mission failed')+'</h2>'+
