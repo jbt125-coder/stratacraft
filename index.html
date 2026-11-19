@@ -135,6 +135,11 @@
   .dmWith{font:800 clamp(22px,4vw,38px) sans-serif;margin-top:6px;text-shadow:0 3px 10px #000} .dmWith b{color:#ffd84a}
   .dmPic{margin-top:14px;height:min(46vh,430px);display:flex;align-items:center;justify-content:center}
   .dmPic img{max-height:100%;max-width:80vw;border-radius:18px;display:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.6))}
+  #dmSplash.hasPic .dmFallback{display:none}
+  #dmSplash.hasPic .dmPic{margin-top:0;height:auto;width:min(94vw,calc(76vh * 1.79),1200px)}
+  #dmSplash.hasPic .dmPic img{width:100%;max-width:none;max-height:none;border-radius:22px;border:3px solid rgba(255,216,74,.85);animation:dmBreath 7s ease-in-out infinite,dmGlow 3s ease-in-out infinite}
+  @keyframes dmBreath{0%,100%{transform:scale(1) rotate(-0.4deg)}50%{transform:scale(1.035) rotate(0.4deg)}}
+  @keyframes dmGlow{0%,100%{box-shadow:0 0 24px rgba(255,200,60,.45),0 14px 40px rgba(0,0,0,.6)}50%{box-shadow:0 0 54px rgba(120,190,255,.7),0 14px 40px rgba(0,0,0,.6)}}
   #dmPh{display:none;width:min(38vh,300px);height:min(38vh,300px);border-radius:50%;background:radial-gradient(circle,#2a3a8a,#141a4a);align-items:center;justify-content:center;font-size:min(20vh,150px);animation:dmBob 2s ease-in-out infinite}
   .dmNext{margin-top:16px;display:flex;align-items:center;gap:12px;background:rgba(10,12,30,.6);padding:8px 18px 8px 8px;border-radius:40px;position:relative}
   .dmNext svg{width:52px;height:52px;transform:rotate(-90deg)} .dmNext circle{fill:none;stroke-width:5} .dmNext .bg{stroke:rgba(255,255,255,.15)} .dmNext .fg{stroke:#ffd84a;stroke-dasharray:119.4;stroke-dashoffset:0;stroke-linecap:round}
@@ -3812,7 +3817,7 @@ tap($('bGear'),openSettings);
 // ================= DEMO MODE =================
 // Started from ⚙️ for a classroom screen: Groundwater → quiz → Mr. Tyler → Moon Landing (autopilot, up to "Houston, we have a problem") → quiz → Mr. Tyler → again.
 // Nobody has to touch anything. It only stops from ⚙️, and it never overwrites the saved game.
-const DEMO_IMG='mr-tyler.gif', DEMO_Q_READ=15, DEMO_Q_SHOW=5, DEMO_SPLASH=30;
+const DEMO_IMG='mr-tyler.webp', DEMO_Q_READ=15, DEMO_Q_SHOW=5, DEMO_SPLASH=30;
 const DEMO_QS={
   aqua:[
     {q:'What is topography?',a:['The shape of the land: its hills, valleys and slopes','The study of tiny bugs','A kind of rock','The weather on a mountain'],why:'Topography is the shape of the land\'s surface. Maps show it with contour lines.'},
@@ -3831,15 +3836,15 @@ const demoOn=()=>!!demo;
 // --- the quiz screen
 const dmQuiz=document.createElement('div'); dmQuiz.id='dmQuiz'; dmQuiz.className='dmOver'; document.body.appendChild(dmQuiz);
 const dmSplash=document.createElement('div'); dmSplash.id='dmSplash'; dmSplash.className='dmOver';
-dmSplash.innerHTML='<canvas id="dmSky"></canvas><div class="dmS"><div class="dmTake">Take</div><div class="dmESS">Earth &amp; Space Science</div><div class="dmWith">with <b>Mr. Tyler</b></div>'+
-  '<div class="dmPic"><img id="dmImg" alt="Mr. Tyler giving a thumbs up"><div id="dmPh">👍</div></div>'+
+dmSplash.innerHTML='<canvas id="dmSky"></canvas><div class="dmS"><div class="dmFallback"><div class="dmTake">Take</div><div class="dmESS">Earth &amp; Space Science</div><div class="dmWith">with <b>Mr. Tyler</b></div></div>'+
+  '<div class="dmPic"><img id="dmImg" alt="Earth Space Science with Mr. Tyler. Sign up now!"><div id="dmPh">👍</div></div>'+
   '<div class="dmNext"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" class="bg"/><circle cx="22" cy="22" r="19" class="fg" id="dmRing"/></svg><span id="dmCount">30</span><span class="lbl">Next demo starts soon…</span></div></div>';
 document.body.appendChild(dmSplash);
 function dmSkip(){ if(!demo||$('modal').style.display==='flex')return; const Z=demo.quiz;
   if(Z){ if(!Z.shown)Z.t=DEMO_Q_READ; else Z.t=DEMO_Q_SHOW; } else if(demo.splash>0)demo.splash=0; }
 for(const o of [dmQuiz,dmSplash]){ o.addEventListener('click',e=>{ if(!e.target.closest('.dmGear'))dmSkip(); }); o.addEventListener('touchstart',e=>{ if(e.target.closest('.dmGear'))return; e.preventDefault(); dmSkip(); },{passive:false}); o.title='Tap to skip'; }
 for(const o of [dmQuiz,dmSplash]){ const g=document.createElement('button'); g.className='dmGear'; g.textContent='⚙️'; g.title='Settings'; o.appendChild(g); tap(g,openSettings); }
-{ const im=$('dmImg'); im.onerror=()=>{ im.style.display='none'; $('dmPh').style.display='flex'; }; im.onload=()=>{ im.style.display='block'; $('dmPh').style.display='none'; }; im.src=DEMO_IMG; }
+{ const im=$('dmImg'); im.onerror=()=>{ im.style.display='none'; $('dmPh').style.display='flex'; dmSplash.classList.remove('hasPic'); }; im.onload=()=>{ im.style.display='block'; $('dmPh').style.display='none'; dmSplash.classList.add('hasPic'); }; im.src=DEMO_IMG; }
 function dmQuizStart(set){ const qs=DEMO_QS[set].map(o=>{ const order=[0,1,2,3].sort(()=>Math.random()-0.5); return {q:o.q,why:o.why,a:order.map(i=>o.a[i]),right:order.indexOf(0)}; });
   demo.quiz={set,qs,i:0,t:0,shown:false}; dmQuizDraw(); dmQuiz.style.display='flex'; }
 function dmQuizDraw(){ const Z=demo.quiz, Q=Z.qs[Z.i];
