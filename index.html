@@ -1387,8 +1387,10 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space')e.preventDefault();
 });
 window.addEventListener('keyup',e=>{ keys[e.code]=false; });
+window.addEventListener('keydown',e=>{ if(!['Space','Enter','ArrowRight','NumpadEnter'].includes(e.code)||$('modal').style.display==='flex')return;
+  if(demo&&(demo.quiz||demo.splash>0)){ e.preventDefault(); dmSkip(); } else if(mode==='aqua'&&gw&&gw.cine){ e.preventDefault(); gwSkip(); } });
 if(!IS_TOUCH){
-  touchEl.addEventListener('click',e=>{ audioInit(); if(demo)return; if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
+  touchEl.addEventListener('click',e=>{ audioInit(); if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(demo)return; if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement!==touchEl||paused)return;
     yaw-=e.movementX*SENS_M; pitch-=e.movementY*SENS_M; pitch=Math.max(-1.55,Math.min(1.55,pitch)); });
   touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)placeAction(); });
@@ -3551,8 +3553,8 @@ function gwPut(i,id){ world[i]=id; meta[i]=0; placed.delete(i); markDirty(ix_(i)
 const gwDock=document.createElement('div'); gwDock.id='gwDock'; gwDock.className='ui';
 gwDock.innerHTML='<button id="gwBtn"></button><div id="gwCap"><span class="t"></span><button class="nx" title="Next">▶</button></div>'; document.body.appendChild(gwDock);
 let gwCapDone=null;
-gwDock.querySelector('.nx').addEventListener('click',e=>{ e.preventDefault(); if(gwCapDone)gwCapDone(); });
-gwDock.querySelector('.nx').addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); if(gwCapDone)gwCapDone(); },{passive:false});
+{ const cap=gwDock.querySelector('#gwCap'); cap.title='Tap to skip'; cap.style.cursor='pointer';
+  cap.addEventListener('click',e=>{ e.preventDefault(); gwSkip(); }); cap.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); gwSkip(); },{passive:false}); }
 function gwCaption(t){ const c=$('gwCap'); if(!t){ c.style.display='none'; return; } c.querySelector('.t').innerHTML=t; c.style.display='flex'; gwDock.classList.add('on'); }
 let gwVoiceObj=null;
 function gwPickVoice(){ if(gwVoiceObj!==null)return gwVoiceObj; try{ const vs=speechSynthesis.getVoices(); if(!vs.length)return null;
@@ -3577,7 +3579,7 @@ function gwWait(s){ const run=gw, t0=run.clock; return gwUntil(()=>run.clock-t0>
 async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*capSpd().k;
   let heard=false; gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,ok=>{ done=true; heard=ok; });
   await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(done)return heard?e>=1:e>=est; if(spoke&&voiceOn())return e>=est*2+4; return e>=est; });
-  gwCapDone=null; await gwWait(capSpd().p); }
+  gwCapDone=null; await gwWait(skip?0.15:capSpd().p); }
 function gwButton(label){ const run=gw, b=$('gwBtn'), t0=gw.clock; b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
   b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
   return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5)).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
@@ -3627,8 +3629,10 @@ function gwMarker(x,y,z){ gwMarkerOff(); const g=new THREE.Group(); g.position.s
   const hit=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,14,10),gwHitMat); hit.position.y=6; g.add(hit);
   gwRoot.add(g); gw.marker={g,ring,hit}; }
 function gwMarkerOff(){ if(!gw||!gw.marker)return; gw.marker.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); gwRoot.remove(gw.marker.g); gw.marker=null; }
-function gwTap(cx,cy){ if(!gw||!gw.marker||paused)return; const b=$('gwBtn'); if(b.style.display==='none')return;
-  gwRay.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),camera); if(gwRay.intersectObject(gw.marker.hit,false).length&&b.onclick)b.onclick({preventDefault(){}}); }
+function gwTap(cx,cy){ if(!gw||paused)return; const b=$('gwBtn');
+  if(gw.marker&&b.style.display!=='none'){ gwRay.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),camera); if(gwRay.intersectObject(gw.marker.hit,false).length&&b.onclick){ b.onclick({preventDefault(){}}); return; } }
+  gwSkip(); }
+function gwSkip(){ if(gwCapDone)gwCapDone(); } // tap, click or Space: on to the next caption
 // --- wells: dig straight down until you reach water (or bedrock)
 function gwDrill(x,z,y0){ const run=gw; let sawClay=false, kind='dry', fill=-1; const steps=[];
   for(let y=y0;y>=1;y--){ const id=world[idx(x,y,z)]; if(id===ID.granite||id===ID.basalt)break; steps.push(y); if(id===ID.clay)sawClay=true;
@@ -3831,6 +3835,9 @@ dmSplash.innerHTML='<canvas id="dmSky"></canvas><div class="dmS"><div class="dmT
   '<div class="dmPic"><img id="dmImg" alt="Mr. Tyler giving a thumbs up"><div id="dmPh">👍</div></div>'+
   '<div class="dmNext"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" class="bg"/><circle cx="22" cy="22" r="19" class="fg" id="dmRing"/></svg><span id="dmCount">30</span><span class="lbl">Next demo starts soon…</span></div></div>';
 document.body.appendChild(dmSplash);
+function dmSkip(){ if(!demo||$('modal').style.display==='flex')return; const Z=demo.quiz;
+  if(Z){ if(!Z.shown)Z.t=DEMO_Q_READ; else Z.t=DEMO_Q_SHOW; } else if(demo.splash>0)demo.splash=0; }
+for(const o of [dmQuiz,dmSplash]){ o.addEventListener('click',e=>{ if(!e.target.closest('.dmGear'))dmSkip(); }); o.addEventListener('touchstart',e=>{ if(e.target.closest('.dmGear'))return; e.preventDefault(); dmSkip(); },{passive:false}); o.title='Tap to skip'; }
 for(const o of [dmQuiz,dmSplash]){ const g=document.createElement('button'); g.className='dmGear'; g.textContent='⚙️'; g.title='Settings'; o.appendChild(g); tap(g,openSettings); }
 { const im=$('dmImg'); im.onerror=()=>{ im.style.display='none'; $('dmPh').style.display='flex'; }; im.onload=()=>{ im.style.display='block'; $('dmPh').style.display='none'; }; im.src=DEMO_IMG; }
 function dmQuizStart(set){ const qs=DEMO_QS[set].map(o=>{ const order=[0,1,2,3].sort(()=>Math.random()-0.5); return {q:o.q,why:o.why,a:order.map(i=>o.a[i]),right:order.indexOf(0)}; });
@@ -3891,7 +3898,7 @@ function demoPilot(dt){ if(!demo||mode!=='moon'||!ml)return null; invuln=Math.ma
 function demoStart(){ if(document.pointerLockElement)document.exitPointerLock(); saveNow(); demo={stage:'',t:0,quiz:null,splash:0,pil:{t:0,d:1e9,up:0}}; document.body.classList.add('demo'); demoGo('aqua'); }
 function demoStop(){ if(!demo)return; demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
   closeMenu(); hadSave=loadCurrent(); if(!hadSave)startSurvival(); showTitle(); }
-function demoGo(stage){ demo.stage=stage; demo.t=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
+function demoGo(stage){ demo.stage=stage; demo.t=0; demo.quiz=null; demo.splash=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
   if(stage==='aqua'){ closeMenu(); startAqua(true); }
   else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=3; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
   else { gwStopVoice(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
