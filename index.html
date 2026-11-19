@@ -112,6 +112,14 @@
   #title button{font:900 clamp(20px,5vw,28px) sans-serif;padding:14px 34px;border-radius:14px;border:3px solid #fff;background:#3fa34d;color:#fff;box-shadow:0 6px 0 #22662c,0 10px 20px rgba(0,0,0,.4);cursor:pointer;animation:tpulse 1.6s ease-in-out infinite}
   #title #tCont{font-size:clamp(15px,3.6vw,18px);padding:9px 20px;background:rgba(20,24,32,.75);box-shadow:none;animation:none;border-width:2px}
   @keyframes tpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  #gwDock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(760px,calc(100% - 32px));z-index:6;display:none;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
+  #gwDock.on{display:flex}
+  #gwCap{pointer-events:auto;background:rgba(12,16,24,.88);border:2px solid rgba(127,227,207,.55);border-radius:14px;padding:10px 12px 10px 16px;color:#fff;font:700 clamp(15px,2.4vw,19px)/1.4 sans-serif;display:none;gap:10px;align-items:center;width:100%;box-sizing:border-box;text-shadow:0 1px 2px #000}
+  #gwCap .t{flex:1} #gwCap b{color:#7fe3cf}
+  #gwCap .nx{flex:none;width:40px;height:40px;border-radius:10px;border:none;background:#7fe3cf;color:#111;font-weight:900;font-size:17px;cursor:pointer}
+  #gwBtn{pointer-events:auto;display:none;font:900 clamp(19px,4vw,26px) sans-serif;padding:12px 28px;border-radius:14px;border:3px solid #fff;background:#2f8fd8;color:#fff;box-shadow:0 5px 0 #1a5a8e,0 8px 18px rgba(0,0,0,.4);cursor:pointer;animation:tpulse 1.6s ease-in-out infinite}
+  body.gwc #act,body.gwc #hotwrap,body.gwc #cross,body.gwc #joyHint,body.gwc #looking,body.gwc #bWeapon,body.gwc #bFly,body.gwc #bCam,body.gwc #bArrow,body.gwc #bInfo,body.gwc #joyBase,body.gwc #joyKnob{display:none!important}
+  body.aqua #hearts,body.aqua #coins,body.aqua #hotwrap,body.aqua #bWeapon,body.aqua #bArrow{display:none!important}
   #modal{inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
   #modal .box{width:min(560px,calc(100vw - 30px));max-height:calc(100vh - 30px);overflow:auto;background:#1a1f2b;border-radius:16px;
     padding:16px 18px;border:2px solid rgba(255,255,255,.2);font-size:14px;line-height:1.45;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -155,6 +163,7 @@
   <div class="tbtn" id="bCam">👁 1st</div>
   <div class="tbtn" id="bFly">🪽</div>
   <div class="tbtn" id="bInfo">ℹ️</div>
+  <div class="tbtn" id="bGear" style="display:none">⚙️</div>
   <div class="tbtn" id="bMenu">☰</div>
 </div>
 <div id="card" class="ui"></div>
@@ -270,6 +279,7 @@ makeTile('circuit',52,(x,y,r)=>{ if((x===3||x===11)&&y>2||y===5&&x>2||y===12&&x<
 makeTile('server',53,(x,y,r)=>{ if(y%4===0)return nz([46,48,54],r,.1); if(x>=2&&x<=13&&y%4===2)return (x%3===0)?[r()<.5?40:255,r()<.5?255:40,r()<.3?255:40]:[14,14,18]; return nz([24,24,30],r,.15); });
 makeTile('screen',54,(x,y,r)=>{ if(x===0||y===0||x===15||y===15)return [30,30,34]; let c=nz([22,48,96],r,.2); if(y%3===0)c=mul(c,0.7); if(r()<.03)c=[160,220,255]; return c; });
 makeTile('steel',47,(x,y,r)=>{ const v=Math.sin((x+y)*0.4); return nz(v>0.6?[226,230,236]:[176,182,192],r,.05); });
+makeTile('wetsand',55,(x,y,r)=>{ let c=nz([150,140,108],r,.1); if(r()<.2)c=nz([84,140,214],r,.1); return c; });
 makeTile('roof',45,(x,y,r)=>{ if(y%4===3)return nz([110,30,24],r,.1); return nz(((x+(y>>2)*3)%6===0)?[150,44,34]:[178,58,42],r,.08); });
 
 // fire texture (4 animation frames stacked)
@@ -337,6 +347,7 @@ addBlock('circuit','Circuit Board','Building','Circuit boards hold tiny chips ma
 addBlock('server','Server Rack','Building','A dead computer server. Real data centers use huge amounts of electricity and water to stay cool.',{t:'server'},{hidden:true});
 addBlock('screen','Broken Screen','Building','A flickering computer screen. Screens are made of glass, a material made from quartz sand.',{t:'screen'},{hidden:true});
 addBlock('steel','Steel','Building','Steel is iron mixed with a little carbon, which makes it much stronger.',{t:'steel'},{hidden:true});
+addBlock('wetsand','Wet Sand (Aquifer)','Soil','Sand soaked with groundwater. Water fills the tiny spaces (pores) between the grains. Sand is very permeable: water moves through it easily.',{t:'wetsand'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
 B.forEach(b=>{ if(!b)return; const id=b.side; const d=actx.getImageData((id%COLS)*T,Math.floor(id/COLS)*T,T,T).data;
@@ -624,7 +635,7 @@ function rleEncode(a){ const out=[]; let v=a[0],n=1; for(let i=1;i<a.length;i++)
 function rleDecode(r){ const a=new Uint8Array(N); let p=0; for(let i=0;i<r.length;i+=2){ a.fill(r[i],p,p+r[i+1]); p+=r[i+1]; } return a; }
 let saveTimer=null;
 const KIT_KEY='stratacraft_kit'; // survival coins + weapons carry over between survival worlds
-function snapshot(){ return {v:3,mode,seed,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,arrows,arrowSel,
+function snapshot(){ return {v:3,mode,seed,shirt:gameShirt,w:rleEncode(world),m:rleEncode(meta),p:[pl.p[0],pl.p[1],pl.p[2],yaw,pitch],sel,fly,cam:camMode,hp,coins,owned,weapon,mobsOn,arrows,arrowSel,
   cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed],lay:cg.lay||1}:null,
   apples:appleTrees.map(t=>({x:t.x,ty:t.ty,z:t.z,c:t.cand,g:Math.round(t.grow),s:t.slots.map(sl=>[sl.c,sl.st,Math.round(sl.t)])})),
   tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,rs:tgm.rs,wins:tgm.wins,boost:tgm.boost,out:tgm.out,last:tgm.last,rvhp:rv.hp,phase:tgm.phase,rv:rv.p.slice()}:null}; }
@@ -635,7 +646,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=['corners','targets','cart','raid','tour','moon','earth'].includes(s.mode)?s.mode:'survival';
+  mode=['corners','targets','cart','raid','tour','moon','earth','aqua'].includes(s.mode)?s.mode:'survival'; if(typeof s.shirt==='number')gameShirt=s.shirt; shirt.color.setHex(gameShirt);
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -659,6 +670,7 @@ function applySnapshot(s){
   if(mode==='earth'){ owned=['laser']; weapon='laser'; camMode=1; eaSetup(0); } // a saved chapter 2 starts over
   if(mode==='moon'){ owned=['laser']; weapon='laser'; camMode=1; moonSetup(); } // a saved moon mission starts over
   if(mode==='tour'){ owned=['fists','bow']; weapon='bow'; tourSetup(); } // a saved tour always starts over
+  if(mode==='aqua'){ owned=['fists']; weapon='fists'; setFly(true,false); gwSetup(); } // a saved lesson starts over
   if(mode==='raid'){ owned=['fists','bow']; weapon='bow'; raidSetup(); } // a saved Rail Rampage always starts a fresh run
   select(sel,false); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); updateFCHud();
   $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3);
@@ -1066,6 +1078,7 @@ function hitAction(){
   if(mode==='tour'){ tourShoot(); return; }
   if(mode==='moon'){ moonShoot(); return; }
   if(mode==='earth'){ eaShoot(); return; }
+  if(mode==='aqua'){ gwHit(); return; }
   if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
@@ -1213,6 +1226,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
+  if(mode==='aqua'){ gwPlace(); return; }
   if(mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
@@ -1278,6 +1292,7 @@ const SENS_T=0.0055, SENS_M=0.0025;
 const touchEl=$('touch');
 touchEl.addEventListener('touchstart',e=>{
   e.preventDefault(); audioInit();
+  if(mode==='aqua'&&gw&&gw.cine){ for(const t of e.changedTouches)gwTap(t.clientX,t.clientY); return; }
   for(const t of e.changedTouches){
     if(t.clientX<window.innerWidth*0.42 && joy.id===null && mode!=='cart' && mode!=='raid' && mode!=='tour'){
       joy.id=t.identifier; joy.ox=t.clientX; joy.oy=t.clientY; joy.x=joy.y=0;
@@ -1345,7 +1360,7 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{ keys[e.code]=false; });
 if(!IS_TOUCH){
-  touchEl.addEventListener('click',()=>{ audioInit(); if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
+  touchEl.addEventListener('click',e=>{ audioInit(); if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement!==touchEl||paused)return;
     yaw-=e.movementX*SENS_M; pitch-=e.movementY*SENS_M; pitch=Math.max(-1.55,Math.min(1.55,pitch)); });
   touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)placeAction(); });
@@ -1383,6 +1398,13 @@ function showCard(id,stay){ const b=B[id], c=$('card');
   c.innerHTML='<span class="nm">'+b.name+'</span><span class="badge" style="background:'+CAT[b.cat].c+'">'+b.cat+'</span><div class="fact">'+b.fact+'</div>';
   c.style.display='block'; clearTimeout(cardTimer); cardTimer=setTimeout(()=>c.style.display='none',stay?9000:5000); }
 let toastTimer=null;
+const VOICE_KEY='stratacraft_voice'; let voicePref=true; try{ voicePref=localStorage.getItem(VOICE_KEY)!=='0'; }catch(e){}
+function voiceOn(){ return voicePref; }
+function setVoice(on){ voicePref=!!on; try{ localStorage.setItem(VOICE_KEY,on?'1':'0'); }catch(e){} if(!on)try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+function openSettings(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; const on=voiceOn();
+  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div>'+
+    '<div class="row"><button class="mbtn" id="gBack">Back to the game</button></div>';
+  $('modal').style.display='flex'; tap($('gVoice'),()=>{ setVoice(!voiceOn()); openSettings(); }); tap($('gBack'),closeMenu); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
@@ -1396,7 +1418,7 @@ let viewF=-1;
 function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
-  const fc=mode==='corners'||mode==='tour'||mode==='moon'||mode==='earth'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
+  const fc=mode==='corners'||mode==='tour'||mode==='moon'||mode==='earth'||mode==='aqua'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
 function cycleWeapon(){ if(mode==='moon'||mode==='earth'){ toast('🔫 Your laser is all you need up here!'); return; } if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
@@ -1432,14 +1454,14 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='earth'?earthHelp():mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='aqua'?aquaHelp():mode==='earth'?earthHelp():mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div class="row"><button class="mbtn gray" id="mTitle">🏠 Main Menu</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
   tap($('mTitle'),toTitle);
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); if(mode==='earth'&&ea&&['intro','won'].includes(ea.phase))earthIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); if(mode==='earth'&&ea&&['intro','won'].includes(ea.phase))earthIntro(); if(mode==='aqua'&&gw&&gw.phase==='intro')gwIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1480,14 +1502,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour',moon:'🌕 Moon',earth:'🌍 Earth'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour',moon:'🌕 Moon',earth:'🌍 Earth',aqua:'💧 Groundwater'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':mode==='moon'?'Moon Landing':mode==='earth'?'Return to Earth':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':mode==='moon'?'Moon Landing':mode==='earth'?'Return to Earth':mode==='aqua'?'Groundwater':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1513,7 +1535,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour','moon','earth'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour','moon','earth','aqua'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1543,6 +1565,7 @@ function openNewGame(fromTitle){
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
     '<div class="item"><div class="ic">🌕</div><div class="tx"><b>Moon Landing</b><div class="fx">Land on the Moon, bounce around in 1/6 gravity collecting rock samples and plant the flag. Then a meteorite crashes… and the aliens come out. Grab your laser!</div></div><button class="ibtn" data-new="moon">Start</button></div>'+
     (moonDone()?'<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon to a big welcome! It\'s '+EA_YEAR()+', and the whole planet is throwing a celebration for Earth\'s hero astronaut: you!</div></div><button class="ibtn" data-new="earth">Start</button></div>':'<div class="item" style="opacity:.6"><div class="ic">🔒</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Locked. Finish 🌕 Moon Landing to unlock Chapter 2!</div></div><button class="ibtn gray" data-new="earth">Locked</button></div>')+
+    '<div class="item"><div class="ic">💧</div><div class="tx"><b>Groundwater Adventure</b><div class="fx">Watch a landscape build itself brick by brick, slice it open and find where water hides underground. Dig wells and make an artesian spring!</div></div><button class="ibtn" data-new="aqua">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
@@ -1550,6 +1573,7 @@ function openNewGame(fromTitle){
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
     if(md==='earth'){ if(!moonDone()){ toast('🔒 Finish Moon Landing first to unlock Chapter 2!'); return; } if(!confirm('Start Chapter 2: Return to Earth? The game you are playing now will be replaced.'))return; closeMenu(); startEarth(); return; }
     if(md==='moon'){ if(!confirm('Start the Moon Landing? The game you are playing now will be replaced.'))return; closeMenu(); startMoon(); return; }
+    if(md==='aqua'){ if(!confirm('Start the Groundwater Adventure? The game you are playing now will be replaced.'))return; closeMenu(); startAqua(); return; }
     if(md==='tour'){ if(!confirm('Start the Wrecking World Tour? The game you are playing now will be replaced.'))return; closeMenu(); startTour(); return; }
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
     if(!confirm('Start a new '+(md==='corners'?'Four Corners':'Survival')+' game? The game you are playing now will be replaced.'))return;
@@ -1558,13 +1582,15 @@ function openNewGame(fromTitle){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ if(titleOn)hideTitle(); rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearEarth(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ if(titleOn){ gameShirt=titleShirt; hideTitle(); } clearAqua(); rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearEarth(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth')?'none':''; { const mo=mode==='moon'; const ew=mode==='earth'; scene.background.setHex(mo?0x000000:ew?EA_SKY:SKY); scene.fog.color.setHex(mo?0x000000:ew?EA_SKY:SKY); for(const c of clouds)c.visible=!mo&&!ew; moonSky.visible=mo; }
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth'||mode==='aqua')?'none':''; { const mo=mode==='moon'; const ew=mode==='earth'; scene.background.setHex(mo?0x000000:ew?EA_SKY:SKY); scene.fog.color.setHex(mo?0x000000:ew?EA_SKY:SKY); for(const c of clouds)c.visible=!mo&&!ew; moonSky.visible=mo; }
   $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
-  document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
+  document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud();
+  const aq=mode==='aqua'; document.body.classList.toggle('aqua',aq); if(!aq)document.body.classList.remove('gwc'); $('bGear').style.display=aq||mode==='moon'||mode==='earth'?'':'none';
+  $('bBreak').innerHTML=aq?'<span>⛏</span>Dig':'<span>⛏</span>Hit'; $('bPlace').innerHTML=aq?'<span>💧</span>Water':'<span>🧱</span>Place'; }
 function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists',arrows:cleanArrows(k.arrows)}; } }catch(e){}
   return {coins:0,owned:['fists'],weapon:'fists',arrows:cleanArrows()}; }
 function startSurvival(){
@@ -2966,7 +2992,7 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
 const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
 const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
 document.body.appendChild(mlPola);
-function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis)return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
+function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
   setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} },380); u.onend=()=>sfx('radio'); }catch(e){} }
 function mlFlashOn(){ mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
 function mlShowPhoto(url,cap){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">'+(cap||'Me on the Moon! 🌕')+'</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
@@ -3362,6 +3388,9 @@ function earthHelp(){
 
 // ================= TITLE SCREEN =================
 // A live scene up in the sky: our hero fights his way to a rocket while skeletons shoot arrows at him.
+let gameShirt=0x1f8a8a, titleShirt=0x1f8a8a; // the title screen picks a new shirt colour each time; a new game keeps it
+function randomShirt(){ const old={h:0}; new THREE.Color(titleShirt).getHSL(old); let h, k=0; do{ h=Math.random(); k++; }while(k<20&&Math.min(Math.abs(h-old.h),1-Math.abs(h-old.h))<0.12);
+  return new THREE.Color().setHSL(h,0.6+Math.random()*0.3,0.4+Math.random()*0.14).getHex(); }
 const TT=new THREE.Vector3(48,300,48); let titleOn=false, titleA=0, hadSave=false, titleK=null;
 const titleRoot=new THREE.Group(); titleRoot.position.copy(TT); titleRoot.visible=false; scene.add(titleRoot);
 function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a), dirt=lm(0x86603f), stone=lm(0x8a8580), dk=lm(0x5a5654);
@@ -3424,13 +3453,292 @@ const titleEl=document.createElement('div'); titleEl.id='title'; titleEl.classNa
 titleEl.innerHTML='<div class="tbox"><div class="tname">StrataCraft</div><div class="tsub">A Game from Earth</div></div><div class="tbtns"><button id="tStart">▶ Start New Game</button><button id="tCont"></button></div>';
 document.body.appendChild(titleEl);
 function showTitle(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; $('modal').style.display='none'; rdBan.style.display='none'; mlPola.style.display='none';
+  titleShirt=randomShirt(); shirt.color.setHex(titleShirt);
   if(!titleK)buildTitle(); titleOn=true; titleRoot.visible=true; document.body.classList.add('title'); fpHolder.visible=false; model.visible=false;
   scene.background.setHex(SKY); scene.fog.color.setHex(SKY); scene.fog.near=60; scene.fog.far=150; moonSky.visible=false; for(const c of clouds)c.visible=false;
   const c=$('tCont'); c.style.display=hadSave?'':'none'; c.textContent='Continue: '+(MODE_NAME[mode]||'my game'); }
-function hideTitle(){ titleOn=false; titleRoot.visible=false; document.body.classList.remove('title'); viewF=-1; }
+function hideTitle(){ shirt.color.setHex(gameShirt); titleOn=false; titleRoot.visible=false; document.body.classList.remove('title'); viewF=-1; }
 tap($('tStart'),()=>{ audioInit(); openNewGame(true); });
 tap($('tCont'),()=>{ audioInit(); hideTitle(); applyMode(); closeMenu(); afterLoad(); });
 function toTitle(){ saveNow(); hadSave=true; showTitle(); }
+
+// ================= GROUNDWATER ADVENTURE =================
+// A guided lesson: flat land with a lake, a cutaway, then topography, aquifers, two wells and an artesian spring.
+// u runs from the hilltop (u=0) down to the lake side, v runs south→north (z). The cutaway removes rows v<GW_CUT, so the cut face sits at z=GW_FZ.
+const GW_X0=16, GW_Z0=28, GW_U=64, GW_V=40, GW_CUT=20, GW_FZ=GW_Z0+GW_CUT;
+const GW_LAKE={u:52,v:20,ru:9,rv:13}, GW_RIV=26, GW_W1=41, GW_W2=26, GW_RECH=10, GW_HEAD=34, GW_RU=5;
+const GW_TREES=[[30,34],[36,31],[47,37],[60,37],[18,33],[24,36],[40,38]];
+let gw=null; const gwRoot=new THREE.Group(); scene.add(gwRoot);
+const gwX=u=>GW_X0+GW_U-1-u, gwU=x=>GW_X0+GW_U-1-x; // u runs east→west so the hill is on the left as you look at the cut face
+const gwLake=(u,v)=>((u-GW_LAKE.u)/GW_LAKE.ru)**2+((v-GW_LAKE.v)/GW_LAKE.rv)**2;
+const gwSurf=u=>u<=12?34:u>=40?17:Math.round(34-(u-12)*17/28);          // the hill, the slope and the lowland
+const gwAq=u=>u<=GW_RECH?34:u>=40?9:Math.round(34-(u-GW_RECH)*25/30);   // top of the confined aquifer: it climbs west and comes out on the hilltop
+const gwWT=u=>u>=40?15:Math.min(gwSurf(u)-2,Math.round(15+(40-u)*0.2)); // the water table of the open aquifer
+function gwCol(stage,u,v){ const c=[];
+  if(stage===1){ const s=17; for(let y=1;y<=s;y++)c[y]=y<=3?ID.granite:y<=9?ID.sand:y<=11?ID.clay:y<=15?ID.wetsand:y<s?ID.dirt:ID.grass; }
+  else { const s=gwSurf(u), a=gwAq(u), wt=gwWT(u);
+    for(let y=1;y<=s;y++)c[y]=(y<=3||y<a-5)?ID.granite:y<=a-4?ID.clay:y<=a?ID.wetsand:y<=a+2?ID.clay:y<=wt?ID.wetsand:y>=s-2?ID.dirt:ID.sand;
+    if(u<=GW_RECH)c[s]=ID.sand; else if(u>GW_RECH+1||c[s]!==ID.clay)c[s]=ID.grass;
+    if((v===GW_RIV||v===GW_RIV+1)&&u>=13&&gwLake(u,v)>1.4){ c[s]=ID.water; if(c[s-1]===ID.dirt)c[s-1]=ID.sand; } } // the river runs down the slope
+  const lk=gwLake(u,v), top=c.length-1;
+  if(lk<=1){ for(let y=12;y<=top;y++)c[y]=y<=15?ID.water:0; }
+  else if(lk<=1.4&&c[top]!==ID.water)c[top]=ID.sand; // a sandy shore
+  return c; }
+function gwTarget(stage,cut){ const t=new Uint8Array(N); for(let z=0;z<D;z++)for(let x=0;x<W;x++)t[idx(x,0,z)]=ID.grass;
+  if(!stage)return t;
+  for(let v=0;v<GW_V;v++){ if(cut&&v<GW_CUT)continue; for(let u=0;u<GW_U;u++){ const c=gwCol(stage,u,v); for(let y=1;y<c.length;y++)if(c[y])t[idx(gwX(u),y,GW_Z0+v)]=c[y]; } }
+  if(stage===2){ const keep=world; world=t; const r=mulberry32(11); for(const [u,v] of GW_TREES)plantTree(gwX(u),gwSurf(u)+1,GW_Z0+v,r); world=keep; }
+  return t; }
+function gwPut(i,id){ world[i]=id; meta[i]=0; placed.delete(i); markDirty(ix_(i),iz_(i)); } // no wake(): the lesson's water stays exactly where we put it
+// --- narration: captions always, plus a voice that can be switched off in ⚙️
+const gwDock=document.createElement('div'); gwDock.id='gwDock'; gwDock.className='ui';
+gwDock.innerHTML='<button id="gwBtn"></button><div id="gwCap"><span class="t"></span><button class="nx" title="Next">▶</button></div>'; document.body.appendChild(gwDock);
+let gwCapDone=null;
+gwDock.querySelector('.nx').addEventListener('click',e=>{ e.preventDefault(); if(gwCapDone)gwCapDone(); });
+gwDock.querySelector('.nx').addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); if(gwCapDone)gwCapDone(); },{passive:false});
+function gwCaption(t){ const c=$('gwCap'); if(!t){ c.style.display='none'; return; } c.querySelector('.t').innerHTML=t; c.style.display='flex'; gwDock.classList.add('on'); }
+let gwVoiceObj=null;
+function gwPickVoice(){ if(gwVoiceObj!==null)return gwVoiceObj; try{ const vs=speechSynthesis.getVoices(); if(!vs.length)return null;
+    gwVoiceObj=vs.find(v=>/en[-_]US/i.test(v.lang)&&/samantha|google us|aria|jenny|zira/i.test(v.name))||vs.find(v=>/en[-_]US/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||false; }catch(e){ gwVoiceObj=false; } return gwVoiceObj; }
+function gwSpeak(text,onEnd){ if(!voiceOn()||!window.speechSynthesis)return false;
+  try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim());
+    u.rate=0.97; u.pitch=1.05; const v=gwPickVoice(); if(v)u.voice=v; u.onend=u.onerror=()=>onEnd(); speechSynthesis.speak(u); return true; }catch(e){ return false; } }
+function gwStopVoice(){ try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+let gwWasP=false;
+function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)return; gwWasP=p; try{ if(!window.speechSynthesis)return; if(p)speechSynthesis.pause(); else speechSynthesis.resume(); }catch(e){} }
+// --- the lesson script runs on game time, so it pauses with the menu and stops if a new game starts
+function gwUntil(fn){ const run=gw; return new Promise(res=>run.waits.push({fn,res})); }
+function gwWait(s){ const run=gw, t0=run.clock; return gwUntil(()=>run.clock-t0>=s); }
+async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064);
+  gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,()=>{ done=true; });
+  await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(spoke&&voiceOn())return done?e>=1:e>=est*2+4; return e>=est; });
+  gwCapDone=null; await gwWait(0.35); }
+function gwButton(label){ const run=gw, b=$('gwBtn'); b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
+  b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
+  return gwUntil(()=>hit).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
+// --- camera: flies itself, either circling a point or easing to a fixed view
+function gwF(){ return camera.aspect<1?Math.min(2.3,1.02/Math.max(0.42,camera.aspect)):1; } // back off on tall phone screens
+function gwOrbit(c,r,h,w,a){ gw.shot={t:'orbit',c,r,h,w,a:a===undefined?(gw.shot&&gw.shot.a!==undefined?gw.shot.a:0):a}; }
+function gwView(p,l){ gw.shot={t:'fix',p,l}; }
+function gwCamTick(dt){ const S=gw.shot, F=gwF(); let p, l;
+  if(S.t==='orbit'){ S.a+=S.w*dt; l=new THREE.Vector3(S.c[0],S.c[1],S.c[2]); p=new THREE.Vector3(S.c[0]+Math.sin(S.a)*S.r*F,S.c[1]+S.h*F,S.c[2]-Math.cos(S.a)*S.r*F); }
+  else { l=new THREE.Vector3(S.l[0],S.l[1],S.l[2]); p=new THREE.Vector3(S.p[0],S.p[1],S.p[2]).sub(l).multiplyScalar(F).add(l); }
+  if(gw.snap){ gw.cp.copy(p); gw.cl.copy(l); gw.snap=false; } else { const k=1-Math.exp(-dt*1.7); gw.cp.lerp(p,k); gw.cl.lerp(l,k); } }
+// --- the world changes brick by brick: dropping in, or stripped away slice by slice
+const gwBoxGeo=new THREE.BoxGeometry(1,1,1), gwMats={};
+const gwMat=id=>gwMats[id]||(gwMats[id]=new THREE.MeshLambertMaterial({color:B[id].avg.getHex(),transparent:id===ID.water,opacity:id===ID.water?0.8:1}));
+function gwMorph(tgt,kind,dur){ const run=gw, add=[], rem=[];
+  for(let y=0;y<H;y++)for(let z=GW_Z0-3;z<GW_Z0+GW_V+3;z++)for(let x=GW_X0-3;x<GW_X0+GW_U+3;x++){ const i=idx(x,y,z), a=world[i], b=tgt[i]; if(a!==b)(b?add:rem).push(i); }
+  let q;
+  if(kind==='cut'){ q=rem.map(i=>[i,0,iz_(i)+rand()*0.95]); q.sort((a,b)=>a[2]-b[2]); }
+  else { const r=rem.map(i=>[i,0,-iy_(i)-1000+rand()*0.9]), a=add.map(i=>[i,tgt[i],iy_(i)+rand()*0.95]); q=r.concat(a); q.sort((a,b)=>a[2]-b[2]); }
+  run.q=q; run.qi=0; run.qKind=kind; run.qRate=Math.max(60,q.length/dur); run.qSnd=0;
+  return gwUntil(()=>run.qi>=run.q.length&&!run.fall.length); }
+function gwMorphTick(dt){ const G=gw; if(G.qi<G.q.length){ let n=Math.ceil(G.qRate*dt);
+    while(n-->0&&G.qi<G.q.length){ const [i,id]=G.q[G.qi++], x=ix_(i), y=iy_(i), z=iz_(i);
+      if(!id){ const old=world[i]; gwPut(i,0); if(G.qKind==='cut'&&rand()<0.025)puff(x+0.5,y+0.5,z+0.5,[B[old||ID.dirt].avg.getHex(),0x8a6a4a,0xc8b890],3,4,3,8,0.7); continue; }
+      if(G.fall.length<170&&y>0&&rand()<0.7){ const m=new THREE.Mesh(gwBoxGeo,gwMat(id)); m.position.set(x+0.5,y+3.5,z+0.5); gwRoot.add(m); G.fall.push({m,i,id,y0:y+3.5,y1:y+0.5,t:0}); }
+      else gwPut(i,id); }
+    G.qSnd-=dt; if(G.qSnd<=0){ G.qSnd=G.qKind==='cut'?0.11:0.08; sfx(G.qKind==='cut'?'break':'place'); } }
+  for(let k=G.fall.length-1;k>=0;k--){ const f=G.fall[k]; f.t+=dt; const u=Math.min(1,f.t/0.22); f.m.position.y=f.y0+(f.y1-f.y0)*u*u;
+    if(u>=1){ gwPut(f.i,f.id); gwRoot.remove(f.m); G.fall.splice(k,1); } } }
+// --- labels and see-through colour bands painted on the cut face
+function gwLabel(text,col,x,y,z,size){ const c=document.createElement('canvas'), fs=44; let g=c.getContext('2d'); g.font='bold '+fs+'px sans-serif'; const w=Math.ceil(g.measureText(text).width)+44;
+  c.width=w; c.height=76; g=c.getContext('2d'); g.font='bold '+fs+'px sans-serif'; g.fillStyle='rgba(12,16,24,.85)'; g.strokeStyle=col; g.lineWidth=5;
+  const r=18; g.beginPath(); g.moveTo(r,3); g.arcTo(w-3,3,w-3,73,r); g.arcTo(w-3,73,3,73,r); g.arcTo(3,73,3,3,r); g.arcTo(3,3,w-3,3,r); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle='#fff'; g.textBaseline='middle'; g.fillText(text,22,40);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true})); sp.renderOrder=999; const s=(size||2.1)*(gwF()>1?1.25:1);
+  sp.scale.set(s*w/76,s,1); sp.position.set(x,y,z); gwRoot.add(sp); gw.labels.push(sp); sp.userData.s=sp.scale.clone(); sp.userData.t=0; sfx('coin'); return sp; }
+function gwBand(lo,hi,color,u0,u1){ const pos=[], z=GW_FZ-0.05;
+  for(let u=u0;u<=u1;u++){ const a=lo(u), b=hi(u); if(b<=a)continue; const x=gwX(u); pos.push(x,a,z, x+1,a,z, x+1,b,z, x,a,z, x+1,b,z, x,b,z); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.4,side:THREE.DoubleSide,depthWrite:false})); m.renderOrder=3; gwRoot.add(m); gw.bands.push(m); return m; }
+function gwClearLabels(){ for(const o of gw.labels.concat(gw.bands)){ gwRoot.remove(o); if(o.material.map)o.material.map.dispose(); o.material.dispose(); if(o.geometry&&o.geometry!==gwBoxGeo)o.geometry.dispose(); } gw.labels=[]; gw.bands=[]; }
+// --- a glowing spot to tap
+const gwRay=new THREE.Raycaster(), gwBeamMat=new THREE.MeshBasicMaterial({color:0xffe066,transparent:true,opacity:0.4,depthWrite:false,side:THREE.DoubleSide}), gwHitMat=new THREE.MeshBasicMaterial({visible:false});
+function gwMarker(x,y,z){ gwMarkerOff(); const g=new THREE.Group(); g.position.set(x,y,z);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,12,14,1,true),gwBeamMat); beam.position.y=6; g.add(beam);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.1,0.14,8,28),new THREE.MeshBasicMaterial({color:0xffe066})); ring.rotation.x=Math.PI/2; ring.position.y=0.12; g.add(ring);
+  const hit=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,14,10),gwHitMat); hit.position.y=6; g.add(hit);
+  gwRoot.add(g); gw.marker={g,ring,hit}; }
+function gwMarkerOff(){ if(!gw||!gw.marker)return; gw.marker.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); gwRoot.remove(gw.marker.g); gw.marker=null; }
+function gwTap(cx,cy){ if(!gw||!gw.marker||paused)return; const b=$('gwBtn'); if(b.style.display==='none')return;
+  gwRay.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),camera); if(gwRay.intersectObject(gw.marker.hit,false).length&&b.onclick)b.onclick({preventDefault(){}}); }
+// --- wells: dig straight down until you reach water (or bedrock)
+function gwDrill(x,z,y0){ const run=gw; let sawClay=false, kind='dry', fill=-1; const steps=[];
+  for(let y=y0;y>=1;y--){ const id=world[idx(x,y,z)]; if(id===ID.granite||id===ID.basalt)break; steps.push(y); if(id===ID.clay)sawClay=true;
+    if(id===ID.wetsand||id===ID.water){ if(get(x,y-1,z)===ID.wetsand)steps.push(y-1); kind=sawClay?'art':'open'; fill=sawClay?Math.min(y0,GW_HEAD-1):y; break; } }
+  if(kind==='art'&&y0>=GW_HEAD-1)kind='high';
+  const low=steps.length?steps[steps.length-1]:y0;
+  run.drill={x,z,y0,steps,k:0,t:0,kind,fill,low,fy:low,phase:'dig'};
+  return gwUntil(()=>!run.drill||run.drill.phase==='done').then(()=>{ const d=run.drill; run.drill=null; return d.kind; }); }
+function gwDrillTick(dt){ const d=gw.drill; if(!d||d.phase==='done')return; d.t-=dt; if(d.t>0)return;
+  if(d.phase==='dig'){ if(d.k>=d.steps.length){ d.phase=d.kind==='dry'?'done':'fill'; d.t=0.4; return; }
+    const y=d.steps[d.k++], id=world[idx(d.x,y,d.z)]; gwPut(idx(d.x,y,d.z),0); d.t=0.17; sfx('break');
+    puff(d.x+0.5,y+0.5,d.z-0.2,[B[id||ID.dirt].avg.getHex(),0x8a6a4a],5,3,3,9,0.6); return; }
+  if(d.phase==='fill'){ if(d.fy>d.fill){ d.phase='done'; if(d.kind==='art'){ gw.wells.push({x:d.x,z:d.z,top:d.y0,head:GW_HEAD-d.y0,t:0}); gw.P=Math.max(gw.P,1); } return; }
+    gwPut(idx(d.x,d.fy,d.z),ID.water); puff(d.x+0.5,d.fy+0.9,d.z+0.5,[0x5aa0ff,0x8cc4ff],3,1.5,2,8,0.5); d.fy++; d.t=d.kind==='art'?0.07:0.22; } }
+// --- water moving underground: droplets travel along the confined aquifer (drawn on the cut face)
+function gwDropPath(u0,u1,toWell){ const pts=[], z=GW_FZ-0.35; pts.push([gwX(u0)+0.5,gwSurf(u0)+1.5,z]);
+  const step=u1>=u0?1:-1; for(let u=u0;u!==u1+step;u+=step)pts.push([gwX(u)+0.5,gwAq(u)-1,z]);
+  if(toWell)pts.push([gwX(u1)+0.5,toWell+0.6,z]); return pts; }
+const gwDropMat=new THREE.MeshBasicMaterial({color:0x3f9bff}), gwDropGeo=new THREE.BoxGeometry(0.42,0.42,0.42);
+function gwDrops(pts,n){ const run=gw; let len=0; const L=[0]; for(let i=1;i<pts.length;i++){ len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]); L.push(len); }
+  const grp={pts,L,len,list:[],left:n,spawnT:0,first:false};
+  for(let k=0;k<n;k++){ const m=new THREE.Mesh(gwDropGeo,gwDropMat); m.visible=false; gwRoot.add(m); grp.list.push({m,s:-k*1.1}); }
+  run.drops.push(grp); return grp; }
+function gwDropsTick(dt){ for(let g=gw.drops.length-1;g>=0;g--){ const G=gw.drops[g]; let alive=0;
+    for(const d of G.list){ if(d.s>=G.len){ d.m.visible=false; continue; } d.s+=dt*12; alive++; if(d.s<0){ d.m.visible=false; continue; }
+      if(d.s>=G.len){ G.first=true; d.m.visible=false; continue; }
+      let i=1; while(i<G.L.length-1&&G.L[i]<d.s)i++; const a=G.pts[i-1], b=G.pts[i], f=(d.s-G.L[i-1])/Math.max(0.001,G.L[i]-G.L[i-1]);
+      d.m.visible=true; d.m.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]); }
+    if(!alive){ for(const d of G.list)gwRoot.remove(d.m); gw.drops.splice(g,1); G.done=true; } } }
+// --- recharge: a water block drops on the hilltop and soaks in
+function gwRecharge(x,y,z){ const run=gw, m=new THREE.Mesh(gwBoxGeo,gwMat(ID.water)); m.position.set(x+0.5,y+12,z+0.5); gwRoot.add(m); sfx('whoosh');
+  const st={m,t:0,y,phase:'fall'}; run.rech=st; const u=Math.max(0,Math.min(GW_U-1,gwU(x)));
+  return gwUntil(()=>st.phase==='soaked').then(()=>{ const w=run.wells[0]; const g=gwDrops(gwDropPath(u,w?Math.max(0,Math.min(GW_U-1,gwU(w.x))):GW_U-1,w?w.top:0),16);
+    return gwUntil(()=>g.first).then(()=>{ run.boost=2.8; if(!w)toast('💧 The confined aquifer is filling up!'); return g; }); }); }
+function gwRechTick(dt){ const st=gw.rech; if(!st)return; st.t+=dt;
+  if(st.phase==='fall'){ const u=Math.min(1,st.t/0.7); st.m.position.y=st.y+12-10.5*u*u; if(u>=1){ st.phase='sink'; st.t=0; sfx('thunk'); puff(st.m.position.x,st.y+1.2,st.m.position.z,[0x5aa0ff,0x8cc4ff,0xcfe8ff],18,6,4,12,0.8); } }
+  else if(st.phase==='sink'){ const u=Math.min(1,st.t/1.3); st.m.scale.set(1-u*0.6,1-u,1-u*0.6); st.m.position.y=st.y+1.5-u*1.1; if(u>=1){ gwRoot.remove(st.m); st.phase='soaked'; gw.rech=null; } } }
+// --- the river: little flecks show the water flowing downhill
+const gwFlowMat=new THREE.MeshBasicMaterial({color:0xdff0ff}), gwFlowGeo=new THREE.BoxGeometry(0.34,0.06,0.22);
+function gwFlowOn(){ for(let k=0;k<34;k++){ const m=new THREE.Mesh(gwFlowGeo,gwFlowMat); gwRoot.add(m); gw.flow.push({m,u:13+rand()*30,dz:(rand()-0.5)*1.4}); } }
+function gwFlowTick(dt){ for(const f of gw.flow){ f.u+=dt*(3.2+(f.u<38?1.6:0)); if(f.u>44.5)f.u=13; const u0=Math.floor(f.u), k=f.u-u0;
+    const y=gwSurf(u0)+(gwSurf(Math.min(63,u0+1))-gwSurf(u0))*Math.max(0,(k-0.6)/0.4)+0.9; f.m.position.set(GW_X0+GW_U-f.u,y,GW_Z0+GW_RIV+1+f.dz); } }
+// --- the main tick
+function updateAqua(dt){ if(mode!=='aqua'||!gw)return; const G=gw; G.clock+=dt;
+  for(let i=G.waits.length-1;i>=0;i--){ const w=G.waits[i]; if(w.fn()){ G.waits.splice(i,1); w.res(); } }
+  if(gw!==G)return;
+  gwMorphTick(dt); gwDrillTick(dt); gwDropsTick(dt); gwRechTick(dt); gwFlowTick(dt);
+  if(G.cine){ gwCamTick(dt); if(scene.fog.far!==320){ scene.fog.near=130; scene.fog.far=320; camera.far=500; camera.updateProjectionMatrix(); } }
+  if(G.marker){ const s=1+Math.sin(G.clock*5)*0.18; G.marker.ring.scale.set(s,s,s); gwBeamMat.opacity=0.3+Math.sin(G.clock*5)*0.15; }
+  for(const sp of G.labels){ sp.userData.t+=dt; const k=Math.min(1,sp.userData.t/0.25); sp.scale.copy(sp.userData.s).multiplyScalar(0.3+0.7*k); }
+  for(const b of G.bands)b.material.opacity=0.3+Math.sin(G.clock*3)*0.12;
+  if(G.rainT>0){ G.rainT-=dt; for(let k=0;k<3;k++)puff(gwX(GW_RECH)+rand()*11,47,GW_Z0+GW_CUT+rand()*20,[0x8cc4ff,0x5aa0ff],1,0.2,-12,6,1.0); }
+  // the artesian wells: pressure from the recharge area pushes the water up and out
+  if(G.boost>0){ G.boost-=dt; G.P=Math.min(1,G.P+dt*0.6); } else if(G.leak&&G.wells.length)G.P=Math.max(0.06,G.P-dt*G.leak);
+  for(const w of G.wells){ w.t-=dt; if(w.t>0)continue; w.t=0.05; const P=G.P;
+    if(P>0.2){ const h=Math.max(1.2,w.head*0.75*P); puff(w.x+0.5,w.top+1.05,w.z+0.5,[0x5aa0ff,0x8cc4ff,0xcfe8ff,0xffffff],2+Math.round(4*P),1.8,Math.sqrt(2*14*h),14,1.1); }
+    else puff(w.x+0.5+(rand()-0.5)*0.8,w.top+1.0,w.z+0.5+(rand()-0.5)*0.8,[0x5aa0ff,0x8cc4ff],1,2.2,1.2,6,0.6); }
+  gwHud(); }
+function gwHud(){ const el=$('cartHud'); if(!gw.wells.length&&!gw.free){ el.style.display='none'; return; } el.style.display='inline-block';
+  let h='💧 Groundwater Adventure'; if(gw.wells.length){ const n=Math.round(gw.P*10); h+='<br>⛲ Water pressure <span style="color:#7fc4ff">'+'█'.repeat(n)+'</span><span style="opacity:.35">'+'█'.repeat(10-n)+'</span>'; if(gw.P<0.3)h+=' <span style="color:#ffd84a">Low! Recharge it</span>'; }
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+// --- the lesson
+async function gwScript(){ const run=gw; const live=()=>gw===run;
+  const FZ=GW_FZ, ON=(x,y)=>[x,y,FZ-0.7];
+  // PART 1: flat land and a lake
+  gwOrbit([48,10,48],58,34,0.12,-0.5);
+  const b1=gwMorph(gwTarget(1,false),'build',9);
+  await gwSay('💧 Welcome to Groundwater Adventure! Let\'s build some land, brick by brick…'); await b1; if(!live())return;
+  await gwSay('A nice, flat piece of land with a lake. Pretty boring, right?');
+  await gwSay('But here\'s something interesting: <b>water is held here.</b> Why doesn\'t it just soak into the ground and disappear?');
+  await gwSay('Let\'s strip away half of the land and look inside!');
+  gwView([48,24,8],[48,9,52]); await gwWait(1.2); if(!live())return; await gwMorph(gwTarget(1,true),'cut',4.5); if(!live())return;
+  gwLabel('Clay','#ffb35a',...ON(gwX(14),10.5)); gwBand(()=>10,()=>12,0xff9a3a,0,63);
+  await gwSay('See the gray layer right under the lake? That\'s <b>clay</b>.');
+  await gwSay('A <b>confining layer of clay</b> is most likely holding the water here, preventing it from infiltrating, or soaking, deeper into the ground.');
+  gwLabel('Wet sand','#7fc4ff',...ON(gwX(14),14)); gwLabel('Dry sand','#f2cf8a',...ON(gwX(14),6.5)); gwLabel('Bedrock','#c9ced8',...ON(gwX(14),2));
+  await gwSay('The sand above the clay is soaked with water. But the sand below the clay is dry. The water can\'t get through!');
+  gwClearLabels();
+  // PART 2: topography
+  gwOrbit([48,14,52],60,34,0.1);
+  await gwSay('Real land isn\'t flat. It has <b>topography</b>: the shape of the land\'s surface, like hills, valleys and slopes. Maps show it with contour lines.');
+  gwCaption('⛰️ <b>Topography</b> is the shape of the land: its hills, valleys and slopes. Push the button to add some!');
+  await gwButton('⛰️ Add Topography'); if(!live())return;
+  gwCaption('Building a hill, a slope and a river…'); gwOrbit([48,16,52],62,40,0.16);
+  await gwMorph(gwTarget(2,false),'build',8); if(!live())return; gwFlowOn();
+  gwView([22,34,68],[62,24,55]);
+  await gwSay('Now there\'s a <b>hill</b>, a <b>slope</b> and a small <b>river</b>. Water always flows downhill, so the river runs down the slope into the lake at the bottom.');
+  gwView([50,50,36],[74,33,58]); run.rainT=9;
+  gwLabel('Recharge area','#7fe38a',gwX(GW_RU)+0.5,40,58);
+  await gwSay('On top of the hill is the <b>recharge area</b>. Rain and melted snow soak into the sandy ground here and refill the water underground.');
+  gwClearLabels();
+  await gwSay('Ok, now there is more topography, and let\'s look at the layers of the Earth.');
+  gwView([48,30,4],[48,16,52]); await gwWait(1); if(!live())return; await gwMorph(gwTarget(2,true),'cut',4.5); if(!live())return;
+  await gwSay('An <b>aquifer</b> is an area underground where water can be stored, in the tiny spaces between grains of sand and gravel, or in cracks in rock.');
+  gwBand(u=>gwAq(u)+3,u=>gwWT(u)+1,0x39d4ff,28,63); gwLabel('Open aquifer','#7fe3ff',...ON(gwX(36)+0.5,14)); gwLabel('Water table','#7fe3ff',...ON(gwX(38)+0.5,17.4),1.3);
+  await gwSay('Near the top is an <b>open aquifer</b>, also called an unconfined aquifer. Nothing seals it from above, so rain soaks right down into it. The top of the wet part is called the <b>water table</b>.');
+  gwBand(u=>gwAq(u)+1,u=>Math.min(gwAq(u)+3,gwSurf(u)+1),0xff9a3a,GW_RECH+1,63); gwBand(u=>gwAq(u)-5,u=>gwAq(u)-3,0xff9a3a,0,63);
+  gwLabel('Clay','#ffb35a',...ON(gwX(55)+0.5,11)); gwLabel('Clay','#ffb35a',...ON(gwX(55)+0.5,5));
+  await gwSay('Now find the two <b>clay</b> layers. Clay is <b>impermeable</b>: water can barely move through it. It traps the water, like a lid on top and a floor below.');
+  gwBand(u=>gwAq(u)-3,u=>gwAq(u)+1,0x2a6cff,0,63); gwLabel('Confined aquifer','#8fb6ff',...ON(gwX(48)+0.5,8));
+  await gwSay('Sandwiched between the clay layers is a <b>confined aquifer</b>. <b>Sand is very permeable</b>, so water moves easily through it.');
+  gwLabel('Recharge area','#7fe38a',...ON(gwX(5)+0.5,37.5)); gwDrops(gwDropPath(3,63,0),18);
+  await gwSay('Water soaks in at the recharge area way up on the hill, then flows down through the sand, trapped between the clay. That builds up <b>pressure</b>!');
+  gwLabel('Bedrock','#c9ced8',...ON(gwX(55)+0.5,2));
+  await gwWait(1.5); if(!live())return; gwClearLabels();
+  // PART 3: two wells
+  const x1=gwX(GW_W1), x2=gwX(GW_W2), s1=gwSurf(GW_W1), s2=gwSurf(GW_W2);
+  gwView([x1-3,s1+6,FZ-19],[x1,s1-3,FZ+2]); gwMarker(x1+0.5,s1+1,FZ+0.5);
+  gwCaption('⛏ Let\'s dig a well near the lake. <b>Tap the glowing spot!</b>'); gwSpeak('Let\'s dig a well near the lake. Tap the glowing spot!',()=>{});
+  await gwButton('⛏ Dig a well here'); if(!live())return; gwCaption('Digging…');
+  await gwDrill(x1,FZ,s1); if(!live())return; gwLabel('Water table','#7fe3ff',x1+4.5,s1-1.6,FZ-0.7,1.3);
+  await gwSay('No water shoots out! This well only reaches the <b>open aquifer</b>. The water fills the hole up to the water table, the same level as the lake, and stops.');
+  await gwSay('Nothing is pushing the water up, so to get it out you\'d need a pump or a bucket.');
+  gwClearLabels();
+  gwView([x2+3,s2+6,FZ-20],[x2,s2-4,FZ+2]); await gwWait(1); if(!live())return; gwMarker(x2+0.5,s2+1,FZ+0.5);
+  gwCaption('⛏ Now dig a well on the side of the hill, down through the clay. <b>Tap the glowing spot!</b>'); gwSpeak('Now dig a well on the side of the hill, down through the clay. Tap the glowing spot!',()=>{});
+  await gwButton('⛏ Dig a well here'); if(!live())return; gwCaption('Digging through the clay…');
+  await gwDrill(x2,FZ,s2); if(!live())return; run.P=1;
+  gwView([x2+4,s2+7,FZ-22],[x2,s2,FZ+2]);
+  await gwSay('Whoa! The water comes out all by itself! This is an <b>artesian well</b>.');
+  gwLabel('Recharge area','#7fe38a',...ON(gwX(5)+0.5,37.5)); gwLabel('Higher up','#7fe38a',...ON(gwX(5)+0.5,40),1.2);
+  await gwSay('The recharge area is higher than this spot. All that water trapped under the clay gets pushed up and out by the pressure.');
+  await gwSay('When water seeps out of the ground on its own like this, through a crack in the clay, it\'s called an <b>artesian spring</b>.');
+  gwClearLabels(); run.leak=0.06;
+  gwView([62,44,6],[64,27,52]);
+  await gwUntil(()=>run.P<0.32); if(!live())return;
+  await gwSay('Uh oh… the spring is slowing down. Water is leaving the aquifer faster than it is being refilled.');
+  const ry=gwSurf(GW_RU); gwMarker(gwX(GW_RU)+0.5,ry+1,FZ+0.5);
+  gwCaption('💧 Drop a water block on the <b>recharge area</b> to keep the water flowing. <b>Tap the glowing spot!</b>'); gwSpeak('Drop a water block on the recharge area to keep the water flowing. Tap the glowing spot!',()=>{});
+  await gwButton('💧 Drop a water block'); if(!live())return; gwCaption('');
+  await gwRecharge(gwX(GW_RU),ry,FZ); if(!live())return; run.leak=0.012;
+  await gwWait(1.5);
+  await gwSay('It\'s flowing again! The new water soaked into the recharge area, moved through the sand between the clay layers, and pushed the spring back up.');
+  await gwSay('That\'s why recharge areas matter: they keep aquifers, wells and springs full of water.');
+  if(!live())return; gwCaption(''); run.phase='done'; gwDone(); }
+function gwDone(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true;
+  $('mbox').innerHTML='<h2>🎉 Lesson complete!</h2><div class="say">Great job, groundwater explorer! You learned about:</div>'+
+    '<ul><li>⛰️ <b>Topography</b>: the shape of the land</li><li>💧 <b>Aquifers</b>: places underground that store water</li><li>🔓 <b>Open (unconfined)</b> and 🔒 <b>confined</b> aquifers</li><li>🏖️ Sand is <b>permeable</b>, 🧱 clay is <b>impermeable</b></li><li>📏 The <b>water table</b> and the <b>recharge area</b></li><li>⛲ <b>Artesian wells and springs</b></li></ul>'+
+    '<div class="say">Now explore! Fly around, tap ⛏ to dig more wells anywhere, and tap 💧 to drop water. Drop it on the sandy hilltop to recharge the aquifer.</div>'+
+    '<div class="row"><button class="mbtn" id="gwFree">🪽 Explore</button><button class="mbtn gray" id="gwAgain">🔁 Watch again</button></div>';
+  $('modal').style.display='flex';
+  tap($('gwFree'),()=>{ closeMenu(); gwFree(); }); tap($('gwAgain'),()=>{ closeMenu(); startAqua(true); }); }
+function gwFree(){ if(!gw)return; gw.cine=false; gw.free=true; gw.leak=0.012; gwCaption(''); $('gwBtn').style.display='none'; gwDock.classList.remove('on'); gwMarkerOff();
+  document.body.classList.remove('gwc'); viewF=-1;
+  pl.p=[gwX(GW_W2)+0.5,gwSurf(GW_W2)+4,GW_FZ-9]; pl.v=[0,0,0]; yaw=Math.PI; pitch=-0.25; setFly(true,false);
+  toast('🪽 Explore! ⛏ digs a well · 💧 drops water'); }
+function gwHit(){ if(!gw||gw.cine||gw.drill)return;
+  if(!target){ toast('Aim at the ground to dig a well'); return; } const x=target.x, z=target.z, u=gwU(x), v=z-GW_Z0;
+  if(u<0||v<0||u>=GW_U||v>=GW_V||target.y<1){ toast('Dig a well on the land with the layers'); return; }
+  if(world[idx(x,target.y,z)]===ID.water){ toast('💧 That\'s already water!'); return; }
+  gwDrill(x,z,target.y).then(k=>{ if(!gw)return;
+    toast(k==='art'?'⛲ Artesian! The confined aquifer pushes the water up and out.':k==='open'?'💧 Open aquifer: the water rises to the water table and stops.':k==='high'?'🔒 Confined aquifer, but this spot is as high as the recharge area, so no water flows out.':'🪨 Dry hole! You hit bedrock and found no water.'); }); }
+function gwPlace(){ if(!gw||gw.cine)return; if(!target)return; const x=target.x+target.face[0], y=target.y+target.face[1], z=target.z+target.face[2]; if(!inB(x,y,z))return;
+  const u=gwU(x), v=z-GW_Z0;
+  if(u>=0&&u<=GW_RECH&&v>=0&&v<GW_V&&y>=GW_HEAD-1){ if(gw.rech){ toast('⏳ Wait for that one to soak in…'); return; } gwRecharge(x,y-1,z).then(()=>{ if(gw)toast('💧 Recharged! The water pressure goes back up.'); }); return; }
+  const cur=get(x,y,z); if(cur&&B[cur].solid)return; setBlock(x,y,z,ID.water,0); sfx('place');
+  if(!gw.tipR){ gw.tipR=true; toast('Tip: drop water on the sandy hilltop (the recharge area) to refill the aquifer!'); } }
+function clearAqua(){ gwRoot.traverse(o=>{ if(o.geometry&&o.geometry!==gwBoxGeo&&o.geometry!==gwDropGeo&&o.geometry!==gwFlowGeo)o.geometry.dispose(); if(o.material&&o.material.map)o.material.map.dispose(); });
+  gwRoot.clear(); gwStopVoice(); gwCaption(''); $('gwBtn').style.display='none'; gwDock.classList.remove('on'); gwCapDone=null; document.body.classList.remove('gwc'); gw=null; }
+function gwSetup(){ clearAqua(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
+  world=gwTarget(0); meta=new Uint8Array(N); rebuildAll();
+  gw={phase:'intro',clock:0,waits:[],q:[],qi:0,fall:[],shot:null,cp:new THREE.Vector3(),cl:new THREE.Vector3(),snap:true,labels:[],bands:[],flow:[],drops:[],wells:[],P:0,leak:0,boost:0,rainT:0,drill:null,marker:null,rech:null,cine:true,free:false};
+  gwOrbit([48,10,48],58,34,0.12,-0.5); pl.p=[48,42,48]; pl.v=[0,0,0]; pl.kb=[0,0,0]; document.body.classList.add('gwc'); }
+function startAqua(skipIntro){ clearEntities(); mode='aqua'; cg=null; tgm=null; owned=['fists']; weapon='fists'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0;
+  setFly(true,false); applyMode(); gwSetup(); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow(); if(skipIntro)gwBegin(); else gwIntro(); }
+function gwBegin(){ if(!gw||gw.phase!=='intro')return; gw.phase='lesson'; gwScript().catch(e=>console.error(e)); }
+function gwIntro(){ if(!gw)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=gw.phase!=='intro';
+  $('mbox').innerHTML='<h2>💧 Groundwater Adventure</h2><div class="say">Fly over a landscape as it builds itself brick by brick. Find out where water hides underground: aquifers, clay and sand, the water table, and the recharge area. Then dig two wells and make an <b>artesian spring</b>!</div>'+
+    '<div class="say" style="font-size:13px;opacity:.8">🔊 A narrator reads everything out loud. Turn the voice off any time with ⚙️.</div>'+
+    '<div class="row"><button class="mbtn" id="gwGo">'+(mid?'Keep going':'Start!')+'</button><button class="mbtn gray" id="gwMenu">Menu</button></div>';
+  $('modal').style.display='flex'; tap($('gwGo'),()=>{ closeMenu(); gwBegin(); }); tap($('gwMenu'),openMenu); }
+function aquaHelp(){ return '<h2>💧 Groundwater Adventure</h2><div class="say">Watch and listen as the landscape builds itself. When a glowing spot or a big button appears, tap it!</div>'+
+  '<h3>Words to know</h3><ul><li>⛰️ <b>Topography</b>: the shape of the land\'s surface</li><li>💧 <b>Aquifer</b>: a layer underground that stores water</li><li>🔓 <b>Open (unconfined) aquifer</b>: not sealed on top; its wet part ends at the <b>water table</b></li><li>🔒 <b>Confined aquifer</b>: trapped between layers of clay</li><li>🏖️ <b>Permeable</b> sand lets water through · 🧱 <b>impermeable</b> clay doesn\'t</li><li>🌧️ <b>Recharge area</b>: where water soaks in to refill an aquifer</li><li>⛲ <b>Artesian well / spring</b>: water pushed up and out by pressure</li></ul>'+
+  '<h3>Exploring</h3><ul><li>⛏ digs a well where you aim · 💧 drops a water block</li><li>Drop water on the sandy hilltop to recharge the aquifer</li><li>⚙️ turns the narrator voice on or off</li></ul>'; }
+tap($('bGear'),openSettings);
 
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
@@ -3585,7 +3893,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); else if(mode==='moon')moonIntro(); else if(mode==='earth')earthIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); else if(mode==='moon')moonIntro(); else if(mode==='earth')earthIntro(); else if(mode==='aqua')gwIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -3680,6 +3988,7 @@ function updatePlayer(dt){
   if(mode==='tour'){ rideTour(dt); return {hs:0}; }
   if(mode==='moon'&&moonCutscene(dt)){ invuln-=dt; return {hs:0}; }
   if(mode==='earth'&&eaCutscene(dt)){ invuln-=dt; return {hs:0}; }
+  if(mode==='aqua'&&gw&&gw.cine){ pl.v=[0,0,0]; return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -3873,8 +4182,8 @@ function updateDrops(dt){
   }
 }
 function update(dt){
-  if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt); updateMoon(dt); updateEarth(dt);
+  gwPauseSync(); if(paused){ return; }
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt); updateMoon(dt); updateEarth(dt); updateAqua(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid'&&mode!=='tour')hitAction(); if(placeHeld)placeAction(); } }
 
@@ -3898,6 +4207,7 @@ function update(dt){
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
   if(mode==='earth'&&ea&&ea.shake>0){ ea.shake=Math.max(0,ea.shake-dt*1.5); const k=Math.min(0.7,ea.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   armL.rotation.z=0; if(mode==='moon'&&ml&&ml.cam){ camera.position.set(ml.cam[0],ml.cam[1],ml.cam[2]); camera.lookAt(ml.look[0],ml.look[1],ml.look[2]); if(ml.phase==='photo'||ml.phase==='failcam'){ model.visible=true; fpHolder.visible=false; } if(ml.phase==='photo'){ armR.rotation.x=-2.9; armL.rotation.x=-0.3; armL.rotation.z=-0.5; } if(ml.phase==='failcam'){ armR.rotation.x=0.2; armL.rotation.x=0.2; head.rotation.x=0.35; } } // posing for photos
+  if(mode==='aqua'&&gw&&gw.cine){ camera.position.copy(gw.cp); camera.lookAt(gw.cl); model.visible=false; fpHolder.visible=false; }
   if(mode==='moon'&&ml&&ml.shake>0){ ml.shake=Math.max(0,ml.shake-dt*1.5); const k=Math.min(0.6,ml.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='tour'&&tw&&tw.shake>0){ tw.shake=Math.max(0,tw.shake-dt*1.5); const k=Math.min(0.5,tw.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='raid'&&rd&&rd.shake>0){ rd.shake=Math.max(0,rd.shake-dt*1.5); const k=Math.min(0.5,rd.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
@@ -3943,7 +4253,7 @@ $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.tog
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 showTitle();
-window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
+window.__sc={startAqua,gwHit,gwPlace,aquaJump(){ world=gwTarget(2,true); rebuildAll(); gw.phase="done"; closeMenu(); gwFree(); },get target(){return target;},get gw(){return gw;},get cam(){return camera;},gwFree,get shirtHex(){return shirt.color.getHex();},get gameShirt(){return gameShirt;},get paused(){return paused;},pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
   look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, startEarth, get ea(){return ea;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
