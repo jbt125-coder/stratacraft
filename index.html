@@ -37,6 +37,7 @@
   .tab{flex:1;height:36px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#232a39;color:#fff;font-weight:800;font-size:14px}
   .tab.on{background:#7fe3cf;color:#111;border-color:#7fe3cf}
   .fld{margin-top:8px;font-weight:700}
+  .fld select{display:block;width:100%;box-sizing:border-box;margin-top:4px;height:40px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#11151d;color:#fff;font-size:15px;padding:0 8px}
   .fld input{display:block;width:100%;box-sizing:border-box;margin-top:4px;height:40px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#11151d;color:#fff;font-size:16px;padding:0 10px}
   #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:4}
   #cross:before,#cross:after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 2px #000}
@@ -1386,8 +1387,10 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space')e.preventDefault();
 });
 window.addEventListener('keyup',e=>{ keys[e.code]=false; });
+window.addEventListener('keydown',e=>{ if(!['Space','Enter','ArrowRight','NumpadEnter'].includes(e.code)||$('modal').style.display==='flex')return;
+  if(demo&&(demo.quiz||demo.splash>0)){ e.preventDefault(); dmSkip(); } else if(mode==='aqua'&&gw&&gw.cine){ e.preventDefault(); gwSkip(); } });
 if(!IS_TOUCH){
-  touchEl.addEventListener('click',e=>{ audioInit(); if(demo)return; if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
+  touchEl.addEventListener('click',e=>{ audioInit(); if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(demo)return; if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement!==touchEl||paused)return;
     yaw-=e.movementX*SENS_M; pitch-=e.movementY*SENS_M; pitch=Math.max(-1.55,Math.min(1.55,pitch)); });
   touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)placeAction(); });
@@ -1425,14 +1428,41 @@ function showCard(id,stay){ const b=B[id], c=$('card');
   c.innerHTML='<span class="nm">'+b.name+'</span><span class="badge" style="background:'+CAT[b.cat].c+'">'+b.cat+'</span><div class="fact">'+b.fact+'</div>';
   c.style.display='block'; clearTimeout(cardTimer); cardTimer=setTimeout(()=>c.style.display='none',stay?9000:5000); }
 let toastTimer=null;
-const VOICE_KEY='stratacraft_voice'; let voicePref=true; try{ voicePref=localStorage.getItem(VOICE_KEY)!=='0'; }catch(e){}
+const VOICE_KEY='stratacraft_voice'; let voicePref=false; try{ voicePref=localStorage.getItem(VOICE_KEY)==='1'; }catch(e){}
+const VOICE_NAME_KEY='stratacraft_voice_name'; let voiceName=''; try{ voiceName=localStorage.getItem(VOICE_NAME_KEY)||''; }catch(e){}
+function voiceList(){ try{ if(!window.speechSynthesis)return []; // English voices, natural-sounding ones (like Edge's Aria and Jenny) first, US before other accents
+    const nat=v=>/natural|neural|online|premium|enhanced/i.test(v.name)?0:1, us=v=>/en[-_]US/i.test(v.lang)?0:1;
+    return speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)).sort((a,b)=>nat(a)-nat(b)||us(a)-us(b)||a.name.localeCompare(b.name)); }catch(e){ return []; } }
+function voiceLabel(v){ const reg={US:'US',GB:'UK',AU:'Australia',CA:'Canada',IN:'India',IE:'Ireland',NZ:'New Zealand',ZA:'South Africa'}[(v.lang.split(/[-_]/)[1]||'').toUpperCase()]||v.lang;
+  return v.name.replace(/^(Microsoft|Google|Apple)\s+/,'').replace(/\s*Online\s*\(Natural\)/i,' (natural)').replace(/\s*-\s*English.*$/i,'').replace(/\s*\(.*English.*\)$/i,'')+' · '+reg; }
+function setVoiceName(n){ voiceName=n; try{ localStorage.setItem(VOICE_NAME_KEY,n); }catch(e){} if(typeof gwVoiceObj!=='undefined')gwVoiceObj=null; }
+try{ if(window.speechSynthesis)speechSynthesis.addEventListener('voiceschanged',()=>{ gwVoiceObj=null; if($('gVoiceSel')&&$('gVoiceSel').options.length<2)openSettings(); }); }catch(e){}
 function voiceOn(){ return voicePref; }
+const CAP_KEY='stratacraft_capspeed', CAP_SPEEDS={slow:{k:1.6,p:1.3,n:'🐢 Slow'},normal:{k:1,p:0.6,n:'🚶 Normal'},fast:{k:0.65,p:0.2,n:'🐇 Fast'}};
+let capSpeed='slow'; try{ const v=localStorage.getItem(CAP_KEY); if(CAP_SPEEDS[v])capSpeed=v; }catch(e){}
+const capSpd=()=>CAP_SPEEDS[capSpeed];
+// Phones and tablets only let a page talk after speech has started inside a tap, so the first tap says nothing, silently
+function tapUp(el,fn){ el.addEventListener('touchend',e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); fn(); },{passive:false}); el.addEventListener('click',fn); } // speech must start when the finger lifts
+let voiceUnlocked=false;
+function unlockVoice(){ if(voiceUnlocked||!window.speechSynthesis)return; voiceUnlocked=true; try{ speechSynthesis.getVoices(); const u=new SpeechSynthesisUtterance('.'); u.volume=0; speechSynthesis.speak(u); }catch(e){} }
+for(const ev of ['touchend','click','keydown'])document.addEventListener(ev,unlockVoice,{capture:true,passive:true});
+function testVoice(){ if(!window.speechSynthesis){ toast('🔇 This browser can\'t read out loud. Try Chrome, Edge or Safari.'); return; }
+  const S=speechSynthesis; try{ S.cancel(); S.resume(); }catch(e){} let started=false;
+  const u=new SpeechSynthesisUtterance('Hi! I\'m your narrator. If you can hear me, the voice is working.'); u.rate=0.97; u.pitch=1.05; u.lang='en-US';
+  try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){}
+  u.onstart=()=>{ started=true; }; u.onerror=e=>{ if(e.error!=='interrupted'&&e.error!=='canceled')toast('🔇 The voice was blocked ('+e.error+'). Tap Test again.'); };
+  try{ S.speak(u); }catch(e){}
+  setTimeout(()=>{ if(!started&&!S.speaking)toast('🔇 No voice? Turn the volume up. On iPhone or iPad, also flip off the silent switch.'); },2500); }
 function setVoice(on){ voicePref=!!on; try{ localStorage.setItem(VOICE_KEY,on?'1':'0'); }catch(e){} if(!on)try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
 function openSettings(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; const on=voiceOn();
-  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div>'+
+  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Off to start. Switch it on to have the explanations read out loud, then pick a voice. The captions always stay on screen.</div></div><div class="sbtns"><button class="ibtn gray" id="gTest">▶ Test</button><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div></div>'+
+    (on?(()=>{ const vs=voiceList(), cur=gwPickVoice(); return '<div class="fld" style="margin:-2px 0 8px">🗣️ Voice<select id="gVoiceSel">'+(vs.length?vs.map(v=>'<option value="'+esc(v.name)+'"'+(cur&&cur.name===v.name?' selected':'')+'>'+esc(voiceLabel(v))+'</option>').join(''):'<option>Loading voices…</option>')+'</select></div>'; })():'')+
+    '<div class="item"><div class="ic">💬</div><div class="tx"><b>Caption speed</b><div class="fx">How long each text box stays up before the next one.</div><div class="seg">'+Object.keys(CAP_SPEEDS).map(k=>'<button data-cs="'+k+'" class="'+(k===capSpeed?'on':'')+'">'+CAP_SPEEDS[k].n+'</button>').join('')+'</div></div></div>'+
     '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
     '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
-  $('modal').style.display='flex'; tap($('gVoice'),()=>{ setVoice(!voiceOn()); openSettings(); }); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
+  $('modal').style.display='flex'; tapUp($('gVoice'),()=>{ setVoice(!voiceOn()); if(voiceOn())testVoice(); openSettings(); }); tapUp($('gTest'),()=>{ if(!voiceOn())setVoice(true); testVoice(); openSettings(); });
+  if($('gVoiceSel'))$('gVoiceSel').addEventListener('change',e=>{ setVoiceName(e.target.value); testVoice(); });
+  $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
   tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
@@ -3021,7 +3051,7 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
 const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
 const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
 document.body.appendChild(mlPola);
-function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
+function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){} u.volume=1;
   setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} },380); u.onend=()=>sfx('radio'); }catch(e){} }
 function mlFlashOn(){ mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
 function mlShowPhoto(url,cap){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">'+(cap||'Me on the Moon! 🌕')+'</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
@@ -3523,25 +3553,33 @@ function gwPut(i,id){ world[i]=id; meta[i]=0; placed.delete(i); markDirty(ix_(i)
 const gwDock=document.createElement('div'); gwDock.id='gwDock'; gwDock.className='ui';
 gwDock.innerHTML='<button id="gwBtn"></button><div id="gwCap"><span class="t"></span><button class="nx" title="Next">▶</button></div>'; document.body.appendChild(gwDock);
 let gwCapDone=null;
-gwDock.querySelector('.nx').addEventListener('click',e=>{ e.preventDefault(); if(gwCapDone)gwCapDone(); });
-gwDock.querySelector('.nx').addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); if(gwCapDone)gwCapDone(); },{passive:false});
+{ const cap=gwDock.querySelector('#gwCap'); cap.title='Tap to skip'; cap.style.cursor='pointer';
+  cap.addEventListener('click',e=>{ e.preventDefault(); gwSkip(); }); cap.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); gwSkip(); },{passive:false}); }
 function gwCaption(t){ const c=$('gwCap'); if(!t){ c.style.display='none'; return; } c.querySelector('.t').innerHTML=t; c.style.display='flex'; gwDock.classList.add('on'); }
 let gwVoiceObj=null;
 function gwPickVoice(){ if(gwVoiceObj!==null)return gwVoiceObj; try{ const vs=speechSynthesis.getVoices(); if(!vs.length)return null;
+    const mine=voiceName&&vs.find(v=>v.name===voiceName); if(mine)return gwVoiceObj=mine; const nat=voiceList()[0]; if(nat&&/natural|neural|online|premium|enhanced/i.test(nat.name))return gwVoiceObj=nat;
     gwVoiceObj=vs.find(v=>/en[-_]US/i.test(v.lang)&&/samantha|google us|aria|jenny|zira/i.test(v.name))||vs.find(v=>/en[-_]US/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||false; }catch(e){ gwVoiceObj=false; } return gwVoiceObj; }
-function gwSpeak(text,onEnd){ if(!voiceOn()||!window.speechSynthesis)return false;
-  try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim());
-    u.rate=0.97; u.pitch=1.05; const v=gwPickVoice(); if(v)u.voice=v; u.onend=u.onerror=()=>onEnd(); speechSynthesis.speak(u); return true; }catch(e){ return false; } }
-function gwStopVoice(){ try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
-let gwWasP=false;
-function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)return; gwWasP=p; try{ if(!window.speechSynthesis)return; if(p)speechSynthesis.pause(); else speechSynthesis.resume(); }catch(e){} }
+let gwTok=0, gwLine=null, gwHeld=null, gwWasP=false; // the line being read, so it can start over after a pause
+const gwClean=t=>t.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim();
+function gwSpeak(text,onEnd){ if(!voiceOn()||!window.speechSynthesis)return false; const S=speechSynthesis, tok=++gwTok; gwLine={text,onEnd};
+  const go=()=>{ if(tok!==gwTok)return; try{ S.resume(); const u=new SpeechSynthesisUtterance(gwClean(text)); u.rate=0.97; u.pitch=1.05; u.volume=1;
+      const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } else u.lang='en-US';
+      u.onend=()=>{ if(tok!==gwTok)return; gwLine=null; onEnd(true); };
+      u.onerror=e=>{ if(tok!==gwTok||e.error==='interrupted'||e.error==='canceled')return; gwLine=null; onEnd(false); }; // blocked or broken: fall back to reading time
+      S.speak(u); }catch(e){ gwLine=null; onEnd(false); } };
+  try{ if(S.speaking||S.pending){ S.cancel(); setTimeout(go,150); } else go(); }catch(e){ return false; } return true; }
+function gwStopVoice(){ gwTok++; gwLine=null; gwHeld=null; try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)return; gwWasP=p;
+  if(p){ gwHeld=gwLine; gwTok++; gwLine=null; try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+  else if(gwHeld){ const h=gwHeld; gwHeld=null; if(!(voiceOn()&&gwSpeak(h.text,h.onEnd)))h.onEnd(false); } } // read the line again from the start
 // --- the lesson script runs on game time, so it pauses with the menu and stops if a new game starts
 function gwUntil(fn){ const run=gw; return new Promise(res=>run.waits.push({fn,res})); }
 function gwWait(s){ const run=gw, t0=run.clock; return gwUntil(()=>run.clock-t0>=s); }
-async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*(demoOn()?1.6:1);
-  gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,()=>{ done=true; });
-  await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(spoke&&voiceOn())return done?e>=1:e>=est*2+4; return e>=est; });
-  gwCapDone=null; await gwWait(demoOn()?1.3:0.35); }
+async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*capSpd().k;
+  let heard=false; gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,ok=>{ done=true; heard=ok; });
+  await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(done)return heard?e>=1:e>=est; if(spoke&&voiceOn())return e>=est*2+4; return e>=est; });
+  gwCapDone=null; await gwWait(skip?0.15:capSpd().p); }
 function gwButton(label){ const run=gw, b=$('gwBtn'), t0=gw.clock; b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
   b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
   return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5)).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
@@ -3591,8 +3629,10 @@ function gwMarker(x,y,z){ gwMarkerOff(); const g=new THREE.Group(); g.position.s
   const hit=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.6,14,10),gwHitMat); hit.position.y=6; g.add(hit);
   gwRoot.add(g); gw.marker={g,ring,hit}; }
 function gwMarkerOff(){ if(!gw||!gw.marker)return; gw.marker.g.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); gwRoot.remove(gw.marker.g); gw.marker=null; }
-function gwTap(cx,cy){ if(!gw||!gw.marker||paused)return; const b=$('gwBtn'); if(b.style.display==='none')return;
-  gwRay.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),camera); if(gwRay.intersectObject(gw.marker.hit,false).length&&b.onclick)b.onclick({preventDefault(){}}); }
+function gwTap(cx,cy){ if(!gw||paused)return; const b=$('gwBtn');
+  if(gw.marker&&b.style.display!=='none'){ gwRay.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),camera); if(gwRay.intersectObject(gw.marker.hit,false).length&&b.onclick){ b.onclick({preventDefault(){}}); return; } }
+  gwSkip(); }
+function gwSkip(){ if(gwCapDone)gwCapDone(); } // tap, click or Space: on to the next caption
 // --- wells: dig straight down until you reach water (or bedrock)
 function gwDrill(x,z,y0){ const run=gw; let sawClay=false, kind='dry', fill=-1; const steps=[];
   for(let y=y0;y>=1;y--){ const id=world[idx(x,y,z)]; if(id===ID.granite||id===ID.basalt)break; steps.push(y); if(id===ID.clay)sawClay=true;
@@ -3761,7 +3801,7 @@ function startAqua(skipIntro){ clearEntities(); mode='aqua'; cg=null; tgm=null; 
 function gwBegin(){ if(!gw||gw.phase!=='intro')return; gw.phase='lesson'; gwScript().catch(e=>console.error(e)); }
 function gwIntro(){ if(!gw)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=gw.phase!=='intro';
   $('mbox').innerHTML='<h2>💧 Groundwater Adventure</h2><div class="say">Fly over a landscape as it builds itself brick by brick. Find out where water hides underground: aquifers, clay and sand, the water table, and the recharge area. Then dig two wells and make an <b>artesian spring</b>!</div>'+
-    '<div class="say" style="font-size:13px;opacity:.8">🔊 A narrator reads everything out loud. Turn the voice off any time with ⚙️.</div>'+
+    '<div class="say" style="font-size:13px;opacity:.8">🔊 Want it read out loud? Switch on the narrator voice in ⚙️ and pick a voice.</div>'+
     '<div class="row"><button class="mbtn" id="gwGo">'+(mid?'Keep going':'Start!')+'</button><button class="mbtn gray" id="gwMenu">Menu</button></div>';
   $('modal').style.display='flex'; tap($('gwGo'),()=>{ closeMenu(); gwBegin(); }); tap($('gwMenu'),openMenu); }
 function aquaHelp(){ return '<h2>💧 Groundwater Adventure</h2><div class="say">Watch and listen as the landscape builds itself. When a glowing spot or a big button appears, tap it!</div>'+
@@ -3795,6 +3835,9 @@ dmSplash.innerHTML='<canvas id="dmSky"></canvas><div class="dmS"><div class="dmT
   '<div class="dmPic"><img id="dmImg" alt="Mr. Tyler giving a thumbs up"><div id="dmPh">👍</div></div>'+
   '<div class="dmNext"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" class="bg"/><circle cx="22" cy="22" r="19" class="fg" id="dmRing"/></svg><span id="dmCount">30</span><span class="lbl">Next demo starts soon…</span></div></div>';
 document.body.appendChild(dmSplash);
+function dmSkip(){ if(!demo||$('modal').style.display==='flex')return; const Z=demo.quiz;
+  if(Z){ if(!Z.shown)Z.t=DEMO_Q_READ; else Z.t=DEMO_Q_SHOW; } else if(demo.splash>0)demo.splash=0; }
+for(const o of [dmQuiz,dmSplash]){ o.addEventListener('click',e=>{ if(!e.target.closest('.dmGear'))dmSkip(); }); o.addEventListener('touchstart',e=>{ if(e.target.closest('.dmGear'))return; e.preventDefault(); dmSkip(); },{passive:false}); o.title='Tap to skip'; }
 for(const o of [dmQuiz,dmSplash]){ const g=document.createElement('button'); g.className='dmGear'; g.textContent='⚙️'; g.title='Settings'; o.appendChild(g); tap(g,openSettings); }
 { const im=$('dmImg'); im.onerror=()=>{ im.style.display='none'; $('dmPh').style.display='flex'; }; im.onload=()=>{ im.style.display='block'; $('dmPh').style.display='none'; }; im.src=DEMO_IMG; }
 function dmQuizStart(set){ const qs=DEMO_QS[set].map(o=>{ const order=[0,1,2,3].sort(()=>Math.random()-0.5); return {q:o.q,why:o.why,a:order.map(i=>o.a[i]),right:order.indexOf(0)}; });
@@ -3855,7 +3898,7 @@ function demoPilot(dt){ if(!demo||mode!=='moon'||!ml)return null; invuln=Math.ma
 function demoStart(){ if(document.pointerLockElement)document.exitPointerLock(); saveNow(); demo={stage:'',t:0,quiz:null,splash:0,pil:{t:0,d:1e9,up:0}}; document.body.classList.add('demo'); demoGo('aqua'); }
 function demoStop(){ if(!demo)return; demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
   closeMenu(); hadSave=loadCurrent(); if(!hadSave)startSurvival(); showTitle(); }
-function demoGo(stage){ demo.stage=stage; demo.t=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
+function demoGo(stage){ demo.stage=stage; demo.t=0; demo.quiz=null; demo.splash=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
   if(stage==='aqua'){ closeMenu(); startAqua(true); }
   else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=3; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
   else { gwStopVoice(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
