@@ -37,6 +37,7 @@
   .tab{flex:1;height:36px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#232a39;color:#fff;font-weight:800;font-size:14px}
   .tab.on{background:#7fe3cf;color:#111;border-color:#7fe3cf}
   .fld{margin-top:8px;font-weight:700}
+  .fld select{display:block;width:100%;box-sizing:border-box;margin-top:4px;height:40px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#11151d;color:#fff;font-size:15px;padding:0 8px}
   .fld input{display:block;width:100%;box-sizing:border-box;margin-top:4px;height:40px;border-radius:9px;border:2px solid rgba(255,255,255,.25);background:#11151d;color:#fff;font-size:16px;padding:0 10px}
   #cross{left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:4}
   #cross:before,#cross:after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 2px #000}
@@ -1425,7 +1426,15 @@ function showCard(id,stay){ const b=B[id], c=$('card');
   c.innerHTML='<span class="nm">'+b.name+'</span><span class="badge" style="background:'+CAT[b.cat].c+'">'+b.cat+'</span><div class="fact">'+b.fact+'</div>';
   c.style.display='block'; clearTimeout(cardTimer); cardTimer=setTimeout(()=>c.style.display='none',stay?9000:5000); }
 let toastTimer=null;
-const VOICE_KEY='stratacraft_voice'; let voicePref=true; try{ voicePref=localStorage.getItem(VOICE_KEY)!=='0'; }catch(e){}
+const VOICE_KEY='stratacraft_voice'; let voicePref=false; try{ voicePref=localStorage.getItem(VOICE_KEY)==='1'; }catch(e){}
+const VOICE_NAME_KEY='stratacraft_voice_name'; let voiceName=''; try{ voiceName=localStorage.getItem(VOICE_NAME_KEY)||''; }catch(e){}
+function voiceList(){ try{ if(!window.speechSynthesis)return []; // English voices, natural-sounding ones (like Edge's Aria and Jenny) first, US before other accents
+    const nat=v=>/natural|neural|online|premium|enhanced/i.test(v.name)?0:1, us=v=>/en[-_]US/i.test(v.lang)?0:1;
+    return speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)).sort((a,b)=>nat(a)-nat(b)||us(a)-us(b)||a.name.localeCompare(b.name)); }catch(e){ return []; } }
+function voiceLabel(v){ const reg={US:'US',GB:'UK',AU:'Australia',CA:'Canada',IN:'India',IE:'Ireland',NZ:'New Zealand',ZA:'South Africa'}[(v.lang.split(/[-_]/)[1]||'').toUpperCase()]||v.lang;
+  return v.name.replace(/^(Microsoft|Google|Apple)\s+/,'').replace(/\s*Online\s*\(Natural\)/i,' (natural)').replace(/\s*-\s*English.*$/i,'').replace(/\s*\(.*English.*\)$/i,'')+' · '+reg; }
+function setVoiceName(n){ voiceName=n; try{ localStorage.setItem(VOICE_NAME_KEY,n); }catch(e){} if(typeof gwVoiceObj!=='undefined')gwVoiceObj=null; }
+try{ if(window.speechSynthesis)speechSynthesis.addEventListener('voiceschanged',()=>{ gwVoiceObj=null; if($('gVoiceSel')&&$('gVoiceSel').options.length<2)openSettings(); }); }catch(e){}
 function voiceOn(){ return voicePref; }
 const CAP_KEY='stratacraft_capspeed', CAP_SPEEDS={slow:{k:1.6,p:1.3,n:'🐢 Slow'},normal:{k:1,p:0.6,n:'🚶 Normal'},fast:{k:0.65,p:0.2,n:'🐇 Fast'}};
 let capSpeed='slow'; try{ const v=localStorage.getItem(CAP_KEY); if(CAP_SPEEDS[v])capSpeed=v; }catch(e){}
@@ -1444,11 +1453,13 @@ function testVoice(){ if(!window.speechSynthesis){ toast('🔇 This browser can\
   setTimeout(()=>{ if(!started&&!S.speaking)toast('🔇 No voice? Turn the volume up. On iPhone or iPad, also flip off the silent switch.'); },2500); }
 function setVoice(on){ voicePref=!!on; try{ localStorage.setItem(VOICE_KEY,on?'1':'0'); }catch(e){} if(!on)try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
 function openSettings(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; const on=voiceOn();
-  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><div class="sbtns"><button class="ibtn gray" id="gTest">▶ Test</button><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div></div>'+
+  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Off to start. Switch it on to have the explanations read out loud, then pick a voice. The captions always stay on screen.</div></div><div class="sbtns"><button class="ibtn gray" id="gTest">▶ Test</button><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div></div>'+
+    (on?(()=>{ const vs=voiceList(), cur=gwPickVoice(); return '<div class="fld" style="margin:-2px 0 8px">🗣️ Voice<select id="gVoiceSel">'+(vs.length?vs.map(v=>'<option value="'+esc(v.name)+'"'+(cur&&cur.name===v.name?' selected':'')+'>'+esc(voiceLabel(v))+'</option>').join(''):'<option>Loading voices…</option>')+'</select></div>'; })():'')+
     '<div class="item"><div class="ic">💬</div><div class="tx"><b>Caption speed</b><div class="fx">How long each text box stays up before the next one.</div><div class="seg">'+Object.keys(CAP_SPEEDS).map(k=>'<button data-cs="'+k+'" class="'+(k===capSpeed?'on':'')+'">'+CAP_SPEEDS[k].n+'</button>').join('')+'</div></div></div>'+
     '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
     '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
   $('modal').style.display='flex'; tapUp($('gVoice'),()=>{ setVoice(!voiceOn()); if(voiceOn())testVoice(); openSettings(); }); tapUp($('gTest'),()=>{ if(!voiceOn())setVoice(true); testVoice(); openSettings(); });
+  if($('gVoiceSel'))$('gVoiceSel').addEventListener('change',e=>{ setVoiceName(e.target.value); testVoice(); });
   $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
   tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
@@ -3038,7 +3049,7 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
 const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
 const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
 document.body.appendChild(mlPola);
-function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
+function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){} u.volume=1;
   setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} },380); u.onend=()=>sfx('radio'); }catch(e){} }
 function mlFlashOn(){ mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
 function mlShowPhoto(url,cap){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">'+(cap||'Me on the Moon! 🌕')+'</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
@@ -3545,6 +3556,7 @@ gwDock.querySelector('.nx').addEventListener('touchstart',e=>{ e.preventDefault(
 function gwCaption(t){ const c=$('gwCap'); if(!t){ c.style.display='none'; return; } c.querySelector('.t').innerHTML=t; c.style.display='flex'; gwDock.classList.add('on'); }
 let gwVoiceObj=null;
 function gwPickVoice(){ if(gwVoiceObj!==null)return gwVoiceObj; try{ const vs=speechSynthesis.getVoices(); if(!vs.length)return null;
+    const mine=voiceName&&vs.find(v=>v.name===voiceName); if(mine)return gwVoiceObj=mine; const nat=voiceList()[0]; if(nat&&/natural|neural|online|premium|enhanced/i.test(nat.name))return gwVoiceObj=nat;
     gwVoiceObj=vs.find(v=>/en[-_]US/i.test(v.lang)&&/samantha|google us|aria|jenny|zira/i.test(v.name))||vs.find(v=>/en[-_]US/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||false; }catch(e){ gwVoiceObj=false; } return gwVoiceObj; }
 let gwTok=0, gwLine=null, gwHeld=null, gwWasP=false; // the line being read, so it can start over after a pause
 const gwClean=t=>t.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim();
@@ -3785,7 +3797,7 @@ function startAqua(skipIntro){ clearEntities(); mode='aqua'; cg=null; tgm=null; 
 function gwBegin(){ if(!gw||gw.phase!=='intro')return; gw.phase='lesson'; gwScript().catch(e=>console.error(e)); }
 function gwIntro(){ if(!gw)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=gw.phase!=='intro';
   $('mbox').innerHTML='<h2>💧 Groundwater Adventure</h2><div class="say">Fly over a landscape as it builds itself brick by brick. Find out where water hides underground: aquifers, clay and sand, the water table, and the recharge area. Then dig two wells and make an <b>artesian spring</b>!</div>'+
-    '<div class="say" style="font-size:13px;opacity:.8">🔊 A narrator reads everything out loud. Turn the voice off any time with ⚙️.</div>'+
+    '<div class="say" style="font-size:13px;opacity:.8">🔊 Want it read out loud? Switch on the narrator voice in ⚙️ and pick a voice.</div>'+
     '<div class="row"><button class="mbtn" id="gwGo">'+(mid?'Keep going':'Start!')+'</button><button class="mbtn gray" id="gwMenu">Menu</button></div>';
   $('modal').style.display='flex'; tap($('gwGo'),()=>{ closeMenu(); gwBegin(); }); tap($('gwMenu'),openMenu); }
 function aquaHelp(){ return '<h2>💧 Groundwater Adventure</h2><div class="say">Watch and listen as the landscape builds itself. When a glowing spot or a big button appears, tap it!</div>'+
