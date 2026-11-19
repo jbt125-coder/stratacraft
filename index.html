@@ -3866,7 +3866,7 @@ function gwPlace(){ if(!gw||gw.cine)return; if(!target)return; const x=target.x+
   if(u>=0&&u<=GW_RECH&&v>=0&&v<GW_V&&y>=GW_HEAD-1){ if(gw.rech){ toast('⏳ Wait for that one to soak in…'); return; } gwRecharge(x,y-1,z).then(()=>{ if(gw)toast('💧 Recharged! The water pressure goes back up.'); }); return; }
   const cur=get(x,y,z); if(cur&&B[cur].solid)return; setBlock(x,y,z,ID.water,0); sfx('place');
   if(!gw.tipR){ gw.tipR=true; toast('Tip: drop water on the sandy hilltop (the recharge area) to refill the aquifer!'); } }
-function clearAqua(){ gwRoot.traverse(o=>{ if(o.geometry&&o.geometry!==gwBoxGeo&&o.geometry!==gwDropGeo&&o.geometry!==gwFlowGeo)o.geometry.dispose(); if(o.material&&o.material.map)o.material.map.dispose(); });
+function clearAqua(){ gwRoot.traverse(o=>{ if(o.geometry&&o.geometry!==gwBoxGeo&&o.geometry!==gwDropGeo&&o.geometry!==gwFlowGeo)o.geometry.dispose(); if(o.isSprite&&o.material.map)o.material.map.dispose(); }); // only label textures are ours alone: the hero shares the player's materials (and his head has one per face)
   gwRoot.clear(); gwStopVoice(); gwCaption(''); $('gwBtn').style.display='none'; gwDock.classList.remove('on'); gwCapDone=null; document.body.classList.remove('gwc'); gw=null; }
 function gwSetup(){ clearAqua(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
   world=gwTarget(0); meta=new Uint8Array(N); rebuildAll();
