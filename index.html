@@ -2511,9 +2511,9 @@ function raidMob(m,dt){ const t=m.t, g=m.g, R=m.rdi||(m.rdi={spd:t.spd,cd:1,shoo
       for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; }
       g.body.rotation.x=m.atk>0?-0.35:0; }
     else { m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
-      if(t.archer){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
-      else if(m.type==='zombie'){ const l=m.atk>0?-0.4:0; g.armL.rotation.x=-1.45+a*0.12+l; g.armR.rotation.x=-1.45-a*0.12+l; }
-      else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } } }
+      if(t.archer){ g.armL.rotation.x=1.5; g.armR.rotation.x=m.atk>0?1.2:1.5; }
+      else if(m.type==='zombie'){ const l=m.atk>0?0.4:0; g.armL.rotation.x=1.45+a*0.12+l; g.armR.rotation.x=1.45-a*0.12+l; }
+      else { const raise=m.atk>0?1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } } }
   for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
   if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/(m.mhp||t.hp)); } }
 function updateRaid(dt){ if(mode!=='raid'||!rd)return; updateRaidHud();
@@ -2840,9 +2840,9 @@ function twMob(m,dt){ const t=m.t, g=m.g, R=m.tw||(m.tw={cd:1,shootT:3,st:'out',
     else if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3; for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; } g.body.rotation.x=m.atk>0?-0.35:0; }
     else if(g.legL){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
       if(m.type==='lion'||m.type==='wolf'){ g.armL.rotation.x=-a; g.armR.rotation.x=a; }
-      else if(t.archer){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
-      else if(m.type==='zombie'||m.type==='mummy'){ const l=m.atk>0?-0.4:0; g.armL.rotation.x=-1.45+a*0.12+l; g.armR.rotation.x=-1.45-a*0.12+l; }
-      else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } } }
+      else if(t.archer){ g.armL.rotation.x=1.5; g.armR.rotation.x=m.atk>0?1.2:1.5; }
+      else if(m.type==='zombie'||m.type==='mummy'){ const l=m.atk>0?0.4:0; g.armL.rotation.x=1.45+a*0.12+l; g.armR.rotation.x=1.45-a*0.12+l; }
+      else { const raise=m.atk>0?1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } } }
   for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
   if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); } }
 function twBullSpawn(n){ for(let k=0;k<n;k++){ const x=TW_CX+(rand()-.5)*36, z=TW_CZ-8+(rand()-.5)*20, y=TW_GY+3+rand()*9, m=discMesh(0.8); powerTag(m,'split'); m.position.set(x,y,z); cartRoot.add(m); tw.bulls.push({m,x,y,z,ph:rand()*6}); } }
@@ -3080,7 +3080,7 @@ function moonMob(m,dt){ const t=m.t, g=m.g, R=m.ml||(m.ml={cd:1,shootT:3,keep:0}
   if(m.type==='mech'&&m.onGround&&(mx||mz)){ R.stomp=(R.stomp||0)+dt; if(R.stomp>0.7){ R.stomp=0; ml.shake=Math.max(ml.shake,0.35); sfx('rock'); } }
   m.yaw=mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz); g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
   if(t.legs){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*3; for(const lg of g.legs){ const ph=m.phase+lg.userData.i*1.6+(lg.userData.sd>0?Math.PI:0); lg.rotation.y=Math.sin(ph)*0.35; lg.rotation.z=Math.max(0,Math.cos(ph))*0.25*lg.userData.sd; } }
-  else if(g.legL){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a; g.armL.rotation.x=-a*0.5; g.armR.rotation.x=sh?(m.atk>0?-1.3:-1.5):a*0.5; }
+  else if(g.legL){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a; g.armL.rotation.x=-a*0.5; g.armR.rotation.x=sh?(m.atk>0?1.3:1.5):a*0.5; }
   for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
   if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); } }
 function mlKill(m){ const p=ML_PTS[m.type]||50; ml.score+=p; ml.kills[m.type]=(ml.kills[m.type]||0)+1; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); if(m.type==='mech'){ ml.shake=1.2; puff(m.p[0],m.p[1]+2,m.p[2],[0xff3a10,0xff8a1a,0xffd84a,0x555555],60,10,6,4,1.6); sfx('boom'); } }
@@ -3264,7 +3264,7 @@ function eaMob(m,dt){ const t=m.t, g=m.g, R=m.ea||(m.ea={cd:1,shootT:3,idle:fals
     R.cd-=dt; if(fight&&dist<=reach+0.35&&R.cd<=0){ R.cd=1.4; m.atk=0.3; hurtPlayer(1,dx/dist,dz/dist,'A '+t.name); }
     m.yaw=fight||reveal?(mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz)):(mx||mz?Math.atan2(-mx,-mz):m.yaw); g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
     m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; if(g.legL){ g.legL.rotation.x=a; g.legR.rotation.x=-a; }
-    if(g.armL){ g.armL.rotation.x=m.type==='ti80'&&fight?(m.atk>0?-1.2:-1.45):-a*0.5; g.armR.rotation.x=m.type==='ti80'&&fight?(m.atk>0?-1.2:-1.45):a*0.5; } }
+    if(g.armL){ g.armL.rotation.x=m.type==='ti80'&&fight?(m.atk>0?1.2:1.45):-a*0.5; g.armR.rotation.x=m.type==='ti80'&&fight?(m.atk>0?1.2:1.45):a*0.5; } }
   const sh=m.type==='ti80'?{kind:'rlaser',spd:26,g:0,cd:[3,5]}:m.type==='3v3'?{kind:'plasma',spd:15,g:0.5,cd:[2.5,4]}:null;
   if(sh&&fight&&dist<28&&dist>2){ R.shootT-=dt; if(R.shootT<=0){ if(ea.fireT>0)R.shootT=0.3+rand()*0.6; else { R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0]); ea.fireT=1.2; mlThrow(m,sh); } } }
   for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
@@ -3379,8 +3379,8 @@ function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a),
   const hd=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[skin,skin,hairM,skin,hairM,faceM]); hd.position.y=1.67; hero.add(hd);
   const sw=weaponMesh('diamond',false); sw.position.set(0,-0.62,-0.08); sw.rotation.x=-Math.PI/2; aR.add(sw);
   // skeletons with bows, and zombies coming at him
-  const skels=[]; for(const [x,y,z] of [[-6,2,-3],[-5,3,4],[5,2,-6]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=-1.5; r.armR.rotation.x=-1.5; skels.push({r,t:Math.random()*1.5}); }
-  const zombies=[]; for(let k=0;k<2;k++){ const r=mobModel('zombie'); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=-1.45; r.armR.rotation.x=-1.45; zombies.push({r,t:k*1.6}); }
+  const skels=[]; for(const [x,y,z] of [[-6,2,-3],[-5,3,4],[5,2,-6]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.5; r.armR.rotation.x=1.5; skels.push({r,t:Math.random()*1.5}); }
+  const zombies=[]; for(let k=0;k<2;k++){ const r=mobModel('zombie'); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.45; r.armR.rotation.x=1.45; zombies.push({r,t:k*1.6}); }
   titleK={hero,lL,lR,aL,aR,skels,zombies,arrows:[],bits:[],R,t:0}; }
 function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12; const T=K.t, H=K.hero;
   const rad=camera.aspect<1?17:12, ang=0.25+Math.sin(titleA)*0.6, cx=TT.x+Math.sin(ang)*rad, cz=TT.z+Math.cos(ang)*rad+2; camera.position.set(cx,TT.y+(camera.aspect<1?5:3.8),cz); camera.lookAt(TT.x+1,TT.y+(camera.aspect<1?3.2:2.6),TT.z-0.5); // further back on tall phone screens
@@ -3392,7 +3392,7 @@ function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12
     if(u>0.96&&!Z.hit){ Z.hit=true; for(let i=0;i<10;i++)K.bits.push({m:titleBit(0x6fae4a,zx,1,zz),v:[(Math.random()-.5)*4,Math.random()*4+1,(Math.random()-.5)*4],life:0.7}); } if(u<0.5)Z.hit=false; Z.r.root.visible=u<0.97; }
   for(const S of K.skels){ S.t-=dt; S.r.root.rotation.y=Math.atan2(-(H.position.x-S.r.root.position.x),-(H.position.z-S.r.root.position.z));
     if(S.t<=0){ S.t=1.3+Math.random()*1.2; const a=arrowMesh(true); g2(a); const o=S.r.root.position.clone().add(new THREE.Vector3(0,1.5,0)), tg=H.position.clone().add(new THREE.Vector3((Math.random()-.5)*2.5,1.2+Math.random(),(Math.random()-.5)*2.5));
-      const d=tg.sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl+0.6}); S.r.armR.rotation.x=-1.2; } else if(S.t<1)S.r.armR.rotation.x=-1.5; }
+      const d=tg.sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl+0.6}); S.r.armR.rotation.x=1.2; } else if(S.t<1)S.r.armR.rotation.x=1.5; }
   for(let i=K.arrows.length-1;i>=0;i--){ const A=K.arrows[i]; A.life-=dt; A.v.y-=7*dt; A.p.addScaledVector(A.v,dt); A.m.position.copy(A.p); A.m.lookAt(A.p.clone().add(A.v)); A.m.rotateY(Math.PI); if(A.life<=0){ titleRoot.remove(A.m); K.arrows.splice(i,1); } }
   if(Math.random()<0.35)K.bits.push({m:titleBit(Math.random()<0.5?0xffffff:0xcccccc,K.R.position.x+(Math.random()-.5)*2,0.6,K.R.position.z+(Math.random()-.5)*2),v:[(Math.random()-.5)*2,1+Math.random(),(Math.random()-.5)*2],life:1.2}); // rocket steam
   for(let i=K.bits.length-1;i>=0;i--){ const b=K.bits[i]; b.life-=dt; b.v[1]-=4*dt; b.m.position.x+=b.v[0]*dt; b.m.position.y+=b.v[1]*dt; b.m.position.z+=b.v[2]*dt; if(b.life<=0){ titleRoot.remove(b.m); K.bits.splice(i,1); } } }
@@ -3609,7 +3609,7 @@ function updateRival(dt){
   rv.yaw=aimYaw!==null?aimYaw:(mx||mz?Math.atan2(-mx,-mz):rv.yaw);
   const g=rv.g; g.position.set(rv.p[0],rv.p[1],rv.p[2]); g.rotation.y=rv.yaw;
   rv.phase+=dt*Math.hypot(rv.v[0],rv.v[2])*2.2; const a=flying?0.15:Math.sin(rv.phase)*0.6; rv.legL.rotation.x=a; rv.legR.rotation.x=-a;
-  rv.aimT=Math.max(0,(rv.aimT||0)-dt); rv.armL.rotation.x=T?-1.45:-a*0.8; rv.armR.rotation.x=T?(rv.aimT>0?-1.1:-1.4):a*0.8;
+  rv.aimT=Math.max(0,(rv.aimT||0)-dt); rv.armL.rotation.x=T?1.45:-a*0.8; rv.armR.rotation.x=T?(rv.aimT>0?1.1:1.4):a*0.8;
 }
 // --- Round 5: giant glass targets that shatter
 const glassTargets=[], shards=[]; let glassT=3;
@@ -3751,9 +3751,9 @@ function updateMobs(dt){
       g.body.rotation.x=m.atk>0?-0.35:0; }
     else if(g.legL){ m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; g.legL.rotation.x=a; g.legR.rotation.x=-a;
       m.atk=Math.max(0,m.atk-dt);
-      if(t.archer&&chase){ g.armL.rotation.x=-1.5; g.armR.rotation.x=m.atk>0?-1.2:-1.5; }
-      else if(m.type==='zombie'){ const l=m.atk>0?-0.4:0; g.armL.rotation.x=-1.45+a*0.12+l; g.armR.rotation.x=-1.45-a*0.12+l; }
-      else { const raise=m.atk>0?-1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } }
+      if(t.archer&&chase){ g.armL.rotation.x=1.5; g.armR.rotation.x=m.atk>0?1.2:1.5; }
+      else if(m.type==='zombie'){ const l=m.atk>0?0.4:0; g.armL.rotation.x=1.45+a*0.12+l; g.armR.rotation.x=1.45-a*0.12+l; }
+      else { const raise=m.atk>0?1.8:0; g.armL.rotation.x=-a*0.6+raise; g.armR.rotation.x=a*0.6+raise; } }
     m.flash=Math.max(0,m.flash-dt); for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
     if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); }
   }
@@ -3863,7 +3863,7 @@ function update(dt){
   legL.rotation.x=Math.sin(walkPhase)*amp; legR.rotation.x=-Math.sin(walkPhase)*amp;
   armL.rotation.x=-Math.sin(walkPhase)*amp*0.8; armR.rotation.x=Math.sin(walkPhase)*amp*0.8;
   swingT=Math.max(0,swingT-dt); const sw=swingT>0?Math.sin((1-swingT/0.25)*Math.PI):0;
-  if(sw>0) armR.rotation.x=-1.4*sw-0.3;
+  if(sw>0) armR.rotation.x=1.4*sw+0.3;
   head.rotation.x=pitch*0.7; model.visible=camMode===3;
   fpHolder.visible=camMode===1; fpHolder.rotation.x=-sw*1.1; fpHolder.position.y=-0.36+Math.sin(walkPhase)*0.015*amp;
 
