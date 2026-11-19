@@ -1427,12 +1427,29 @@ function showCard(id,stay){ const b=B[id], c=$('card');
 let toastTimer=null;
 const VOICE_KEY='stratacraft_voice'; let voicePref=true; try{ voicePref=localStorage.getItem(VOICE_KEY)!=='0'; }catch(e){}
 function voiceOn(){ return voicePref; }
+const CAP_KEY='stratacraft_capspeed', CAP_SPEEDS={slow:{k:1.6,p:1.3,n:'🐢 Slow'},normal:{k:1,p:0.6,n:'🚶 Normal'},fast:{k:0.65,p:0.2,n:'🐇 Fast'}};
+let capSpeed='slow'; try{ const v=localStorage.getItem(CAP_KEY); if(CAP_SPEEDS[v])capSpeed=v; }catch(e){}
+const capSpd=()=>CAP_SPEEDS[capSpeed];
+// Phones and tablets only let a page talk after speech has started inside a tap, so the first tap says nothing, silently
+function tapUp(el,fn){ el.addEventListener('touchend',e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); fn(); },{passive:false}); el.addEventListener('click',fn); } // speech must start when the finger lifts
+let voiceUnlocked=false;
+function unlockVoice(){ if(voiceUnlocked||!window.speechSynthesis)return; voiceUnlocked=true; try{ speechSynthesis.getVoices(); const u=new SpeechSynthesisUtterance('.'); u.volume=0; speechSynthesis.speak(u); }catch(e){} }
+for(const ev of ['touchend','click','keydown'])document.addEventListener(ev,unlockVoice,{capture:true,passive:true});
+function testVoice(){ if(!window.speechSynthesis){ toast('🔇 This browser can\'t read out loud. Try Chrome, Edge or Safari.'); return; }
+  const S=speechSynthesis; try{ S.cancel(); S.resume(); }catch(e){} let started=false;
+  const u=new SpeechSynthesisUtterance('Hi! I\'m your narrator. If you can hear me, the voice is working.'); u.rate=0.97; u.pitch=1.05; u.lang='en-US';
+  try{ const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } }catch(e){}
+  u.onstart=()=>{ started=true; }; u.onerror=e=>{ if(e.error!=='interrupted'&&e.error!=='canceled')toast('🔇 The voice was blocked ('+e.error+'). Tap Test again.'); };
+  try{ S.speak(u); }catch(e){}
+  setTimeout(()=>{ if(!started&&!S.speaking)toast('🔇 No voice? Turn the volume up. On iPhone or iPad, also flip off the silent switch.'); },2500); }
 function setVoice(on){ voicePref=!!on; try{ localStorage.setItem(VOICE_KEY,on?'1':'0'); }catch(e){} if(!on)try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
 function openSettings(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; const on=voiceOn();
-  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div>'+
+  $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><div class="sbtns"><button class="ibtn gray" id="gTest">▶ Test</button><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div></div>'+
+    '<div class="item"><div class="ic">💬</div><div class="tx"><b>Caption speed</b><div class="fx">How long each text box stays up before the next one.</div><div class="seg">'+Object.keys(CAP_SPEEDS).map(k=>'<button data-cs="'+k+'" class="'+(k===capSpeed?'on':'')+'">'+CAP_SPEEDS[k].n+'</button>').join('')+'</div></div></div>'+
     '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
     '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
-  $('modal').style.display='flex'; tap($('gVoice'),()=>{ setVoice(!voiceOn()); openSettings(); }); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
+  $('modal').style.display='flex'; tapUp($('gVoice'),()=>{ setVoice(!voiceOn()); if(voiceOn())testVoice(); openSettings(); }); tapUp($('gTest'),()=>{ if(!voiceOn())setVoice(true); testVoice(); openSettings(); });
+  $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
   tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
@@ -3021,7 +3038,7 @@ function moonCutscene(dt){ if(!ml)return false; const L=ml.lem, base=[ML_LEM[0],
 const mlFlash=document.createElement('div'); mlFlash.style.cssText='position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:7;transition:opacity .6s'; document.body.appendChild(mlFlash);
 const mlPola=document.createElement('div'); mlPola.style.cssText='position:fixed;right:4%;top:20%;width:min(46vw,300px);background:#fff;padding:10px 10px 34px;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:rotate(-5deg);z-index:7;display:none;font:700 16px sans-serif;color:#333;text-align:center';
 document.body.appendChild(mlPola);
-function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
+function mlRadio(text){ sfx('radio'); try{ if(!window.speechSynthesis||!voiceOn())return; speechSynthesis.cancel(); speechSynthesis.resume(); const u=new SpeechSynthesisUtterance(text); u.rate=0.85; u.pitch=0.75; u.volume=1;
   setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){} },380); u.onend=()=>sfx('radio'); }catch(e){} }
 function mlFlashOn(){ mlFlash.style.transition='none'; mlFlash.style.opacity=0.9; requestAnimationFrame(()=>{ mlFlash.style.transition='opacity .6s'; mlFlash.style.opacity=0; }); }
 function mlShowPhoto(url,cap){ mlPola.innerHTML='<img src="'+url+'" style="width:100%;display:block;border-radius:2px"><div style="margin-top:8px">'+(cap||'Me on the Moon! 🌕')+'</div>'; mlPola.style.display='block'; clearTimeout(mlPola._t); mlPola._t=setTimeout(()=>{ mlPola.style.display='none'; },4500); }
@@ -3529,19 +3546,26 @@ function gwCaption(t){ const c=$('gwCap'); if(!t){ c.style.display='none'; retur
 let gwVoiceObj=null;
 function gwPickVoice(){ if(gwVoiceObj!==null)return gwVoiceObj; try{ const vs=speechSynthesis.getVoices(); if(!vs.length)return null;
     gwVoiceObj=vs.find(v=>/en[-_]US/i.test(v.lang)&&/samantha|google us|aria|jenny|zira/i.test(v.name))||vs.find(v=>/en[-_]US/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||false; }catch(e){ gwVoiceObj=false; } return gwVoiceObj; }
-function gwSpeak(text,onEnd){ if(!voiceOn()||!window.speechSynthesis)return false;
-  try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim());
-    u.rate=0.97; u.pitch=1.05; const v=gwPickVoice(); if(v)u.voice=v; u.onend=u.onerror=()=>onEnd(); speechSynthesis.speak(u); return true; }catch(e){ return false; } }
-function gwStopVoice(){ try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
-let gwWasP=false;
-function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)return; gwWasP=p; try{ if(!window.speechSynthesis)return; if(p)speechSynthesis.pause(); else speechSynthesis.resume(); }catch(e){} }
+let gwTok=0, gwLine=null, gwHeld=null, gwWasP=false; // the line being read, so it can start over after a pause
+const gwClean=t=>t.replace(/<[^>]+>/g,'').replace(/[\u{1F000}-\u{1FAFF}←-⯿️]/gu,'').trim();
+function gwSpeak(text,onEnd){ if(!voiceOn()||!window.speechSynthesis)return false; const S=speechSynthesis, tok=++gwTok; gwLine={text,onEnd};
+  const go=()=>{ if(tok!==gwTok)return; try{ S.resume(); const u=new SpeechSynthesisUtterance(gwClean(text)); u.rate=0.97; u.pitch=1.05; u.volume=1;
+      const v=gwPickVoice(); if(v){ u.voice=v; u.lang=v.lang; } else u.lang='en-US';
+      u.onend=()=>{ if(tok!==gwTok)return; gwLine=null; onEnd(true); };
+      u.onerror=e=>{ if(tok!==gwTok||e.error==='interrupted'||e.error==='canceled')return; gwLine=null; onEnd(false); }; // blocked or broken: fall back to reading time
+      S.speak(u); }catch(e){ gwLine=null; onEnd(false); } };
+  try{ if(S.speaking||S.pending){ S.cancel(); setTimeout(go,150); } else go(); }catch(e){ return false; } return true; }
+function gwStopVoice(){ gwTok++; gwLine=null; gwHeld=null; try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)return; gwWasP=p;
+  if(p){ gwHeld=gwLine; gwTok++; gwLine=null; try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
+  else if(gwHeld){ const h=gwHeld; gwHeld=null; if(!(voiceOn()&&gwSpeak(h.text,h.onEnd)))h.onEnd(false); } } // read the line again from the start
 // --- the lesson script runs on game time, so it pauses with the menu and stops if a new game starts
 function gwUntil(fn){ const run=gw; return new Promise(res=>run.waits.push({fn,res})); }
 function gwWait(s){ const run=gw, t0=run.clock; return gwUntil(()=>run.clock-t0>=s); }
-async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*(demoOn()?1.6:1);
-  gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,()=>{ done=true; });
-  await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(spoke&&voiceOn())return done?e>=1:e>=est*2+4; return e>=est; });
-  gwCapDone=null; await gwWait(demoOn()?1.3:0.35); }
+async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*capSpd().k;
+  let heard=false; gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,ok=>{ done=true; heard=ok; });
+  await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(done)return heard?e>=1:e>=est; if(spoke&&voiceOn())return e>=est*2+4; return e>=est; });
+  gwCapDone=null; await gwWait(capSpd().p); }
 function gwButton(label){ const run=gw, b=$('gwBtn'), t0=gw.clock; b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
   b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
   return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5)).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
