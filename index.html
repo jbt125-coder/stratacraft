@@ -145,6 +145,11 @@
   .dmNext svg{width:52px;height:52px;transform:rotate(-90deg)} .dmNext circle{fill:none;stroke-width:5} .dmNext .bg{stroke:rgba(255,255,255,.15)} .dmNext .fg{stroke:#ffd84a;stroke-dasharray:119.4;stroke-dashoffset:0;stroke-linecap:round}
   #dmCount{position:absolute;left:8px;width:52px;text-align:center;font:900 20px sans-serif} .dmNext .lbl{font-weight:800;font-size:17px}
   body.demo #act,body.demo #hotwrap,body.demo #joyHint,body.demo #bWeapon,body.demo #bFly,body.demo #bCam,body.demo #bInfo,body.demo #bArrow,body.demo #bMenu,body.demo #gwCap .nx{display:none!important}
+  #ytBox{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));z-index:16;display:none;background:rgba(10,12,30,.85);border:2px solid rgba(255,216,74,.7);border-radius:12px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #ytBox.on{display:block} #ytBox.preview{z-index:30;top:calc(10px + env(safe-area-inset-top));bottom:auto;right:50%;transform:translateX(50%)}
+  #ytBox .ytLbl{font:800 12px sans-serif;color:#ffd84a;padding:2px 4px 4px} #ytBox iframe{display:block;border-radius:8px;width:356px;height:200px;max-width:calc(100vw - 40px)}
+  #ytBox.splash{right:50%;transform:translateX(50%)} #dmSplash.withYt .dmS{padding-bottom:250px} #dmSplash.withYt.hasPic .dmPic{width:min(94vw,calc((100vh - 340px) * 1.79),1200px)}
+  .ytRow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px} .ytRow label{display:flex;align-items:center;gap:6px;font-size:18px;margin-left:auto} .ytRow input[type=range]{width:110px}
   #gwDock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(760px,calc(100% - 32px));z-index:6;display:none;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
   #gwDock.on{display:flex}
   #gwCap{pointer-events:auto;background:rgba(12,16,24,.88);border:2px solid rgba(127,227,207,.55);border-radius:14px;padding:10px 12px 10px 16px;color:#fff;font:700 clamp(15px,2.4vw,19px)/1.4 sans-serif;display:none;gap:10px;align-items:center;width:100%;box-sizing:border-box;text-shadow:0 1px 2px #000}
@@ -1465,11 +1470,20 @@ function openSettings(){ if(document.pointerLockElement)document.exitPointerLock
     '<div class="item"><div class="ic">💬</div><div class="tx"><b>Caption speed</b><div class="fx">How long each text box stays up before the next one.</div><div class="seg">'+Object.keys(CAP_SPEEDS).map(k=>'<button data-cs="'+k+'" class="'+(k===capSpeed?'on':'')+'">'+CAP_SPEEDS[k].n+'</button>').join('')+'</div></div></div>'+
     '<div class="item"><div class="ic">🏹</div><div class="tx"><b>Hero in Groundwater Adventure</b><div class="fx">Your hero practices archery, then runs over to dig the wells and drop the water.</div></div><button class="ibtn'+(gwHeroOn?'':' gray')+'" id="gHero">'+(gwHeroOn?'ON':'OFF')+'</button></div>'+
     '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
+    '<div class="item" style="display:block"><div style="display:flex;gap:12px;align-items:center"><div class="ic">🎵</div><div class="tx"><b>Mr. Tyler screen soundtrack</b><div class="fx">Paste a YouTube link. It plays in a player under the Earth Space Science picture while it is up in Demo mode. Add <b>&amp;t=30</b> to the link to start 30 seconds in.</div></div></div>'+
+      '<div class="fld"><input id="gYt" placeholder="https://www.youtube.com/watch?v=..." value="'+esc(ytLink)+'" autocomplete="off" spellcheck="false"></div>'+
+      '<div class="ytRow"><button class="ibtn" id="gYtPlay">▶ Preview</button><button class="ibtn gray" id="gYtStop">⏹ Stop</button><button class="ibtn gray" id="gYtClear">Remove</button><label>🔉<input type="range" id="gYtVol" min="0" max="100" value="'+ytVol+'"></label></div>'+
+      (location.protocol==='file:'?'<div class="fx" style="margin-top:6px;color:#ffd84a">⚠️ The game is opened from a file on this computer. YouTube may refuse to play there. Open it from its website link instead.</div>':'')+'</div>'+
     '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
   $('modal').style.display='flex'; tapUp($('gVoice'),()=>{ setVoice(!voiceOn()); if(voiceOn())testVoice(); openSettings(); }); tapUp($('gTest'),()=>{ if(!voiceOn())setVoice(true); testVoice(); openSettings(); });
   if($('gVoiceSel'))$('gVoiceSel').addEventListener('change',e=>{ setVoiceName(e.target.value); testVoice(); });
-  $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
-  tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); tap($('gHero'),()=>{ setGwHero(!gwHeroOn); openSettings(); }); }
+  $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(ytBox.className.indexOf('preview')>=0)ytStop(false); if(titleOn)$('modal').style.display='none'; else closeMenu(); });
+  tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); tap($('gHero'),()=>{ setGwHero(!gwHeroOn); openSettings(); });
+  const yi=$('gYt'), saveYt=()=>{ ytLink=yi.value.trim(); try{ localStorage.setItem(YT_KEY,ytLink); }catch(e){} };
+  yi.addEventListener('input',saveYt); yi.addEventListener('keydown',e=>e.stopPropagation());
+  tapUp($('gYtPlay'),()=>{ saveYt(); if(!ytParse(ytLink)){ toast(ytLink?'🎵 That doesn\'t look like a YouTube link.':'🎵 Paste a YouTube link first.'); return; } ytPlay('preview'); });
+  tapUp($('gYtStop'),()=>ytStop(false)); tapUp($('gYtClear'),()=>{ ytStop(false); yi.value=''; saveYt(); toast('🎵 Soundtrack removed'); });
+  $('gYtVol').addEventListener('input',e=>{ ytVol=+e.target.value; try{ localStorage.setItem(YT_VOL_KEY,String(ytVol)); if(ytReady&&ytOn)ytP.setVolume(ytVol); }catch(err){} }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
@@ -3956,7 +3970,27 @@ function dmDrawSky(dt){ dmSkyT+=dt; const c=dmSky, W2=c.clientWidth, H2=c.client
   g.textAlign='center'; g.textBaseline='middle';
   for(const f of dmFloat){ f.x+=f.vx*dt; f.y+=f.vy*dt; f.r+=f.vr*dt; if(f.y<-0.1){ f.y=1.1; f.x=Math.random(); } if(f.x<-0.1)f.x=1.1; if(f.x>1.1)f.x=-0.1;
     g.save(); g.translate(f.x*W2,f.y*H2); g.rotate(Math.sin(f.r)*0.4); g.globalAlpha=0.85; g.font=f.s+'px sans-serif'; g.fillText(f.e,0,0); g.restore(); } g.globalAlpha=1; }
-function dmSplashStart(){ demo.splash=DEMO_SPLASH; dmSplash.style.display='flex'; sfx('buy'); }
+// --- a YouTube soundtrack for the Mr. Tyler screen: the link is set in ⚙️. YouTube's rules say the player must stay visible, so it sits in a corner while it plays
+const YT_KEY='stratacraft_yt', YT_VOL_KEY='stratacraft_yt_vol'; let ytLink='', ytVol=60; try{ ytLink=localStorage.getItem(YT_KEY)||''; ytVol=+(localStorage.getItem(YT_VOL_KEY)||60); }catch(e){}
+function ytParse(link){ const m=String(link||'').trim().match(/(?:youtu\.be\/|[?&]v=|\/(?:embed|shorts|live|v)\/)([\w-]{11})/)||String(link||'').trim().match(/^([\w-]{11})$/); if(!m)return null;
+  let start=0; const t=String(link).match(/[?&#](?:t|start)=([\dhms]+)/); if(t){ const q=t[1]; if(/^\d+$/.test(q))start=+q; else { const h=q.match(/(\d+)h/), mi=q.match(/(\d+)m/), se=q.match(/(\d+)s/); start=(h?+h[1]*3600:0)+(mi?+mi[1]*60:0)+(se?+se[1]:0); } }
+  return {id:m[1],start}; }
+const ytBox=document.createElement('div'); ytBox.id='ytBox'; ytBox.innerHTML='<div class="ytLbl">🎵 Soundtrack</div><div id="ytPlayer"></div>'; document.body.appendChild(ytBox);
+let ytP=null, ytReady=false, ytLoading=false, ytWant=null, ytFadeT=0, ytOn=false, ytVidLoaded='';
+function ytApi(cb){ if(window.YT&&YT.Player){ cb(); return; } const prev=window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady=()=>{ if(prev)try{ prev(); }catch(e){} cb(); };
+  if(!ytLoading){ ytLoading=true; const sc=document.createElement('script'); sc.src='https://www.youtube.com/iframe_api'; sc.onerror=()=>{ ytLoading=false; toast('🎵 Couldn\'t reach YouTube. Check the internet connection.'); }; document.head.appendChild(sc); } }
+function ytApply(){ if(!ytReady||!ytWant)return; const w=ytWant; ytWant=null; try{ ytP.setVolume(ytVol); ytP.unMute();
+    if(ytVidLoaded!==w.id){ ytVidLoaded=w.id; ytP.loadVideoById({videoId:w.id,startSeconds:w.start}); } else { ytP.seekTo(w.start,true); ytP.playVideo(); } }catch(e){} }
+function ytPlay(where){ const v=ytParse(ytLink); if(!v)return false; ytOn=true; ytFadeT=0; ytBox.className='on '+(where||''); ytWant=v; // where: '' = corner of the Mr. Tyler screen, 'preview' = above the settings
+  if(ytP){ ytApply(); return true; }
+  ytApi(()=>{ if(ytP)return; ytP=new YT.Player('ytPlayer',{width:356,height:200,playerVars:{playsinline:1,rel:0,modestbranding:1,controls:1},
+      events:{onReady:()=>{ ytReady=true; ytApply(); },
+        onStateChange:e=>{ if(e.data===YT.PlayerState.ENDED&&ytOn){ const v2=ytParse(ytLink); if(v2){ ytP.seekTo(v2.start,true); ytP.playVideo(); } } }, // shorter than the screen: play it again
+        onError:e=>{ toast(e.data===101||e.data===150||e.data===153?'🎵 That video\'s owner doesn\'t allow it to play in other sites. Try another link.':'🎵 YouTube couldn\'t play that video ('+e.data+').'); }}}); });
+  return true; }
+function ytStop(fade){ if(!ytOn)return; if(fade&&ytReady){ ytFadeT=1.5; return; } ytOn=false; ytFadeT=0; ytBox.className=''; try{ if(ytReady){ ytP.pauseVideo(); ytP.setVolume(ytVol); } }catch(e){} }
+function ytTick(dt){ if(ytFadeT<=0)return; ytFadeT-=dt; try{ ytP.setVolume(Math.max(0,ytVol*ytFadeT/1.5)); }catch(e){} if(ytFadeT<=0){ ytFadeT=0; ytStop(false); } }
+function dmSplashStart(){ demo.splash=DEMO_SPLASH; dmSplash.style.display='flex'; const yt=ytPlay('splash'); dmSplash.classList.toggle('withYt',yt); if(!yt)sfx('buy'); }
 function dmSplashTick(dt){ demo.splash-=dt; dmDrawSky(dt); const left=Math.max(0,demo.splash); $('dmCount').textContent=Math.ceil(left);
   $('dmRing').style.strokeDashoffset=(119.4*(1-left/DEMO_SPLASH)).toFixed(1); if(left<=0){ dmSplash.style.display='none'; return true; } return false; }
 // --- the Moon autopilot: walk to the samples, plant the flag, then head for the crash site
@@ -3984,9 +4018,9 @@ function demoFightRun(dt){ const P=demo.pil, lx=ML_LEM[0]-pl.p[0], lz=ML_LEM[1]-
   return {ix:c*mx-s*mz,iz:s*mx+c*mz}; }
 // --- the loop
 function demoStart(){ if(document.pointerLockElement)document.exitPointerLock(); saveNow(); demo={stage:'',t:0,quiz:null,splash:0,pil:{t:0,d:1e9,up:0}}; document.body.classList.add('demo'); demoGo('aqua'); }
-function demoStop(){ if(!demo)return; demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
+function demoStop(){ if(!demo)return; ytStop(false); demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
   closeMenu(); hadSave=loadCurrent(); if(!hadSave)startSurvival(); showTitle(); }
-function demoGo(stage){ demo.stage=stage; demo.t=0; demo.quiz=null; demo.splash=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
+function demoGo(stage){ if(ytOn&&ytBox.className.indexOf('preview')<0)ytStop(true); demo.stage=stage; demo.t=0; demo.quiz=null; demo.splash=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
   if(stage==='aqua'){ closeMenu(); startAqua(true); }
   else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=1; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
   else { gwStopVoice(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
@@ -4499,7 +4533,7 @@ function animate(dt){
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
-  update(dt); demoTick(dt); if(titleOn)updateTitle(dt); animate(dt);
+  update(dt); demoTick(dt); ytTick(dt); if(titleOn)updateTitle(dt); animate(dt);
   let n=0; for(const k of dirty){ buildChunk(k%NCX,Math.floor(k/NCX)); dirty.delete(k); if(++n>=4)break; }
   renderer.render(scene,camera); if(moonSnap){ const f=moonSnap; moonSnap=null; try{ f(renderer.domElement.toDataURL('image/jpeg',0.8)); }catch(e){} } requestAnimationFrame(frame);
 }
