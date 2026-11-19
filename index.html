@@ -3369,13 +3369,11 @@ function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a),
   for(let x=-9;x<=9;x++)for(let z=-9;z<=9;z++){ const d=Math.hypot(x,z); if(d>9.3)continue; const h=d<7?0:-(d-7)*0.6; add(box(1,1,1,grass),x,h-0.5,z); add(box(1,3,1,dirt),x,h-2.5,z); if(d>7.6)add(box(1,2,1,stone),x,h-5,z); } // a floating island
   for(const [x,z,h] of [[-6,-3,2],[-5,4,3],[5,-6,2]])for(let y=0;y<h;y++)add(box(1,1,1,y===h-1?stone:dk),x,y+0.5,z); // rocks for the skeletons
   for(const [x,z] of [[7,-6],[-7,-7]]){ for(let y=0;y<4;y++)add(box(1,1,1,lm(0x6b4a2a)),x,y+0.5,z); for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(let dy=0;dy<2;dy++)add(box(1,1,1,lm(0x3f8a2e)),x+dx,4+dy,z+dz); }
-  // the rocket on its launch pad
-  const R=new THREE.Group(); R.position.set(3,0,-3); g.add(R); const W=lm(0xf2f2ee), red=lm(0xd8202a);
-  const pad=box(3.4,0.4,3.4,stone); pad.position.y=0.2; R.add(pad);
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,6,12),W); body.position.y=3.6; R.add(body);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(0.75,1.6,12),red); nose.position.y=7.4; R.add(nose);
-  for(let i=0;i<4;i++){ const f=box(0.12,1.4,1,red); const a=i*Math.PI/2; f.position.set(Math.cos(a)*0.8,1.3,Math.sin(a)*0.8); f.rotation.y=-a; R.add(f); }
-  const win=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.1,12),bm(0x40b0ff)); win.rotation.x=Math.PI/2; win.position.set(0,5.2,0.74); R.add(win);
+  // a small apple tree where the rocket used to be
+  const R=new THREE.Group(); R.position.set(3,0,-3); g.add(R); const leaf=lm(0x3f8a2e), appleM=lm(0xd8232a);
+  for(let y=0;y<3;y++){ const t=box(0.6,1,0.6,lm(0x6b4a2a)); t.position.y=y+0.5; R.add(t); }
+  for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(let dy=0;dy<2;dy++){ if(dy&&dx&&dz)continue; const l=box(1,1,1,leaf); l.position.set(dx,3.3+dy,dz); R.add(l); }
+  for(const [x,y,z] of [[1.55,3.2,0.3],[-0.4,3.0,1.55],[-1.55,3.6,-0.5],[0.5,3.9,-1.55],[1.1,4.4,1.1]]){ const ap=box(0.28,0.28,0.28,appleM); ap.position.set(x,y,z); R.add(ap); const st=box(0.05,0.12,0.05,lm(0x5a3a1a)); st.position.set(x,y+0.18,z); R.add(st); }
   // our hero, with a diamond sword
   const hero=new THREE.Group(); g.add(hero); hero.position.set(0,0,2.5);
   const lL=limbOn(hero,-0.125,0.72,0.24,0.72,pants,shoe), lR=limbOn(hero,0.125,0.72,0.24,0.72,pants,shoe); const bd=box(0.5,0.72,0.26,shirt); bd.position.y=1.08; hero.add(bd);
@@ -3383,7 +3381,9 @@ function buildTitle(){ titleRoot.clear(); const g=titleRoot, grass=lm(0x5fa03a),
   const hd=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[hairSideR,hairSideL,hairM,skin,hairM,faceM]); hd.position.y=1.67; hero.add(hd);
   const bow=weaponMesh('bow',false); bow.position.set(0,-0.62,-0.08); bow.rotation.x=-Math.PI/2; aL.add(bow); // an archer now
   // skeletons with bows, and zombies coming at him
-  const skels=[]; for(const [x,y,z] of [[-6,2,-3],[-5,3,4],[5,2,-6]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.5; r.armR.rotation.x=1.5; skels.push({r,t:Math.random()*1.5}); }
+  const skels=[]; for(const [x,y,z,tx,tz] of [[-6,2,-3,-2.5,-6.5],[-5,3,4,-7,1],[5,2,-6,6.5,-2]]){ const r=mobModel('skeleton'); r.root.position.set(x,y,z); r.bar.visible=false; g.add(r.root); r.armL.rotation.x=1.5; r.armR.rotation.x=1.5;
+    const post=box(0.14,1.5,0.14,lm(0x6b4a2a)); post.position.set(tx,0.75,tz); g.add(post); const disc=discMesh(0.5); disc.position.set(tx,1.75,tz); g.add(disc); disc.lookAt(TT.x+x,TT.y+y+1.5,TT.z+z); // its own bullseye
+    skels.push({r,t:0.6+Math.random()*1.5,tg:new THREE.Vector3(tx,1.75,tz),disc}); }
   const mons=[{st:'wait',t:0.3,r:null},{st:'wait',t:2.4,r:null}]; // two monsters take turns walking up with a bullseye
   titleK={hero,lL,lR,aL,aR,skels,mons,arrows:[],shots:[],bits:[],R,t:0,aim:null,fireT:0}; }
 function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12; const T=K.t, H=K.hero;
@@ -3411,11 +3411,11 @@ function updateTitle(dt){ const K=titleK; if(!K)return; K.t+=dt; titleA+=dt*0.12
   for(let i=K.shots.length-1;i>=0;i--){ const S=K.shots[i]; S.t+=dt/0.32; const p=S.o.clone().lerp(S.w,Math.min(1,S.t)); p.y+=Math.sin(Math.min(1,S.t)*Math.PI)*0.25; S.m.position.copy(p); S.m.lookAt(S.w.clone().add(titleRoot.position)); S.m.rotateY(Math.PI);
     if(S.t>=1){ titleRoot.remove(S.m); K.shots.splice(i,1); const M=S.M; if(M.disc){ M.disc.visible=false; for(let k=0;k<14;k++)K.bits.push({m:titleBit(k%2?0xff3030:0xffffff,S.w.x,S.w.y,S.w.z),v:[(Math.random()-.5)*4,Math.random()*3+1,(Math.random()-.5)*4],life:0.7}); }
       const P=M.r.root.position, dx=P.x-H.position.x, dz=P.z-H.position.z, l=Math.hypot(dx,dz)||1; M.run=[dx/l,dz/l]; M.st='flee'; M.t=1.4; } }
-  for(const S of K.skels){ S.t-=dt; S.r.root.rotation.y=Math.atan2(-(H.position.x-S.r.root.position.x),-(H.position.z-S.r.root.position.z));
-    if(S.t<=0){ S.t=1.3+Math.random()*1.2; const a=arrowMesh(true); g2(a); const o=S.r.root.position.clone().add(new THREE.Vector3(0,1.5,0)), tg=H.position.clone().add(new THREE.Vector3((Math.random()-.5)*2.5,1.2+Math.random(),(Math.random()-.5)*2.5));
-      const d=tg.sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl+0.6}); S.r.armR.rotation.x=1.2; } else if(S.t<1)S.r.armR.rotation.x=1.5; }
-  for(let i=K.arrows.length-1;i>=0;i--){ const A=K.arrows[i]; A.life-=dt; A.v.y-=7*dt; A.p.addScaledVector(A.v,dt); A.m.position.copy(A.p); A.m.lookAt(A.p.clone().add(A.v)); A.m.rotateY(Math.PI); if(A.life<=0){ titleRoot.remove(A.m); K.arrows.splice(i,1); } }
-  if(Math.random()<0.35)K.bits.push({m:titleBit(Math.random()<0.5?0xffffff:0xcccccc,K.R.position.x+(Math.random()-.5)*2,0.6,K.R.position.z+(Math.random()-.5)*2),v:[(Math.random()-.5)*2,1+Math.random(),(Math.random()-.5)*2],life:1.2}); // rocket steam
+  for(const S of K.skels){ S.t-=dt; S.r.root.rotation.y=Math.atan2(-(S.tg.x-S.r.root.position.x),-(S.tg.z-S.r.root.position.z));
+    if(S.t<=0){ S.t=1.4+Math.random()*1.3; const a=arrowMesh(true); g2(a); const o=S.r.root.position.clone().add(new THREE.Vector3(0,1.5,0)), tg=S.tg.clone().add(new THREE.Vector3((Math.random()-.5)*0.4,(Math.random()-.5)*0.4,(Math.random()-.5)*0.4));
+      const d=tg.clone().sub(o), fl=d.length()/14; K.arrows.push({m:a,p:o,v:d.multiplyScalar(1/fl).add(new THREE.Vector3(0,0.5*7*fl,0)),life:fl,hit:tg}); S.r.armR.rotation.x=1.2; } else if(S.t<1)S.r.armR.rotation.x=1.5; }
+  for(let i=K.arrows.length-1;i>=0;i--){ const A=K.arrows[i]; A.life-=dt; A.v.y-=7*dt; A.p.addScaledVector(A.v,dt); A.m.position.copy(A.p); A.m.lookAt(A.p.clone().add(A.v).add(titleRoot.position)); A.m.rotateY(Math.PI);
+    if(A.life<=0){ titleRoot.remove(A.m); K.arrows.splice(i,1); if(A.hit)for(let k=0;k<8;k++)K.bits.push({m:titleBit(k%2?0xff3030:0xffd84a,A.hit.x,A.hit.y,A.hit.z),v:[(Math.random()-.5)*3,Math.random()*2+0.5,(Math.random()-.5)*3],life:0.5}); } } // thunk: right on the bullseye
   for(let i=K.bits.length-1;i>=0;i--){ const b=K.bits[i]; b.life-=dt; b.v[1]-=4*dt; b.m.position.x+=b.v[0]*dt; b.m.position.y+=b.v[1]*dt; b.m.position.z+=b.v[2]*dt; if(b.life<=0){ titleRoot.remove(b.m); K.bits.splice(i,1); } } }
 function g2(m){ titleRoot.add(m); }
 const titleBitGeo=new THREE.BoxGeometry(0.16,0.16,0.16);
