@@ -255,6 +255,10 @@ makeTile('iron',46,(x,y,r)=>{ let c=nz([122,84,58],r,.12); if((x+y)%5===0)c=[92,
 makeTile('regolith',48,(x,y,r)=>{ let c=nz([168,166,160],r,.1); if(r()<.06)c=[120,118,114]; return c; });
 makeTile('moonrock',49,(x,y,r)=>{ let c=nz([104,102,100],r,.14); if(r()<.05)c=[70,68,66]; return c; });
 makeTile('meteor',50,(x,y,r)=>{ const v=Math.sin(x*0.9+y*0.4)+Math.sin(y*0.7-x*0.3); return v>1.2?[120,255,120]:nz([58,48,44],r,.2); });
+makeTile('scrap',51,(x,y,r)=>{ if(x%8===0||y%8===0)return nz([52,50,52],r,.1); let c=nz([92,88,86],r,.12); if(r()<.08)c=[110,74,52]; if((x%8===2||x%8===6)&&(y%8===2||y%8===6))c=[140,140,144]; return c; });
+makeTile('circuit',52,(x,y,r)=>{ if((x===3||x===11)&&y>2||y===5&&x>2||y===12&&x<12)return [40,200,110]; if(x%4===1&&y%4===1)return [200,190,90]; return nz([18,22,20],r,.25); });
+makeTile('server',53,(x,y,r)=>{ if(y%4===0)return nz([46,48,54],r,.1); if(x>=2&&x<=13&&y%4===2)return (x%3===0)?[r()<.5?40:255,r()<.5?255:40,r()<.3?255:40]:[14,14,18]; return nz([24,24,30],r,.15); });
+makeTile('screen',54,(x,y,r)=>{ if(x===0||y===0||x===15||y===15)return [30,30,34]; let c=nz([22,48,96],r,.2); if(y%3===0)c=mul(c,0.7); if(r()<.03)c=[160,220,255]; return c; });
 makeTile('steel',47,(x,y,r)=>{ const v=Math.sin((x+y)*0.4); return nz(v>0.6?[226,230,236]:[176,182,192],r,.05); });
 makeTile('roof',45,(x,y,r)=>{ if(y%4===3)return nz([110,30,24],r,.1); return nz(((x+(y>>2)*3)%6===0)?[150,44,34]:[178,58,42],r,.08); });
 
@@ -318,6 +322,10 @@ addBlock('iron','Wrought Iron','Building','Wrought iron is iron with almost no c
 addBlock('regolith','Moon Dust (Regolith)','Igneous','The Moon is covered in regolith: powdery dust and broken rock made by billions of years of meteorite hits. Astronaut bootprints in it can last for millions of years.',{t:'regolith'},{hidden:true});
 addBlock('moonrock','Moon Rock','Igneous','Most of the Moon\'s dark areas are basalt, rock from ancient lava flows. Apollo astronauts brought 382 kg of moon rocks back to Earth.',{t:'moonrock'},{hidden:true});
 addBlock('meteor','Meteorite','Mineral','A meteorite is a space rock that survives the fall to the ground. This one seems to be glowing…',{t:'meteor'},{hidden:true});
+addBlock('scrap','Scrap Metal','Building','Old metal from broken machines. Most metals can be melted down and recycled again and again.',{t:'scrap'},{hidden:true});
+addBlock('circuit','Circuit Board','Building','Circuit boards hold tiny chips made from silicon, the second most common element in Earth\'s crust (after oxygen).',{t:'circuit'},{hidden:true});
+addBlock('server','Server Rack','Building','A dead computer server. Real data centers use huge amounts of electricity and water to stay cool.',{t:'server'},{hidden:true});
+addBlock('screen','Broken Screen','Building','A flickering computer screen. Screens are made of glass, a material made from quartz sand.',{t:'screen'},{hidden:true});
 addBlock('steel','Steel','Building','Steel is iron mixed with a little carbon, which makes it much stronger.',{t:'steel'},{hidden:true});
 const isFlam=id=>id&&B[id].flammable;
 
@@ -617,7 +625,7 @@ function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof
 function cleanOwned(o){ o=Array.isArray(o)?o:['fists']; o=[...new Set(o.map(w=>w==='flint'||w==='slingshot'?'boomerang':w))].filter(w=>WEAPON_IDS.includes(w)); if(!o.includes('fists'))o.unshift('fists'); return o; }
 function applySnapshot(s){
   clearEntities(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null; placed.clear();
-  mode=['corners','targets','cart','raid','tour','moon'].includes(s.mode)?s.mode:'survival';
+  mode=['corners','targets','cart','raid','tour','moon','earth'].includes(s.mode)?s.mode:'survival';
   seed=s.seed; world=rleDecode(s.w); meta=rleDecode(s.m);
   pl.p=[s.p[0],s.p[1],s.p[2]]; yaw=s.p[3]; pitch=s.p[4]; pl.v=[0,0,0]; pl.kb=[0,0,0];
   if(s.sel&&B[s.sel]&&!B[s.sel].hidden)sel=s.sel; camMode=s.cam===3?3:1;
@@ -638,6 +646,7 @@ function applySnapshot(s){
   setFly(!!s.fly&&(mode==='survival'||(mode==='corners'&&cg.wings>0)||(mode==='targets'&&(tgm.round===2||tgm.round===5))),false);
   applyMode(); edgeOpen=mode==='survival'; unstick(pl); edgeOpen=false; rebuildAll();
   if(mode==='cart'){ buildCartScene(); crt=newCrt(); placeCart(); }
+  if(mode==='earth'){ owned=['laser']; weapon='laser'; camMode=1; eaSetup(0); } // a saved chapter 2 starts over
   if(mode==='moon'){ owned=['laser']; weapon='laser'; camMode=1; moonSetup(); } // a saved moon mission starts over
   if(mode==='tour'){ owned=['fists','bow']; weapon='bow'; tourSetup(); } // a saved tour always starts over
   if(mode==='raid'){ owned=['fists','bow']; weapon='bow'; raidSetup(); } // a saved Rail Rampage always starts a fresh run
@@ -777,8 +786,12 @@ const MOBT={
   alien:{name:'Alien',hp:25,dmg:1,spd:2.2,coins:[3,6],hw:0.3,h:2.0},
   robot:{name:'Robot Alien',hp:50,dmg:1,spd:1.8,coins:[5,8],hw:0.4,h:2.3},
   mech:{name:'Giant Robot',hp:300,dmg:2,spd:1.3,coins:[20,30],hw:1.0,h:4.9},
+  ti80:{name:'TI-80',hp:30,dmg:1,spd:1.9,coins:[3,6],hw:0.32,h:2.0},
+  trashbot:{name:'Trashbot',hp:20,dmg:1,spd:2.8,coins:[2,4],hw:0.42,h:1.35},
+  '3v3':{name:'3V3',hp:30,dmg:1,spd:5,coins:[4,7],hw:0.35,h:1.15,flyer:true},
 };
 let graniteTex=null, lavaTex=null, mudTex=null;
+let ti80Tex=null;
 function mobModel(type){
   const MT=MOBT[type]; if(MT&&MT.model){ const r=mobModel(MT.model); if(MT.tint)for(const m of r.mats)m.color.setHex(MT.tint); r.bar.position.y=MT.h+0.35; return r; } // recolored versions of other monsters
   const root=new THREE.Group(), body=new THREE.Group(); root.add(body); const mats=[]; const r={root,body,mats};
@@ -872,6 +885,31 @@ function mobModel(type){
     const hd=box(0.72,0.64,0.62,sk); hd.position.y=1.76; body.add(hd); eye(-0.17,1.76,-0.315,0x050505,0.22,0.15); eye(0.17,1.76,-0.315,0x050505,0.22,0.15);
     r.armL=limbOn(body,-0.25,1.28,0.1,0.66,sk,dk); r.armR=limbOn(body,0.25,1.28,0.1,0.66,sk,dk);
     const gun=box(0.09,0.09,0.32,L({color:0x40ff60,emissive:0x105010})); gun.position.set(0,-0.64,-0.12); r.armR.add(gun);
+  } else if(type==='ti80'){ // a metal robot skeleton with a calculator built into its chest
+    const ch=L({color:0x8a9098}), dk=L({color:0x3a3e46});
+    if(!ti80Tex){ const c=document.createElement('canvas'); c.width=48; c.height=64; const x=c.getContext('2d'); x.fillStyle='#2a2c32'; x.fillRect(0,0,48,64); x.fillStyle='#9fb39a'; x.fillRect(5,5,38,16);
+      x.fillStyle='#1a2a1a'; x.font='bold 11px monospace'; x.fillText('TI-80',8,17); for(let i=0;i<4;i++)for(let j=0;j<5;j++){ x.fillStyle=j===4&&i===3?'#d84a2a':i===3?'#6a7ab0':'#c8c8cc'; x.fillRect(5+i*10,26+j*7,7,5); }
+      ti80Tex=new THREE.CanvasTexture(c); ti80Tex.magFilter=THREE.NearestFilter; }
+    r.legL=limbOn(body,-0.13,0.8,0.13,0.8,ch,dk); r.legR=limbOn(body,0.13,0.8,0.13,0.8,ch,dk);
+    const pel=box(0.4,0.14,0.22,dk); pel.position.y=0.86; body.add(pel); const sp=box(0.1,0.3,0.1,ch); sp.position.y=1.0; body.add(sp);
+    for(let i=0;i<3;i++){ const rb=box(0.5,0.06,0.26,ch); rb.position.y=1.14+i*0.14; body.add(rb); } const back=box(0.5,0.5,0.06,dk); back.position.set(0,1.28,0.12); body.add(back);
+    const calc=box(0.3,0.4,0.03,new THREE.MeshBasicMaterial({map:ti80Tex})); calc.position.set(0,1.29,-0.14); body.add(calc);
+    const sk=box(0.38,0.4,0.4,ch); sk.position.y=1.76; body.add(sk); const jaw=box(0.3,0.1,0.34,dk); jaw.position.set(0,1.55,-0.02); body.add(jaw);
+    eye(-0.09,1.8,-0.205,0xff1010,0.1,0.05); eye(0.09,1.8,-0.205,0xff1010,0.1,0.05);
+    r.armL=limbOn(body,-0.34,1.48,0.12,0.72,ch,dk); r.armR=limbOn(body,0.34,1.48,0.12,0.72,ch,dk); const gun=box(0.1,0.1,0.32,dk); gun.position.set(0,-0.66,-0.12); r.armR.add(gun);
+  } else if(type==='trashbot'){ // a little boxy robot on treads with binocular eyes
+    const yl=L({color:0xc8902a}), rust=L({color:0x8a5a22}), dk=L({color:0x2a2a2e}), gr=L({color:0x6a6e74});
+    for(const sx of[-0.32,0.32]){ const tr=box(0.2,0.3,0.72,dk); tr.position.set(sx,0.15,0); body.add(tr); for(const z of[-0.24,0,0.24]){ const w=box(0.22,0.14,0.14,gr); w.position.set(sx,0.15,z); body.add(w); } }
+    const b=box(0.56,0.52,0.52,yl); b.position.y=0.6; body.add(b); const pt=box(0.25,0.2,0.02,rust); pt.position.set(0.1,0.55,-0.265); body.add(pt);
+    const nk=box(0.08,0.3,0.08,gr); nk.position.y=1.0; body.add(nk);
+    for(const sx of[-0.11,0.11]){ const e=box(0.17,0.15,0.22,gr); e.position.set(sx,1.2,-0.02); body.add(e); } eye(-0.11,1.2,-0.135,0xff1a1a,0.09,0.08); eye(0.11,1.2,-0.135,0xff1a1a,0.09,0.08);
+    r.armL=limbOn(body,-0.33,0.72,0.08,0.34,gr,dk); r.armR=limbOn(body,0.33,0.72,0.08,0.34,gr,dk);
+  } else if(type==='3v3'){ // a white flying robot shaped like an egg
+    const w=L({color:0xf4f4f6}), blk=bm(0x0a0a10);
+    const b=box(0.46,0.62,0.4,w); b.position.y=0.35; body.add(b); const b2=box(0.36,0.2,0.32,w); b2.position.y=0.0; body.add(b2);
+    const hd=box(0.46,0.34,0.42,w); hd.position.y=0.86; body.add(hd); const fp=box(0.36,0.2,0.02,blk); fp.position.set(0,0.86,-0.215); body.add(fp);
+    eye(-0.08,0.87,-0.228,0xff2020,0.1,0.05); eye(0.08,0.87,-0.228,0xff2020,0.1,0.05);
+    r.armL=limbOn(body,-0.29,0.6,0.08,0.46,w); r.armR=limbOn(body,0.29,0.6,0.08,0.46,w);
   } else if(type==='robot'||type==='mech'){ // robot aliens, and one giant one
     const s=type==='mech'?2.15:1.1, mt=L({color:0x9aa2ae}), dk=L({color:0x4a505a});
     r.legL=limbOn(body,-0.15*s,0.75*s,0.24*s,0.75*s,dk,mt); r.legR=limbOn(body,0.15*s,0.75*s,0.24*s,0.75*s,dk,mt);
@@ -957,6 +995,7 @@ function sfx(k){ if(!AC)return; try{
   else if(k==='die')tone('triangle',400,60,0.35,0.2);
   else if(k==='sizzle')noise(3000,0.35,0.25,'highpass');
   else if(k==='radio'){ tone('sine',2525,2525,0.25,0.07); noise(1800,0.4,0.12,'bandpass'); } // the Quindar beep from Apollo radio
+  else if(k==='zap'){ noise(4000,0.18,0.3,'highpass'); tone('sawtooth',2200,300,0.15,0.08); }
   else if(k==='jet'){ noise(500,0.5,0.45,'lowpass'); noise(1600,0.35,0.12,'bandpass'); tone('sawtooth',140,60,0.4,0.06); }
   else if(k==='laser'){ tone('square',1400,260,0.09,0.06); tone('sawtooth',900,200,0.07,0.03); }
   else if(k==='buy'){ tone('square',660,660,0.07,0.08); tone('square',880,880,0.07,0.08,0.07); tone('square',1320,1320,0.12,0.08,0.14); }
@@ -1012,6 +1051,7 @@ function hitAction(){
   if(mode==='raid'){ raidShoot(); return; }
   if(mode==='tour'){ tourShoot(); return; }
   if(mode==='moon'){ moonShoot(); return; }
+  if(mode==='earth'){ eaShoot(); return; }
   if(mode==='cart'){ if(crt&&crt.phase==='ride'&&atkCd<=0){ if(weapon!=='bow'){ weapon='bow'; refreshWeapon(); } const n0=shots.length; shoot(WP.bow); atkCd=0.15; for(let i=n0;i<shots.length;i++)shots[i].owner='you'; updateCartHud(); } return; }
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(mode==='targets'){ // bow only, one arrow in the air at a time
@@ -1084,7 +1124,9 @@ function refreshHeld(){ const away=!!boom&&weapon==='boomerang'; tpWeapon.visibl
 function freeShot(s){ if(s.owner&&!s.scored&&mode==='targets'&&tgm&&tgm.phase==='play') tgPopup('Miss',s.owner==='you'?'#cfd6e4':'#ffb3a6',s.p);
   scene.remove(s.mesh); s.mesh.traverse(o=>{ if(o.userData.own)o.geometry.dispose(); }); shots.splice(shots.indexOf(s),1); }
 function boxHit(e,x,y,z,pad){ return x>e.p[0]-e.hw-pad&&x<e.p[0]+e.hw+pad&&z>e.p[2]-e.hw-pad&&z<e.p[2]+e.hw+pad&&y>e.p[1]-pad&&y<e.p[1]+e.h+pad; }
-function updateShots(dt){
+function updateShots(dt){ edgeOpen=mode==='earth'; // in Chapter 2 lasers fly past the edge of the world toward Claude
+  try{ updateShots2(dt); } finally { edgeOpen=false; } }
+function updateShots2(dt){
   for(const s of shots.slice()){
     s.life-=dt; if(s.life<=0){ freeShot(s); continue; }
     if(s.sp==='seek')steerSeek(s,dt);
@@ -1099,6 +1141,7 @@ function updateShots(dt){
       if(s.owner&&tgCheckRings(s,px0,py0,pz0)){ hit=true; break; }
       if(s.owner&&mode==='cart'&&cartCheck(s,px0,py0,pz0)){ hit=true; break; }
       if(mode==='tour'&&!s.fromMob&&tw&&twBullHit(s,px0,py0,pz0)){ hit=true; break; }
+      if(mode==='earth'&&!s.fromMob&&eaCoreHit(s,px0,py0,pz0)){ hit=true; break; }
       if(mode==='raid'&&!s.fromMob&&rd&&(raidApple(s,px0,py0,pz0)||raidBonusHit(s,px0,py0,pz0)||raidFloatHit(s,px0,py0,pz0))){ hit=true; break; }
       const bx=Math.floor(x),by=Math.floor(y),bz=Math.floor(z);
       if(get(bx,by,bz)===ID.lava){ hit=true; sizzle(bx,by,bz); if(s.sp)specialImpact(s,null,x,y,z,px0,py0,pz0); break; }
@@ -1141,6 +1184,7 @@ function killMob(m){
   if(mode==='raid'&&rd)raidKill(m);
   if(mode==='tour'&&tw)twKill(m);
   if(mode==='moon'&&ml)mlKill(m);
+  if(mode==='earth'&&ea)eaKill(m);
   removeMob(m);
 }
 function doBreak(){
@@ -1155,7 +1199,7 @@ function doBreak(){
   queueSave();
 }
 function placeAction(){
-  if(mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon')return;
+  if(mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth')return;
   if(aimFruit){ pickFruit(aimFruit); return; }
   if(aimNPC){ openShop(); return; }
   if(!target)return;
@@ -1190,6 +1234,7 @@ let hurtFlash=0;
 function hurtPlayer(n,kx,kz,src){
   if(dead||invuln>0)return;
   if(mode==='moon'){ mlHurt(); return; }
+  if(mode==='earth'){ eaHurt(n); return; }
   if(mode==='tour'){ if(!tw||tw.phase!=='blast')return; hp=Math.max(0,hp-1); invuln=1.2; hurtFlash=0.35; sfx('hurt'); updateHUD(); if(hp<=0)twEndBlast(true); return; }
   if(mode==='raid'){ if(!rd||rd.phase!=='round')return; hp=Math.max(0,hp-Math.min(2,n)); invuln=0.6; hurtFlash=0.35; sfx('hurt'); updateHUD(); if(hp<=0)raidKO(); return; }
   if(mode==='targets'&&tgm&&src&&src!=='Lava'&&src!=='Fire'){ // monsters cost you a point and a heart
@@ -1327,7 +1372,7 @@ let toastTimer=null;
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
-function toggleFly(){ if(mode==='moon'){ toast('🌕 No flying, but in 1/6 gravity you can jump really high!'); return; } if(mode==='cart'||mode==='raid'||mode==='tour'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
+function toggleFly(){ if(mode==='earth'){ toast('🎒 Press jump twice for a jetpack boost!'); return; } if(mode==='moon'){ toast('🌕 No flying, but in 1/6 gravity you can jump really high!'); return; } if(mode==='cart'||mode==='raid'||mode==='tour'){ toast('🛤️ Stay in the cart!'); return; } if(mode==='targets'&&!fly&&!(tgm&&(tgm.round===2||tgm.round===5))){ toast('🪽 Wings are only on in Rounds 2 and 5!'); return; }
   if(mode==='corners'&&!fly&&!(cg&&cg.wings>0)){ toast('🪽 In Four Corners you can only fly with griffin wings. Defeat a griffin!'); return; }
   if(!fly&&webbed>=WEB_FALL&&overWorld()){ toast('🕸️ Too much web to fly! Land in water to wash it off.'); return; }
   if(fly&&outsideDist()>0){ toast('You can\'t land out here. Fly back over the world first!'); return; } setFly(!fly,true); }
@@ -1337,8 +1382,8 @@ let viewF=-1;
 function updateViewRange(dt){ // fog thins out as you fly away so the whole landscape stays visible
   const want=Math.min(1,outsideDist()/12); const f=viewF<0?want:viewF+(want-viewF)*Math.min(1,dt*2);
   if(Math.abs(f-viewF)<0.001)return; viewF=f;
-  const fc=mode==='corners'||mode==='tour'||mode==='moon'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
-function cycleWeapon(){ if(mode==='moon'){ toast('🔫 Your laser is all you need up here!'); return; } if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
+  const fc=mode==='corners'||mode==='tour'||mode==='moon'||mode==='earth'; scene.fog.near=(fc?75:40)+f*130; scene.fog.far=(fc?175:90)+f*260; camera.far=200+f*220; camera.updateProjectionMatrix(); }
+function cycleWeapon(){ if(mode==='moon'||mode==='earth'){ toast('🔫 Your laser is all you need up here!'); return; } if(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'){ toast('🎯 Only the bow in Targets!'); return; } const i=owned.indexOf(weapon); weapon=owned[(i+1)%owned.length]; refreshWeapon(); toast(WP[weapon].icon+' '+WP[weapon].name+' equipped'); queueSave(); }
 let lastHP=-1, lastCoins=-1;
 function updateHUD(){
   if(hp!==lastHP){ let s=''; for(let i=0;i<MAXHP;i++)s+='<span class="'+(i<hp?'h':'e')+'">♥</span>'; $('hearts').innerHTML=s; lastHP=hp; }
@@ -1373,12 +1418,12 @@ function cornersHelp(){
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
   paused=true; const fc=mode==='corners';
-  $('mbox').innerHTML=(mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
+  $('mbox').innerHTML=(mode==='earth'?earthHelp():mode==='moon'?moonHelp():mode==='tour'?tourHelp():mode==='raid'?raidHelp():mode==='cart'?cartHelp():mode==='targets'?targetsHelp():fc?cornersHelp():helpHTML())+
     '<div class="row"><button class="mbtn" id="mPlay">Play</button><button class="mbtn gold" id="mSave">💾 Save / Load</button></div>'+
     '<div class="row">'+(mode!=='survival'?'':'<button class="mbtn gray" id="mMobs">Monsters: '+(mobsOn?'ON':'OFF')+'</button>')+'<button class="mbtn red" id="mNew">New Game…</button></div>'+
     '<div style="margin-top:8px;font-size:12px;opacity:.7">Your game saves automatically on this device. Use 💾 to keep up to 3 saves for each game, or to save a file you can name and keep anywhere.</div>';
   $('modal').style.display='flex';
-  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
+  tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); if(mode==='earth'&&ea&&['intro','won'].includes(ea.phase))earthIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
 function closeMenu(){ $('modal').style.display='none'; paused=false; }
@@ -1419,14 +1464,14 @@ function openShop(){
 }
 
 // ================= SAVE SLOTS & FILES =================
-const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour',moon:'🌕 Moon'};
+const MODE_NAME={survival:'🌍 Survival',corners:'🏰 Four Corners',targets:'🎯 Targets',cart:'🛤️ Mine Cart',raid:'💣 Rail Rampage',tour:'🌍 World Tour',moon:'🌕 Moon',earth:'🌍 Earth'};
 const SLOT_KEY=(md,i)=>'stratacraft_slot_'+md+'_'+i;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readSlot(md,i){ try{ const r=JSON.parse(localStorage.getItem(SLOT_KEY(md,i))||'null'); return r&&validSave(r.data)?r:null; }catch(e){ return null; } }
 function writeSlot(i,name){ const rec={name:(name||'').trim()||defaultName(),time:Date.now(),mode,data:snapshot()};
   try{ localStorage.setItem(SLOT_KEY(mode,i),JSON.stringify(rec)); toast('💾 Saved "'+rec.name+'" in slot '+(i+1)); return true; }
   catch(e){ toast('Not enough space on this device. Replace a slot or save to a file instead.'); return false; } }
-function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':mode==='moon'?'Moon Landing':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
+function defaultName(){ const d=new Date(); return (mode==='corners'?'Four Corners':mode==='targets'?'Targets':mode==='cart'?'Mine Cart':mode==='raid'?'Rail Rampage':mode==='tour'?'World Tour':mode==='moon'?'Moon Landing':mode==='earth'?'Return to Earth':'My world')+' '+(d.getMonth()+1)+'-'+d.getDate(); }
 let saveName='';
 async function exportGame(data,name){
   const fn=((name||'').replace(/[^\w\- ]+/g,'').trim()||'stratacraft')+'.json';
@@ -1452,7 +1497,7 @@ function openSaves(tab){
   if(!saveName)saveName=defaultName();
   let h='<h2>💾 Save &amp; Load</h2><div class="say">You are playing <b>'+MODE_NAME[mode]+'</b>. Save it in a slot or to a file, or load an older game.</div>'+
     '<div class="fld">Save name<input id="sName" maxlength="40" value="'+esc(saveName)+'"></div>'+
-    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour','moon'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
+    '<div class="tabs">'+['survival','corners','targets','cart','raid','tour','moon','earth'].map(md=>'<button class="tab'+(md===tab?' on':'')+'" data-tab="'+md+'">'+MODE_NAME[md]+'</button>').join('')+'</div>';
   const recs=[];
   for(let i=0;i<3;i++){ const r=readSlot(tab,i); recs.push(r);
     h+='<div class="item"><div class="ic">'+(i+1)+'</div><div class="tx"><b>'+(r?esc(r.name):'Empty slot')+'</b><div class="fx">'+(r?esc(new Date(r.time).toLocaleString()):'Nothing saved here yet')+'</div></div><div class="sbtns">'+
@@ -1481,11 +1526,13 @@ function openNewGame(){
     '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
     '<div class="item"><div class="ic">🌕</div><div class="tx"><b>Moon Landing</b><div class="fx">Land on the Moon, bounce around in 1/6 gravity collecting rock samples and plant the flag. Then a meteorite crashes… and the aliens come out. Grab your laser!</div></div><button class="ibtn" data-new="moon">Start</button></div>'+
+    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon through a purple ripple in space and splash down in the year 3026. Earth is an AI wasteland full of robots… and the super giant robot Claude!</div></div><button class="ibtn" data-new="earth">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
     if(md==='targets'){ openTargetsSetup(); return; }
     if(md==='cart'){ if(!confirm('Start Mine Cart Rush? The game you are playing now will be replaced.'))return; closeMenu(); startCart(); return; }
+    if(md==='earth'){ if(!confirm('Start Chapter 2: Return to Earth? The game you are playing now will be replaced.'))return; closeMenu(); startEarth(); return; }
     if(md==='moon'){ if(!confirm('Start the Moon Landing? The game you are playing now will be replaced.'))return; closeMenu(); startMoon(); return; }
     if(md==='tour'){ if(!confirm('Start the Wrecking World Tour? The game you are playing now will be replaced.'))return; closeMenu(); startTour(); return; }
     if(md==='raid'){ if(!confirm('Start Rail Rampage? The game you are playing now will be replaced.'))return; closeMenu(); startRaid(); return; }
@@ -1495,10 +1542,10 @@ function openNewGame(){
 }
 
 // ================= GAME MODES =================
-function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
+function clearEntities(){ rdBan.style.display='none'; twFade.style.opacity=0; clearMoon(); clearEarth(); clearApples(); clearGlass(); clearCart(); for(const m of mobs.slice())removeMob(m); for(const c of drops)scene.remove(c.m); drops.length=0;
   for(const sh of shots.slice())freeShot(sh); if(boom){ scene.remove(boom.mesh); boom=null; refreshHeld(); } }
-function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon')?'none':''; { const mo=mode==='moon'; scene.background.setHex(mo?0x000000:SKY); scene.fog.color.setHex(mo?0x000000:SKY); for(const c of clouds)c.visible=!mo; moonSky.visible=mo; }
-  $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon');
+function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='survival'; $('coins').style.display=(mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth')?'none':''; { const mo=mode==='moon'; const ew=mode==='earth'; scene.background.setHex(mo?0x000000:ew?EA_SKY:SKY); scene.fog.color.setHex(mo?0x000000:ew?EA_SKY:SKY); for(const c of clouds)c.visible=!mo&&!ew; moonSky.visible=mo; }
+  $('cartHud').style.display=mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth'?'inline-block':'none'; $('cartHud')._h=''; document.body.classList.toggle('tg',mode==='targets'||mode==='cart'||mode==='raid'||mode==='tour'||mode==='moon'||mode==='earth');
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud(); }
@@ -3049,8 +3096,10 @@ function moonFinish(won){ if(document.pointerLockElement)document.exitPointerLoc
     (won?'<div class="say">Welcome home, astronaut! You collected '+ml.got+' samples ('+ml.rare+' rare crystals), planted the flag and stopped an alien invasion.</div>':(ml.failPhoto?'<div style="position:relative;margin-top:8px"><img src="'+ml.failPhoto+'" style="width:100%;display:block;border-radius:8px;filter:saturate(.6) contrast(1.1)"><div style="position:absolute;left:0;right:0;top:5%;display:flex;justify-content:center"><div style="font:900 clamp(22px,6vw,38px) sans-serif;color:#ff2a2a;border:5px solid #ff2a2a;padding:2px 12px;border-radius:8px;transform:rotate(-6deg);background:rgba(0,0,0,.35);text-shadow:0 2px 4px #000">MISSION FAILED</div></div></div>':'')+'<div class="say">Your oxygen ran out. Houston says: "Remember to get back to the lander to patch your suit when your hearts run out!"</div>')+
     '<div class="board"><div>⭐ Score<div class="n" style="color:#7fe3cf">'+total+'</div></div><div>🏆 Best<div class="n" style="color:#ffd84a">'+Math.max(best,total)+'</div></div></div>'+
     '<ul style="margin-top:10px"><li>🪨 Samples and flag: '+(ml.got*100+ml.rare*200+(ml.flag?500:0))+'</li><li>👾 Aliens: '+(kills||'none')+'</li>'+(won?'<li>⏱ Mission time '+Math.floor(ml.ct/60)+':'+('0'+Math.floor(ml.ct%60)).slice(-2)+' · time bonus +'+tb+'</li>':'')+'</ul>'+
+    (won?'<div class="row"><button class="mbtn gold" id="mNext">🌍 Continue to Chapter 2: Return to Earth</button></div>':'')+
     '<div class="row"><button class="mbtn" id="mAgain">'+(won?'Fly again':'Try again')+'</button><button class="mbtn gray" id="mMenu2">Menu</button></div>';
   $('modal').style.display='flex'; twFade.style.opacity=0; if(rec)sfx('buy'); saveNow();
+  if(won)tap($('mNext'),()=>{ closeMenu(); startEarth(total); });
   tap($('mAgain'),()=>{ closeMenu(); moonSetup(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; }); tap($('mMenu2'),openMenu); }
 function moonHelp(){
   return '<h2>🌕 Moon Landing</h2>Land on the Moon in the lunar lander and complete your mission. Gravity is only 1/6 of Earth\'s, so you bounce and jump really high!'+
@@ -3058,6 +3107,234 @@ function moonHelp(){
   '<li>👾 Fight 3 waves: moon crawlers (1 hit), aliens that shoot green plasma (3 hits), and robot aliens with red lasers (5 hits), plus a giant robot (30 hits!)</li><li>🚀 Get back to the lander (blue beam) to fly home. The faster you finish, the bigger your time bonus</li></ul>'+
   '<h3>Your suit</h3><ul><li>When your hearts run out, your suit cracks and your oxygen starts leaking (30 seconds). Get back to the lander to patch it up. If your oxygen runs out, the mission fails</li><li>🫧 Your oxygen tank slowly runs down. The lander refills it</li><li>🔫 Your laser never runs out, but fire too fast and it overheats for 2 seconds</li><li>⛏ Aim at the ground right in front of you to dig. Digging tires you out and uses extra oxygen, and sometimes you find a moon gem</li><li>🎒 Your jetpack: press jump again in the air for a double jump</li></ul>'+
   '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit (or click) fires the laser · jump with the jump button or Space</li></ul>';
+}
+
+
+// ================= RETURN TO EARTH (Chapter 2) =================
+// On the way home the capsule flies through a purple ripple in space. It splashes down under a parachute in the year 3026:
+// Earth is an AI wasteland full of robots. Beat them all, then the super giant robot Claude turns around and comes for you.
+const EA_SKY=0x24202a, EA_SEA=8, EA_SPLASH=[48,84], EA_SHORE=[48,10.2,62], EA_CAP=[48,73], EA_C=[124,-8,48], EA_BEST='stratacraft_earth_best', EA_PAR=600;
+const EA_SPACE=new THREE.Vector3(48,260,48);
+const earthRoot=new THREE.Group(); scene.add(earthRoot);
+let ea=null;
+function clearEarth(){ earthRoot.traverse(o=>{ if(o.geometry)o.geometry.dispose(); }); earthRoot.clear(); }
+function generateEarth(s){ seed=s; world=new Uint8Array(N); meta=new Uint8Array(N); placed.clear(); activeW.clear(); activeL.clear(); lavaSet.clear(); fires.clear(); lavaArr=null;
+  const n1=makeNoise(s), n2=makeNoise(s+5), rnd=mulberry32(s+11), towers=[];
+  for(let z=0;z<D;z++)for(let x=0;x<W;x++){ let h=10+Math.round(n1(x/12,z/12)*1.6-0.5);
+    if(z>=66){ h=Math.round(10-(z-66)*0.65); if(z>=74)h=4+Math.round(n2(x/6,z/6)); } // the beach slopes down into the sea
+    for(let y=0;y<h;y++){ const dp=h-1-y; world[idx(x,y,z)]=y===0?ID.basalt:dp===0?(z>=67?ID.sand:n2(x/5,z/5)>0.62?ID.circuit:ID.scrap):dp<=2?ID.scrap:ID.basalt; }
+    for(let y=h;y<=EA_SEA;y++)world[idx(x,y,z)]=ID.water; }
+  // scrap heaps, dead server towers with blinking lights, and broken screens
+  for(let k=0;k<22;k++){ const x=4+Math.floor(rnd()*62), z=4+Math.floor(rnd()*58); if(Math.hypot(x-EA_SHORE[0],z-EA_SHORE[2])<8)continue; const r=1.5+rnd()*2.5;
+    for(let dz=-3;dz<=3;dz++)for(let dx=-3;dx<=3;dx++){ const d=Math.hypot(dx,dz); if(d>r)continue; const su=surfaceAt(x+dx,z+dz), hh=Math.round((r-d)*0.9); for(let y=1;y<=hh;y++)if(inB(x+dx,su.y+y,z+dz))world[idx(x+dx,su.y+y,z+dz)]=rnd()<0.2?ID.circuit:ID.scrap; } }
+  for(let k=0;k<11;k++){ const x=5+Math.floor(rnd()*60), z=5+Math.floor(rnd()*54); if(Math.hypot(x-EA_SHORE[0],z-EA_SHORE[2])<10)continue; const h=5+Math.floor(rnd()*9), su=surfaceAt(x,z);
+    for(let y=1;y<=h;y++)for(let dx=0;dx<2;dx++)for(let dz=0;dz<2;dz++)if(inB(x+dx,su.y+y,z+dz))world[idx(x+dx,su.y+y,z+dz)]=ID.server; towers.push([x,su.y+1,z,h]); }
+  for(let k=0;k<10;k++){ const x=5+Math.floor(rnd()*60), z=5+Math.floor(rnd()*54), su=surfaceAt(x,z), ax=rnd()<0.5; if(Math.hypot(x-EA_SHORE[0],z-EA_SHORE[2])<9)continue;
+    for(let i=0;i<3;i++)for(let y=1;y<=2;y++){ const X=ax?x+i:x, Z=ax?z:z+i; if(inB(X,su.y+y+1,Z))world[idx(X,su.y+y+1,Z)]=ID.screen; } if(inB(x,su.y+1,z))world[idx(x,su.y+1,z)]=ID.scrap; }
+  return {rnd,towers}; }
+function eaLights(towers,rnd){ const L=[]; const mats=[0x00ff66,0xff2020,0x2a9aff,0xffd84a].map(c=>new THREE.MeshBasicMaterial({color:c})), off=new THREE.MeshBasicMaterial({color:0x111111});
+  for(const [x,y,z,h] of towers)for(let k=0;k<h*2;k++){ const side=Math.floor(rnd()*4), u=rnd()*1.6+0.2, yy=y+rnd()*h, m=box(0.16,0.16,0.16,off);
+    if(side===0)m.position.set(x+u,yy,z-0.03); else if(side===1)m.position.set(x+u,yy,z+2.03); else if(side===2)m.position.set(x-0.03,yy,z+u); else m.position.set(x+2.03,yy,z+u); earthRoot.add(m); L.push(m); }
+  return {L,mats,off}; }
+// --- the giant robot
+function makeClaude(){ const g=new THREE.Group(), clay=lm(0xc96a46), cream=lm(0xf0e2cf), dk=lm(0x2e2a2a);
+  const eyeM=new THREE.MeshBasicMaterial({color:0xffb24a}); g.rotation.order='YXZ';
+  for(const sx of[-5,5]){ const leg=box(6,30,6,clay); leg.position.set(sx,-1,0); g.add(leg); const kn=box(6.6,3,6.6,cream); kn.position.set(sx,4,0); g.add(kn); }
+  const torso=box(22,20,12,clay); torso.position.y=24; g.add(torso); const plate=box(14,12,0.6,cream); plate.position.set(0,24,-6.2); g.add(plate);
+  for(let i=0;i<4;i++){ const b=box(2.2,1.2,0.4,dk); b.position.set(-4+i*2.7,19.5,-6.6); g.add(b); }
+  const neck=box(5,3,5,dk); neck.position.y=35.5; g.add(neck); const head=box(14,10,11,clay); head.position.y=42; g.add(head);
+  const visor=box(11,4,0.6,dk); visor.position.set(0,43,-5.6); g.add(visor); const eyes=[];
+  for(const sx of[-2.8,2.8]){ const e=box(2.6,2.2,0.5,eyeM); e.position.set(sx,43,-6); g.add(e); eyes.push(e); }
+  const ant=box(0.8,5,0.8,dk); ant.position.set(0,49.5,0); g.add(ant); const tip=box(1.6,1.6,1.6,eyeM); tip.position.set(0,52.5,0); g.add(tip);
+  for(const sx of[-1,1]){ const sh=box(5,5,5,cream); sh.position.set(sx*13,31,0); g.add(sh); }
+  const c=document.createElement('canvas'); c.width=256; c.height=64; const x=c.getContext('2d'); x.fillStyle='rgba(20,20,24,.7)'; x.fillRect(0,8,256,48); x.fillStyle='#ffb24a'; x.font='bold 40px sans-serif'; x.textAlign='center'; x.fillText('CLAUDE',128,46);
+  const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false})); tag.scale.set(16,4,1); tag.position.y=57; g.add(tag);
+  const coreMat=()=>new THREE.MeshBasicMaterial({color:0x40e0ff}); const cores=[];
+  const chest=box(3.4,3.4,1.2,coreMat()); chest.position.set(0,26,-6.8); g.add(chest); cores.push({m:chest,name:'chest core',hp:150});
+  const fore=box(2.6,2.6,1,coreMat()); fore.position.set(0,46.6,-5.9); g.add(fore); cores.push({m:fore,name:'head core',hp:150});
+  const hands=[]; for(const sx of[-1,1]){ const h=new THREE.Group(), fist=box(6,6,6,clay); h.add(fist); const k=box(6.2,1.6,6.2,cream); k.position.y=-2.4; h.add(k);
+    const core=box(2.6,2.6,2.6,coreMat()); core.position.y=3.6; h.add(core); earthRoot.add(h); const arm=box(3.2,3.2,1,cream); earthRoot.add(arm);
+    hands.push({g:h,arm,sx,pos:new THREE.Vector3(),st:'rest',t:0}); cores.push({m:core,name:(sx<0?'left':'right')+' hand core',hp:150}); }
+  g.position.set(EA_C[0],EA_C[1],EA_C[2]); g.rotation.y=-Math.PI/2; earthRoot.add(g); // facing away from the world, busy with something
+  const ring=new THREE.Mesh(new THREE.RingGeometry(3,3.6,32),new THREE.MeshBasicMaterial({color:0xff3030,transparent:true,opacity:0.8,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.visible=false; earthRoot.add(ring);
+  const beam=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0xff2020})); beam.visible=false; earthRoot.add(beam);
+  return {g,eyes,eyeM,cores,hands,ring,beam,t:0,atkT:4,st:'busy',act:null}; }
+// --- the space ride home
+function eaSpace(){ const P=EA_SPACE, g=new THREE.Group(); g.position.copy(P); earthRoot.add(g); const wall=new THREE.MeshLambertMaterial({color:0x8a9098,side:THREE.DoubleSide}), dk=new THREE.MeshLambertMaterial({color:0x34383f,side:THREE.DoubleSide});
+  const add=(w,h,d,m,x,y,z)=>{ const b=box(w,h,d,m); b.position.set(x,y,z); g.add(b); return b; };
+  add(0.1,2.4,3,wall,-1.2,1.6,-0.5); add(0.1,2.4,3,wall,1.2,1.6,-0.5); add(2.5,0.1,3,wall,0,2.8,-0.5); add(2.5,0.1,3,dk,0,0.4,-0.5); add(2.5,2.4,0.1,wall,0,1.6,1);
+  add(2.5,0.6,0.1,wall,0,0.7,-2); add(2.5,0.5,0.1,wall,0,2.55,-2); add(0.5,1.3,0.1,wall,-1,1.65,-2); add(0.5,1.3,0.1,wall,1,1.65,-2); // the window
+  const dash=add(1.8,0.35,0.5,dk,0,1.05,-1.6); dash.rotation.x=-0.5; const btn=[];
+  for(let i=0;i<10;i++){ const b=box(0.08,0.05,0.08,new THREE.MeshBasicMaterial({color:[0x00ff66,0xff3030,0xffd84a,0x2a9aff][i%4]})); b.position.set(-0.6+i*0.13,1.24,-1.5); g.add(b); btn.push(b); }
+  const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.fillStyle='#1f5fd0'; x.beginPath(); x.arc(64,64,62,0,Math.PI*2); x.fill(); x.fillStyle='#3a9a3a';
+  for(const [px,py,rr] of [[40,50,18],[80,40,14],[70,85,20],[35,90,10]]){ x.beginPath(); x.arc(px,py,rr,0,Math.PI*2); x.fill(); }
+  const earth=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false})); earth.position.set(0,1.6,-80); earth.scale.set(14,14,1); g.add(earth);
+  const rip=new THREE.Mesh(new THREE.TorusGeometry(9,1.6,10,40),new THREE.MeshBasicMaterial({color:0xb04aff,transparent:true,opacity:0.75,fog:false})); rip.position.set(0,1.6,-70); rip.visible=false; g.add(rip);
+  const rip2=new THREE.Mesh(new THREE.CircleGeometry(8.5,40),new THREE.MeshBasicMaterial({color:0x6a1ab0,transparent:true,opacity:0.35,side:THREE.DoubleSide,fog:false})); rip.add(rip2);
+  const bolts=[]; for(let i=0;i<4;i++){ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array(7).fill(0).map(()=>new THREE.Vector3())),new THREE.LineBasicMaterial({color:0xd08aff})); l.visible=false; g.add(l); bolts.push(l); }
+  return {g,earth,rip,bolts,btn}; }
+const eaPurple=document.createElement('div'); eaPurple.style.cssText='position:fixed;inset:0;background:#9a2aff;opacity:0;pointer-events:none;z-index:3;mix-blend-mode:screen'; document.body.appendChild(eaPurple);
+function makeCapsule(){ const g=new THREE.Group(), sh=lm(0xb8bcc4), dk=lm(0x3a3e46); const b=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.9,2.4,10),sh); b.position.y=1.2; g.add(b);
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.9,0.6,10),dk); top.position.y=2.7; g.add(top); const heat=new THREE.Mesh(new THREE.CylinderGeometry(1.95,1.95,0.3,10),lm(0x6a4a2a)); heat.position.y=0.1; g.add(heat);
+  const w=box(0.5,0.4,0.05,bm(0x101418)); w.position.set(0,1.7,-1.25); w.rotation.x=0.28; g.add(w);
+  const chute=new THREE.Group(); chute.position.y=12; g.add(chute); const dome=new THREE.Mesh(new THREE.SphereGeometry(5,16,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshLambertMaterial({color:0xff7a1a,side:THREE.DoubleSide})); chute.add(dome);
+  const stripe=new THREE.Mesh(new THREE.SphereGeometry(5.02,16,8,0,Math.PI*2,Math.PI/2-0.35,0.2),new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide})); chute.add(stripe);
+  const pts=[]; for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; pts.push(new THREE.Vector3(0,-9.2,0),new THREE.Vector3(Math.cos(a)*5,0,Math.sin(a)*5)); }
+  chute.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xdddddd}))); return {g,chute}; }
+// --- setup
+function eaSetup(carry){ clearEarth(); clearApples(); for(const m of mobs.slice())removeMob(m); for(const sh of shots.slice())freeShot(sh);
+  const W0=generateEarth((Math.random()*1e9)|0); rebuildAll(); const lights=eaLights(W0.towers,W0.rnd);
+  const cap=makeCapsule(); cap.g.visible=false; earthRoot.add(cap.g); const space=eaSpace(), claude=makeClaude();
+  ea={phase:'intro',t:0,ct:0,score:carry||0,carry:carry||0,kills:{},lights,cap,space,claude,todo:[],spawnT:0,fireT:0,heat:0,hot:0,upPrev:false,jetUsed:false,jetT:0,shake:0,ko:0,healT:0,blinkT:0,coresDown:0,cam:null,look:null,sparks:[]};
+  for(let k=0;k<12;k++)eaSpawn(k<6?'ti80':k<10?'trashbot':'3v3',true);
+  pl.p=[EA_SPACE.x,EA_SPACE.y+0.05,EA_SPACE.z]; pl.v=[0,0,0]; yaw=0; pitch=0; }
+function startEarth(carry){ clearEntities(); mode='earth'; cg=null; tgm=null; owned=['laser']; weapon='laser'; arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; webbed=0; dead=false; burning=0; invuln=0; camMode=1;
+  setFly(false,false); applyMode(); eaSetup(carry); refreshWeapon(); updateHUD(); updateWebHUD(); refreshInv(); saveNow();
+  if(carry!==undefined){ closeMenu(); ea.phase='space'; ea.t=0; } else earthIntro(); }
+function eaSpot(far){ for(let a=0;a<60;a++){ const x=4+rand()*88, z=far?3+rand()*6:6+rand()*52, X=Math.floor(x), Z=Math.floor(z), su=surfaceAt(X,Z);
+    if(B[su.id].fluid||get(X,su.y+1,Z)||get(X,su.y+2,Z)||get(X,su.y+3,Z))continue; if(Math.hypot(x-pl.p[0],z-pl.p[2])<12)continue; return [x,su.y+1.01,z]; } return null; }
+function eaSpawn(type,idle){ const t=MOBT[type], pos=eaSpot(!idle); if(!pos)return null; if(t.flyer)pos[1]+=4+rand()*3;
+  const m=spawnMob(type,pos[0],pos[1],pos[2]); m.hp=t.hp; m.ea={cd:1,shootT:2+rand()*3,idle:!!idle,goal:null,orb:rand()*6.28,keep:type==='ti80'?6+rand()*4:0}; m.yaw=rand()*6.28;
+  if(!idle)puff(pos[0],pos[1]+0.5,pos[2],[0x40e0ff,0x555555],8,3,3,4,0.7); return m; }
+// --- cutscenes: the space ride, the parachute, Claude turning around, Claude powering down
+function eaCutscene(dt){ if(!ea)return false; const S=ea.space;
+  if(ea.phase==='space'){ ea.t+=dt; const T=ea.t; pl.p=[EA_SPACE.x,EA_SPACE.y+0.05,EA_SPACE.z]; pl.v=[0,0,0]; if(T<0.1){ yaw=0; pitch=0; }
+    S.earth.scale.setScalar(14+T*2.2); for(const b of S.btn)if(rand()<0.05)b.visible=!b.visible;
+    if(T>0.2&&!ea.said1){ ea.said1=true; mlSay('🚀 Heading home to Earth','Sit back and enjoy the ride…',3.5); }
+    if(T>3.5){ S.rip.visible=true; const u=Math.min(1,(T-3.5)/3); S.rip.position.z=-70+u*72; S.rip.rotation.z+=dt*2; S.rip.scale.setScalar(1+Math.sin(T*6)*0.05); if(!ea.said2){ ea.said2=true; mlSay('⚠️ What is THAT?!','A purple ripple in space, right in front of us!',3); sfx('screech'); } }
+    if(T>6.5&&T<10){ if(!ea.said3){ ea.said3=true; mlSay('⚡⚡⚡ SPACETIME ANOMALY ⚡⚡⚡','',3); sfx('boom'); ea.shake=1.5; } ea.shake=Math.max(ea.shake,0.5);
+      eaPurple.style.opacity=(rand()*0.45).toFixed(2); if(rand()<0.4)sfx(rand()<0.5?'zap':'sizzle');
+      for(const l of S.bolts){ l.visible=rand()<0.7; if(!l.visible)continue; const p=l.geometry.attributes.position; let a=new THREE.Vector3((rand()-.5)*2.2,0.5+rand()*2.2,-1.8+rand()*2.6), b=new THREE.Vector3((rand()-.5)*2.2,0.5+rand()*2.2,-1.8+rand()*2.6);
+        for(let i=0;i<7;i++){ const f=i/6, q=a.clone().lerp(b,f); if(i&&i<6)q.add(new THREE.Vector3((rand()-.5)*0.4,(rand()-.5)*0.4,(rand()-.5)*0.4)); p.setXYZ(i,q.x,q.y,q.z); } p.needsUpdate=true; }
+      for(let q=0;q<3;q++){ const sp=box(0.035,0.035,0.035,new THREE.MeshBasicMaterial({color:[0xffe080,0xd08aff,0xffffff][Math.floor(rand()*3)]})); sp.position.set((rand()-.5)*2,0.6+rand()*2,-1.6+rand()*2.2); S.g.add(sp); ea.sparks.push({m:sp,v:[(rand()-.5)*3,rand()*2,(rand()-.5)*3],life:0.5}); }
+      S.rip.visible=false; }
+    for(let i=ea.sparks.length-1;i>=0;i--){ const k=ea.sparks[i]; k.life-=dt; k.v[1]-=6*dt; k.m.position.x+=k.v[0]*dt; k.m.position.y+=k.v[1]*dt; k.m.position.z+=k.v[2]*dt; if(k.life<=0){ S.g.remove(k.m); k.m.geometry.dispose(); ea.sparks.splice(i,1); } }
+    if(T>=10&&T<11){ for(const l of S.bolts)l.visible=false; eaPurple.style.opacity=0; twFade.style.opacity=1; }
+    if(T>=11){ S.g.visible=false; ea.phase='chute'; ea.t=0; ea.cap.g.visible=true; twFade.style.opacity=0; applyEarthSky(); mlSay('🪂 Parachute deployed!','',2.5); }
+    return true; }
+  if(ea.phase==='chute'){ ea.t+=dt; const u=Math.min(1,ea.t/5.5), C=ea.cap.g; C.position.set(EA_SPLASH[0],EA_SEA+0.2+40*(1-u)*(1-u*0.3),EA_SPLASH[1]); C.rotation.z=Math.sin(ea.t*1.5)*0.08;
+    pl.p=[EA_SPLASH[0]+10,EA_SEA+3,EA_SPLASH[1]-14]; const dx=C.position.x-pl.p[0], dz=C.position.z-pl.p[2]; yaw=Math.atan2(-dx,-dz); pitch=Math.atan2(C.position.y+3-(pl.p[1]+EYE),Math.hypot(dx,dz));
+    if(u>=1&&!ea.splashed){ ea.splashed=true; puff(C.position.x,EA_SEA+1,C.position.z,[0xffffff,0x9fd8ff,0x6fb8ff],60,8,8,9,1.6); sfx('boom'); ea.cap.chute.visible=false; }
+    if(ea.t>6.5){ ea.phase='swim'; ea.ct=0; pl.p=[EA_SPLASH[0]+1.5,EA_SEA-0.5,EA_SPLASH[1]-2]; yaw=0; pitch=0; mlSay('🌊 Splashdown!','Swim to shore (hold jump to swim up)',4); } return true; }
+  if(ea.phase==='bossIntro'){ ea.t+=dt; const C=ea.claude, u=Math.min(1,ea.t/3.5); C.g.rotation.y=-Math.PI/2+Math.PI*(u*u*(3-2*u)); if(u>0.6)C.eyeM.color.setHex(0xff2020);
+    const hp=new THREE.Vector3(0,40,0); C.g.localToWorld(hp); if(ea.t<0.1){ const dx=hp.x-pl.p[0], dz=hp.z-pl.p[2]; ea.turn={from:yaw,to:yaw+((Math.atan2(-dx,-dz)-yaw+Math.PI*3)%(Math.PI*2)-Math.PI),pf:pitch,pt:Math.atan2(hp.y-pl.p[1]-EYE,Math.hypot(dx,dz)),t:0}; }
+    if(ea.turn){ const T=ea.turn; T.t+=dt; const e=Math.min(1,T.t/1); yaw=T.from+(T.to-T.from)*e; pitch=T.pf+(T.pt-T.pf)*e; }
+    eaClaudeArms(dt); if(ea.t>4.2){ ea.phase='boss'; ea.turn=null; C.st='fight'; C.atkT=2; mlSay('🤖 CLAUDE wants to fight!','Shoot the 4 glowing cores: its chest, its head and both hands',4); } return true; }
+  if(ea.phase==='bossDown'){ ea.t+=dt; const C=ea.claude;
+    if(ea.t<2.2){ C.g.rotation.x=Math.min(0.25,ea.t*0.15); C.eyeM.color.setHex(rand()<0.3?0xff2020:0x220808); ea.shake=Math.max(ea.shake,0.3); }
+    else if(!ea.rebooted){ ea.rebooted=true; C.g.rotation.x=0; C.eyeM.color.setHex(0x6ad0ff); sfx('buy');
+      for(const m of mobs.slice()){ puff(m.p[0],m.p[1]+0.8,m.p[2],[0x40e0ff,0xffffff],10,3,2,2,0.9); removeMob(m); }
+      mlSay('🤖 CLAUDE: "…Sorry about that."','"A purple glitch scrambled my code. Thank you for fixing me!"',6); mlRadio('Sorry about that. A purple glitch scrambled my code. Thank you for fixing me!'); }
+    eaClaudeArms(dt); if(ea.t>8.5){ ea.phase='won'; earthFinish(true); } return false; }
+  return false; }
+function applyEarthSky(){ scene.background.setHex(EA_SKY); scene.fog.color.setHex(EA_SKY); moonSky.visible=false; }
+// --- the robots
+function eaMob(m,dt){ const t=m.t, g=m.g, R=m.ea||(m.ea={cd:1,shootT:3,idle:false,orb:0,keep:0}); if(!ea)return;
+  const fight=ea.phase==='fight'||ea.phase==='boss', reveal=ea.phase==='reveal'; m.flash=Math.max(0,m.flash-dt); m.atk=Math.max(0,m.atk-dt);
+  const dx=pl.p[0]-m.p[0], dz=pl.p[2]-m.p[2], dist=Math.hypot(dx,dz)||0.001;
+  if(t.flyer){ R.orb+=dt*0.6; let tx,ty,tz; if(fight){ const r=7+Math.sin(R.orb*0.7)*2; tx=pl.p[0]+Math.cos(R.orb)*r; tz=pl.p[2]+Math.sin(R.orb)*r; ty=pl.p[1]+4+Math.sin(R.orb*1.3)*1.5; }
+      else { tx=m.p[0]+Math.cos(R.orb)*0.5; tz=m.p[2]+Math.sin(R.orb)*0.5; ty=m.p[1]; }
+      const vx=tx-m.p[0], vy=ty-m.p[1], vz=tz-m.p[2], vl=Math.hypot(vx,vy,vz)||1, k=Math.min(1,dt*2); const sp=fight?t.spd:0.6;
+      m.v[0]+=(vx/vl*sp*Math.min(1,vl)-m.v[0])*k; m.v[1]+=(vy/vl*sp*Math.min(1,vl)-m.v[1])*k; m.v[2]+=(vz/vl*sp*Math.min(1,vl)-m.v[2])*k;
+      m.p[0]+=(m.v[0]+m.kb[0])*dt; m.p[1]+=m.v[1]*dt; m.p[2]+=(m.v[2]+m.kb[2])*dt; const kd=Math.exp(-5*dt); m.kb[0]*=kd; m.kb[2]*=kd;
+      m.p[0]=Math.max(1,Math.min(W-1,m.p[0])); m.p[2]=Math.max(1,Math.min(D-1,m.p[2]));
+      m.yaw=fight||reveal?Math.atan2(-dx,-dz):m.yaw+dt*0.3; g.root.position.set(m.p[0],m.p[1]+Math.sin(R.orb*3)*0.1,m.p[2]); g.body.rotation.y=m.yaw; }
+  else { let mx=0,mz=0; const reach=1.3+m.hw*0.5;
+    if(fight&&dist>Math.max(reach,R.keep)){ mx=dx/dist; mz=dz/dist; if(R.sideT>0){ R.sideT-=dt; const q=mx; mx=-mz*R.side; mz=q*R.side; } } // sidestep around things they're stuck on
+    else if(!fight&&!reveal){ if(!R.goal||rand()<dt*0.2)R.goal=[m.p[0]+(rand()-.5)*8,m.p[2]+(rand()-.5)*8]; const gx=R.goal[0]-m.p[0], gz=R.goal[1]-m.p[2], gl=Math.hypot(gx,gz); if(gl>0.5){ mx=gx/gl*0.3; mz=gz/gl*0.3; } }
+    m.mv=[mx*t.spd,mz*t.spd]; m.v[0]=m.mv[0]; m.v[2]=m.mv[1]; m.v[1]=Math.max(-30,m.v[1]-25*dt); physStep(m,dt);
+    if(m.wall&&m.onGround&&(mx||mz)){ const nx=m.p[0]+mx*0.4, nz=m.p[2]+mz*0.4; if(!boxHits(nx,Math.floor(m.p[1]+0.5)+1.01,nz,m.hw,m.h)){ m.p[1]=Math.floor(m.p[1]+0.5)+1.01; m.p[0]=nx; m.p[2]=nz; m.v[1]=0; } }
+    if(m.p[1]<-5){ removeMob(m); return; }
+    if(fight&&m.wall&&(mx||mz)){ R.stuckT=(R.stuckT||0)+dt; if(R.stuckT>1){ R.stuckT=0; R.side=rand()<0.5?1:-1; R.sideT=1.2+rand(); } } else R.stuckT=0;
+    R.cd-=dt; if(fight&&dist<=reach+0.35&&R.cd<=0){ R.cd=1.4; m.atk=0.3; hurtPlayer(1,dx/dist,dz/dist,'A '+t.name); }
+    m.yaw=fight||reveal?(mx||mz?Math.atan2(-mx,-mz):Math.atan2(-dx,-dz)):(mx||mz?Math.atan2(-mx,-mz):m.yaw); g.root.position.set(m.p[0],m.p[1],m.p[2]); g.body.rotation.y=m.yaw;
+    m.phase+=dt*Math.hypot(m.v[0],m.v[2])*2.5; const a=Math.sin(m.phase)*0.6; if(g.legL){ g.legL.rotation.x=a; g.legR.rotation.x=-a; }
+    if(g.armL){ g.armL.rotation.x=m.type==='ti80'&&fight?(m.atk>0?-1.2:-1.45):-a*0.5; g.armR.rotation.x=m.type==='ti80'&&fight?(m.atk>0?-1.2:-1.45):a*0.5; } }
+  const sh=m.type==='ti80'?{kind:'rlaser',spd:26,g:0,cd:[3,5]}:m.type==='3v3'?{kind:'plasma',spd:15,g:0.5,cd:[2.5,4]}:null;
+  if(sh&&fight&&dist<28&&dist>2){ R.shootT-=dt; if(R.shootT<=0){ if(ea.fireT>0)R.shootT=0.3+rand()*0.6; else { R.shootT=sh.cd[0]+rand()*(sh.cd[1]-sh.cd[0]); ea.fireT=1.2; mlThrow(m,sh); } } }
+  for(const mt of g.mats) mt.emissive.setHex(m.flash>0?0xaa0000:mt.userData.e);
+  if(g.bar.visible){ g.bar.quaternion.copy(camera.quaternion); g.fg.scale.x=Math.max(0.001,m.hp/t.hp); } }
+const EA_PTS={ti80:150,trashbot:100,'3v3':200};
+function eaKill(m){ const p=EA_PTS[m.type]||100; ea.score+=p; ea.kills[m.type]=(ea.kills[m.type]||0)+1; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
+function eaHurt(n){ if(!ea||!(ea.phase==='fight'||ea.phase==='boss'))return; invuln=1.0; hurtFlash=0.35; sfx('hurt'); hp=Math.max(0,hp-Math.min(2,n)); updateHUD();
+  if(hp<=0){ ea.ko++; ea.score=Math.max(0,ea.score-500); hp=MAXHP; invuln=3; updateHUD(); pl.p=EA_SHORE.slice(); pl.v=[0,0,0]; yaw=0; pitch=0;
+    mlSay('💥 Knocked out!','Rebooting at the beach… (−500 points)',3); sfx('die'); } }
+// --- Claude's attacks and weak spots
+function eaClaudeArms(dt){ const C=ea.claude; C.t+=dt; C.g.updateMatrixWorld(true);
+  for(const H of C.hands){ const rest=new THREE.Vector3(H.sx*8,14+Math.sin(C.t*(C.st==='busy'?3:1.2)+H.sx)*(C.st==='busy'?1.5:0.6),-10); C.g.localToWorld(rest);
+    if(H.st==='rest')H.pos.lerp(rest,Math.min(1,dt*3));
+    else if(H.st==='up'){ H.t+=dt; H.pos.lerp(H.aim,Math.min(1,dt*3)); C.ring.position.set(H.ground.x,H.ground.y+0.1,H.ground.z); C.ring.visible=true; C.ring.material.opacity=0.5+Math.sin(H.t*20)*0.3;
+      if(H.t>1.4){ H.st='drop'; H.t=0; } }
+    else if(H.st==='drop'){ H.t+=dt; H.pos.y=Math.max(H.ground.y+3,H.pos.y-dt*60); if(H.pos.y<=H.ground.y+3.01){ H.st='down'; H.t=0; C.ring.visible=false; ea.shake=1.1; sfx('rock'); sfx('boom');
+        puff(H.ground.x,H.ground.y+0.5,H.ground.z,[0x555555,0x888888,0x40e0ff],40,10,4,6,1.2);
+        if(Math.hypot(pl.p[0]-H.ground.x,pl.p[2]-H.ground.z)<4&&Math.abs(pl.p[1]-H.ground.y)<3)hurtPlayer(2,pl.p[0]-H.ground.x,pl.p[2]-H.ground.z,'Claude\'s fist'); } }
+    else if(H.st==='down'){ H.t+=dt; if(H.t>2.2){ H.st='rest'; } } // stuck on the ground for a moment: shoot the hand core now!
+    H.g.position.copy(H.pos); const sh=new THREE.Vector3(H.sx*13,31,0); C.g.localToWorld(sh); const mid=sh.clone().add(H.pos).multiplyScalar(0.5); H.arm.position.copy(mid); H.arm.lookAt(H.pos); H.arm.scale.z=sh.distanceTo(H.pos); } }
+function eaClaude(dt){ const C=ea.claude; eaClaudeArms(dt); if(C.st!=='fight')return; const left=C.cores.filter(c=>c.hp>0).length;
+  if(C.act&&C.act.type==='laser'){ const A=C.act; A.t+=dt; const e=new THREE.Vector3(0,43,-6.5); C.g.localToWorld(e); const tgt=new THREE.Vector3(pl.p[0],pl.p[1]+1.1,pl.p[2]);
+    if(A.t<1){ C.beam.visible=rand()<0.7; const p=C.beam.geometry.attributes.position; p.setXYZ(0,e.x,e.y,e.z); p.setXYZ(1,tgt.x,tgt.y,tgt.z); p.needsUpdate=true; C.eyeM.color.setHex(rand()<0.5?0xff2020:0xffffff); }
+    else { C.beam.visible=false; C.eyeM.color.setHex(0xff2020); A.n=A.n||0; A.cd=(A.cd||0)-dt; if(A.cd<=0&&A.n<3){ A.n++; A.cd=0.18; const d=tgt.clone().add(new THREE.Vector3((rand()-.5)*2,(rand()-.5),(rand()-.5)*2)).sub(e).normalize(); addShot(e.clone().addScaledVector(d,3),d,32,0,1,'rlaser',true); sfx('laser'); } if(A.n>=3)C.act=null; } }
+  C.atkT-=dt; if(C.atkT>0||C.act||C.hands.some(h=>h.st!=='rest'))return; C.atkT=Math.max(1.8,3.8-(4-left)*0.5);
+  const r=rand(); if(r<0.45){ const H=C.hands[Math.floor(rand()*2)], gx=pl.p[0], gz=pl.p[2], su=surfaceAt(Math.floor(gx),Math.floor(gz)); H.ground=new THREE.Vector3(gx,su.y+1,gz); H.aim=new THREE.Vector3(gx,su.y+13,gz); H.st='up'; H.t=0; sfx('screech'); }
+  else if(r<0.75){ C.act={type:'laser',t:0}; sfx('zap'); }
+  else { const H=C.hands[Math.floor(rand()*2)], o=H.pos.clone(), tg=new THREE.Vector3(pl.p[0],pl.p[1]+1,pl.p[2]), fl=o.distanceTo(tg)/24; tg.y+=0.5*6*fl*fl; const d=tg.sub(o).normalize(); addShot(o.addScaledVector(d,4),d,24,6,2,'rock',true); sfx('throw'); } }
+function eaCoreHit(s,x0,y0,z0){ if(!ea||ea.phase!=='boss')return false; const w=new THREE.Vector3();
+  for(const c of ea.claude.cores){ if(c.hp<=0)continue; c.m.getWorldPosition(w); const ex=s.p[0]-x0, ey=s.p[1]-y0, ez=s.p[2]-z0, ll=ex*ex+ey*ey+ez*ez||1;
+    let t=((w.x-x0)*ex+(w.y-y0)*ey+(w.z-z0)*ez)/ll; t=Math.max(0,Math.min(1,t)); const dx=x0+ex*t-w.x, dy=y0+ey*t-w.y, dz=z0+ez*t-w.z; if(dx*dx+dy*dy+dz*dz>2.2*2.2)continue;
+    c.hp-=s.dmg||10; c.m.material.color.setHex(0xffffff); setTimeout(()=>{ if(c.hp>0)c.m.material.color.setHex(0x40e0ff); },80); sfx('hit');
+    if(c.hp<=0){ c.m.material.color.setHex(0x222222); ea.coresDown++; ea.score+=1000; tgPopup('+1000','#ffd84a',[w.x,w.y+2,w.z]); puff(w.x,w.y,w.z,[0xff3a10,0xff8a1a,0x40e0ff,0x555555],50,10,6,6,1.4); sfx('boom'); ea.shake=1;
+      if(ea.coresDown>=4){ ea.phase='bossDown'; ea.t=0; ea.claude.st='down'; ea.score+=5000; for(const h of ea.claude.hands)h.st='rest'; ea.claude.ring.visible=false; ea.claude.beam.visible=false; mlSay('💥 ALL CORES DESTROYED!','Claude is powering down…',3); }
+      else mlSay('💥 '+c.name.toUpperCase()+' DESTROYED!',(4-ea.coresDown)+' to go. Claude is getting angry!',2.5); }
+    return true; }
+  return false; }
+// --- the frame update
+function eaShoot(){ if(!ea||!['swim','reveal','fight','boss','bossDown'].includes(ea.phase)||atkCd>0)return; if(ea.hot>0){ toast('🔥 Laser overheated! Wait for it to cool down…'); return; }
+  const d=lookDir(), cam=camera.position, right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)); let dist=60; const hit=raycast(cam,d,60); if(hit)dist=hit.t;
+  for(const m of mobs){ const t=rayBox(cam,d,m); if(t!==null&&t<dist)dist=t; }
+  const aimP=cam.clone().addScaledVector(d,Math.max(3,dist)), fw=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)), o=camMode===3?new THREE.Vector3(pl.p[0],pl.p[1]+1.25,pl.p[2]).addScaledVector(right,0.38).addScaledVector(fw,0.75):cam.clone().addScaledVector(d,0.6).addScaledVector(right,0.22).add(new THREE.Vector3(0,-0.2,0));
+  addShot(o,aimP.sub(o).normalize(),38,0,10,'laser',false); sfx('laser'); atkCd=0.14; ea.heat+=0.085; if(ea.heat>=1){ ea.heat=1; ea.hot=2; sfx('sizzle'); toast('🔥 Overheated! 2 seconds to cool down'); } }
+function updateEarth(dt){ if(mode!=='earth'||!ea){ eaPurple.style.opacity=0; return; }
+  if(ea.phase==='space'){ scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); moonSky.visible=true; moonSky.position.copy(camera.position); }
+  suit.set(true); fpHandMat.color.setHex(0xeeeeea); suit.crack.visible=false; mlHelmet.style.display=camMode===1&&ea.phase!=='chute'?'block':'none';
+  ea.jetT=Math.max(0,ea.jetT-dt); for(const f of suit.flames){ f.visible=ea.jetT>0; f.scale.y=0.7+rand()*0.6; } if(ea.jetT>0&&rand()<0.8)puff(pl.p[0]+(rand()-.5)*0.3,pl.p[1]+0.6,pl.p[2]+(rand()-.5)*0.3,[0xffa030,0xffe080],2,1,-2,0,0.4);
+  ea.hot=Math.max(0,ea.hot-dt); ea.heat=Math.max(0,ea.heat-dt*(ea.hot>0?0.5:0.35)); ea.fireT-=dt; updateEarthHud();
+  ea.blinkT-=dt; if(ea.blinkT<=0){ ea.blinkT=0.15; const Lt=ea.lights; for(let k=0;k<8&&Lt.L.length;k++){ const m=Lt.L[Math.floor(rand()*Lt.L.length)]; m.material=rand()<0.35?Lt.off:Lt.mats[Math.floor(rand()*Lt.mats.length)]; } }
+  if(ea.phase==='space'||ea.phase==='chute'||ea.phase==='intro'||ea.phase==='won')return; ea.ct+=dt;
+  const C=ea.cap.g; if(ea.phase!=='chute'){ C.position.z+=(EA_CAP[1]-C.position.z)*Math.min(1,dt*0.15); C.position.x+=(EA_CAP[0]-C.position.x)*Math.min(1,dt*0.15); C.position.y=EA_SEA+0.2+Math.sin(ea.ct*1.4)*0.15; C.rotation.z=Math.sin(ea.ct)*0.06; }
+  if(Math.hypot(pl.p[0]-C.position.x,pl.p[2]-C.position.z)<4.5&&hp<MAXHP){ ea.healT-=dt; if(ea.healT<=0){ ea.healT=0.8; hp++; updateHUD(); sfx('coin'); if(hp===MAXHP)toast('🔧 The capsule fixed you up: full hearts!'); } } // the capsule heals you
+  if(ea.phase==='swim'&&pl.onGround&&pl.p[2]<69&&pl.p[1]>=EA_SEA+0.5){ ea.phase='reveal'; ea.t=0; ea.shake=0.6; sfx('screech'); // every robot turns to look at you
+    raidBanner('<span style="font-size:52px;color:#ff3030">Earth 3026!!!</span>','Every robot turns its red eyes on you…',3.5); }
+  if(ea.phase==='reveal'){ ea.t+=dt; if(ea.t>3){ ea.phase='fight'; ea.todo=['ti80','trashbot','3v3','ti80','trashbot','3v3','trashbot','ti80','3v3','trashbot']; ea.spawnT=6; mlSay('🤖 ATTACK MODE','Fight back with your laser! Heal at the capsule on the beach',3.5); sfx('boom'); } }
+  if(ea.phase==='fight'){ ea.spawnT-=dt; if(ea.todo.length&&ea.spawnT<=0){ ea.spawnT=2.6; eaSpawn(ea.todo.shift(),false); }
+    if(!ea.todo.length&&!mobs.length){ ea.phase='bossIntro'; ea.t=0; mlSay('…','Something huge is moving at the edge of the world…',3.5); sfx('rock'); ea.shake=1.4; } }
+  if(ea.phase==='boss')eaClaude(dt); else if(ea.phase==='fight'||ea.phase==='reveal'||ea.phase==='swim')eaClaudeArms(dt); }
+function updateEarthHud(){ const el=$('cartHud'); el.style.display='inline-block'; const P=ea.phase; let obj='';
+  if(P==='swim')obj='🌊 Swim to shore'; else if(P==='reveal')obj='👀 …'; else if(P==='fight')obj='🤖 Robots left: '+(mobs.length+ea.todo.length); else if(P==='bossIntro'||P==='boss')obj='🎯 Claude\'s cores: '+ea.claude.cores.map(c=>c.hp>0?'🔵'+Math.ceil(c.hp/10):'⚫').join(' ');
+  else if(P==='bossDown')obj='🤖 Claude is rebooting…'; else obj='🌍 Return to Earth';
+  const bars=Math.round((1-ea.heat)*8); let h=obj+'<br>🔫 '+(ea.hot>0?'<span style="color:#ff6a3a">OVERHEATED</span>':'<span style="color:'+(ea.heat>0.7?'#ffb347':'#7fe3ff')+'">'+'▮'.repeat(bars)+'▯'.repeat(8-bars)+'</span>');
+  h+=' &nbsp;<span style="color:#7fe3cf">⭐ '+ea.score+'</span> &nbsp;<span style="opacity:.8">⏱ '+Math.floor(ea.ct/60)+':'+('0'+Math.floor(ea.ct%60)).slice(-2)+'</span>';
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+function earthBest(){ try{ return +localStorage.getItem(EA_BEST)||0; }catch(e){ return 0; } }
+function earthIntro(){ if(!ea)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=!['intro','won'].includes(ea.phase);
+  $('mbox').innerHTML='<h2>🌍 Chapter 2: Return to Earth</h2><div class="say">Your capsule is heading home from the Moon… but something strange is waiting in space. Your <b>laser</b> and <b>jetpack</b> are still with you, and the capsule fixes you up when you\'re hurt.</div>'+
+    '<div class="board"><div>🏆 High score<div class="n" style="color:#ffd84a">'+earthBest()+'</div></div></div>'+
+    '<div class="row"><button class="mbtn" id="eGo">'+(mid?'Keep going':'Head home!')+'</button><button class="mbtn gray" id="eMenu">Menu</button></div>';
+  $('modal').style.display='flex';
+  tap($('eGo'),()=>{ closeMenu(); if(!mid){ if(ea.phase!=='intro')eaSetup(0); hp=MAXHP; updateHUD(); ea.phase='space'; ea.t=0; } }); tap($('eMenu'),openMenu); }
+function earthFinish(won){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; rdBan.style.display='none'; mlPola.style.display='none';
+  const tb=Math.max(0,Math.round((EA_PAR-ea.ct)*10)), total=ea.score+tb, best=earthBest(), rec=total>best; if(rec)try{ localStorage.setItem(EA_BEST,String(total)); }catch(e){}
+  const K=ea.kills, kills=['ti80','trashbot','3v3'].filter(k=>K[k]).map(k=>MOBT[k].name+'s: '+K[k]).join(' · ');
+  $('mbox').innerHTML='<h2>'+(rec?'🏆 NEW HIGH SCORE!':'🌍 Earth is safe!')+'</h2><div class="say">🤖 Claude: "…Sorry about that. A purple glitch scrambled my code. Thank you for fixing me! Want to help me clean up this place?"</div>'+
+    '<div class="board"><div>⭐ Score<div class="n" style="color:#7fe3cf">'+total+'</div></div><div>🏆 Best<div class="n" style="color:#ffd84a">'+Math.max(best,total)+'</div></div></div>'+
+    '<ul style="margin-top:10px">'+(ea.carry?'<li>🌕 From the Moon: '+ea.carry+'</li>':'')+'<li>🤖 Robots: '+(kills||'none')+'</li><li>🎯 Claude\'s cores: 4 × 1000, plus 5000 for fixing Claude</li><li>⏱ Time '+Math.floor(ea.ct/60)+':'+('0'+Math.floor(ea.ct%60)).slice(-2)+' · time bonus +'+tb+'</li>'+(ea.ko?'<li>💥 Knocked out '+ea.ko+'× (−'+ea.ko*500+')</li>':'')+'</ul>'+
+    '<div class="row"><button class="mbtn" id="eAgain">Play again</button><button class="mbtn gray" id="eMenu">Menu</button></div>';
+  $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
+  tap($('eAgain'),()=>{ closeMenu(); eaSetup(0); hp=MAXHP; updateHUD(); ea.phase='space'; ea.t=0; }); tap($('eMenu'),openMenu); }
+function earthHelp(){
+  return '<h2>🌍 Chapter 2: Return to Earth</h2>Fly home from the Moon… straight through a purple ripple in space. Splash down in the year 3026, where Earth has become an AI wasteland.'+
+  '<h3>The robots</h3><ul><li>🤖 <b>TI-80s</b>: metal robot skeletons with a calculator in their chest. They fire orange lasers (3 hits)</li><li>📦 <b>Trashbots</b>: little boxy robots on treads that rush at you (2 hits)</li><li>🥚 <b>3V3s</b>: white flying robots that circle you and shoot plasma (3 hits)</li></ul>'+
+  '<h3>The boss</h3><ul><li>Once every robot is down, the super giant robot <b>Claude</b> turns around from the edge of the world. It slams its fists (get out of the red circle!), fires eye lasers and throws scrap at you</li><li>Shoot its 4 glowing cores: chest, head and both hands. The hands are easiest to hit right after a slam</li></ul>'+
+  '<h3>Your gear</h3><ul><li>🔫 Laser (it can overheat) and 🎒 jetpack: press jump again in the air for a boost</li><li>🔧 Stand near your capsule on the beach to heal. Get knocked out and you reboot at the beach (−500 points)</li></ul>';
 }
 
 // ================= TARGETS MODE =================
@@ -3213,7 +3490,7 @@ function tgFinal(){ tgm.phase='done'; const [a,b]=tgm.score, [wa,wb]=tgm.wins, w
     '<div class="row"><button class="mbtn" id="tAgain">Play again</button><button class="mbtn gray" id="tMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(win===0)sfx('buy');
   onClick($('tAgain'),openTargetsSetup); tap($('tMenu'),openMenu); }
-function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); else if(mode==='moon')moonIntro(); }
+function afterLoad(){ if(cg&&cg.over)fcEnd(cg.over==='win'); else if(mode==='targets'&&tgm)tgIntro(); else if(mode==='cart')cartIntro(); else if(mode==='raid')raidIntro(); else if(mode==='tour')tourIntro(); else if(mode==='moon')moonIntro(); else if(mode==='earth')earthIntro(); }
 function rivalPick(){ if(tgm.round===4)return tgm.out[0]||tgm.inv[0]>0?null:'player';
   if(tgm.round===5){ let best=null,bd=1e9; for(const gt of glassTargets){ if(gt.age<2)continue; const d=Math.hypot(gt.p[0]-rv.p[0],gt.p[1]-rv.p[1],gt.p[2]-rv.p[2])+rand()*6; if(d<bd){ bd=d; best=gt; } } return best; }
   let best=null,bd=1e9; for(const m of mobs){ if(!m.tdisc)continue; const d=Math.hypot(m.p[0]-rv.p[0],m.p[1]-rv.p[1],m.p[2]-rv.p[2]); if(d>34)continue;
@@ -3307,6 +3584,7 @@ function updatePlayer(dt){
   if(mode==='raid'){ rideRaid(dt); return {hs:0}; }
   if(mode==='tour'){ rideTour(dt); return {hs:0}; }
   if(mode==='moon'&&moonCutscene(dt)){ invuln-=dt; return {hs:0}; }
+  if(mode==='earth'&&eaCutscene(dt)){ invuln-=dt; return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
@@ -3318,7 +3596,7 @@ function updatePlayer(dt){
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
   else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30;
-    if(mo&&ml){ if(up&&!ml.upPrev&&!pl.onGround&&!ml.jetUsed){ ml.jetUsed=true; pl.v[1]=Math.max(pl.v[1],0)+4.4; ml.jetT=0.6; sfx('jet'); } if(pl.onGround)ml.jetUsed=false; ml.upPrev=up; } } // jetpack: jump again in the air // the Moon has 1/6 of Earth's gravity
+    const jp=mo?ml:mode==='earth'?ea:null; if(jp){ if(up&&!jp.upPrev&&!pl.onGround&&!jp.jetUsed){ jp.jetUsed=true; pl.v[1]=Math.max(pl.v[1],0)+(mo?4.4:9.5); jp.jetT=0.6; sfx('jet'); } if(pl.onGround)jp.jetUsed=false; jp.upPrev=up; } } // jetpack: jump again in the air // the Moon has 1/6 of Earth's gravity
   edgeOpen=mode==='survival'; physStep(pl,dt);
   if(!fly && pl.wall && pl.onGround && m>0.2){
     const dx=(-s*fwd+c*str), dz=(-c*fwd-s*str), l=Math.hypot(dx,dz)||1;
@@ -3338,7 +3616,7 @@ function updatePlayer(dt){
   if(burning>0){ burning-=dt; burnT-=dt; if(burnT<=0){ burnT=1; hurtPlayer(1,undefined,undefined,'Fire'); } }
   // regen
   invuln-=dt; sinceHurt+=dt;
-  if(sinceHurt>6 && hp<MAXHP && mode!=='targets' && mode!=='moon'){ regenT+=dt; if(regenT>3){ regenT=0; hp++; updateHUD(); } }
+  if(sinceHurt>6 && hp<MAXHP && mode!=='targets' && mode!=='moon' && mode!=='earth'){ regenT+=dt; if(regenT>3){ regenT=0; hp++; updateHUD(); } }
   // tint
   const ce=get(Math.floor(camera.position.x),Math.floor(camera.position.y),Math.floor(camera.position.z));
   const tn=$('tint'); if(ce===ID.water){tn.style.background='rgba(30,80,200,.45)';tn.style.opacity=1;} else if(ce===ID.lava){tn.style.background='rgba(255,90,0,.7)';tn.style.opacity=1;} else tn.style.opacity=0;
@@ -3351,6 +3629,7 @@ function updateMobs(dt){
     if(mode==='raid'){ raidMob(m,dt); continue; }
     if(mode==='tour'){ twMob(m,dt); continue; }
     if(mode==='moon'){ moonMob(m,dt); continue; }
+    if(mode==='earth'){ eaMob(m,dt); continue; }
     const V=victimFor(m); mobVictim=V;
     const t=m.t, dx=V.p[0]-m.p[0], dz=V.p[2]-m.p[2], dy=V.p[1]-m.p[1], dist=Math.hypot(dx,dz)||0.001;
     if(m.home===undefined&&Math.hypot(pl.p[0]-m.p[0],pl.p[2]-m.p[2])>(t.flyer?60:48)){ removeMob(m); continue; }
@@ -3500,7 +3779,7 @@ function updateDrops(dt){
 }
 function update(dt){
   if(paused){ return; }
-  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt); updateMoon(dt);
+  const {hs}=updatePlayer(dt); updateViewRange(dt); updateCorners(dt); updateTargets(dt); updateApples(dt); updateCart(dt); updateRaid(dt); updateTour(dt); updateMoon(dt); updateEarth(dt);
   atkCd-=dt;
   if(hitHeld||placeHeld){ repeatT-=dt; if(repeatT<=0){ repeatT=0.25; if(hitHeld&&mode!=='cart'&&mode!=='raid'&&mode!=='tour')hitAction(); if(placeHeld)placeAction(); } }
 
@@ -3522,6 +3801,7 @@ function update(dt){
     const want=eye.clone().addScaledVector(d,-4).addScaledVector(right,0.6).add(new THREE.Vector3(0,0.25,0));
     let tt=1; for(let t=0.05;t<=1.0001;t+=0.05){ tmp.lerpVectors(eye,want,t); const b=get(Math.floor(tmp.x),Math.floor(tmp.y),Math.floor(tmp.z)); if(b&&B[b].solid){ tt=Math.max(0,t-0.1); break; } }
     camera.position.lerpVectors(eye,want,tt); camDist=camera.position.distanceTo(eye); }
+  if(mode==='earth'&&ea&&ea.shake>0){ ea.shake=Math.max(0,ea.shake-dt*1.5); const k=Math.min(0.7,ea.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   armL.rotation.z=0; if(mode==='moon'&&ml&&ml.cam){ camera.position.set(ml.cam[0],ml.cam[1],ml.cam[2]); camera.lookAt(ml.look[0],ml.look[1],ml.look[2]); if(ml.phase==='photo'||ml.phase==='failcam'){ model.visible=true; fpHolder.visible=false; } if(ml.phase==='photo'){ armR.rotation.x=-2.9; armL.rotation.x=-0.3; armL.rotation.z=-0.5; } if(ml.phase==='failcam'){ armR.rotation.x=0.2; armL.rotation.x=0.2; head.rotation.x=0.35; } } // posing for photos
   if(mode==='moon'&&ml&&ml.shake>0){ ml.shake=Math.max(0,ml.shake-dt*1.5); const k=Math.min(0.6,ml.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
   if(mode==='tour'&&tw&&tw.shake>0){ tw.shake=Math.max(0,tw.shake-dt*1.5); const k=Math.min(0.5,tw.shake)*0.3; camera.position.x+=(rand()-.5)*k; camera.position.y+=(rand()-.5)*k; camera.position.z+=(rand()-.5)*k; }
@@ -3569,7 +3849,7 @@ $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 if(!seen) openMenu(); else afterLoad();
 window.__sc={pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
-  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
+  look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, startEarth, get ea(){return ea;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
 </script>
