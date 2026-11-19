@@ -1463,12 +1463,13 @@ function openSettings(){ if(document.pointerLockElement)document.exitPointerLock
   $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Off to start. Switch it on to have the explanations read out loud, then pick a voice. The captions always stay on screen.</div></div><div class="sbtns"><button class="ibtn gray" id="gTest">▶ Test</button><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div></div>'+
     (on?(()=>{ const vs=voiceList(), cur=gwPickVoice(); return '<div class="fld" style="margin:-2px 0 8px">🗣️ Voice<select id="gVoiceSel">'+(vs.length?vs.map(v=>'<option value="'+esc(v.name)+'"'+(cur&&cur.name===v.name?' selected':'')+'>'+esc(voiceLabel(v))+'</option>').join(''):'<option>Loading voices…</option>')+'</select></div>'; })():'')+
     '<div class="item"><div class="ic">💬</div><div class="tx"><b>Caption speed</b><div class="fx">How long each text box stays up before the next one.</div><div class="seg">'+Object.keys(CAP_SPEEDS).map(k=>'<button data-cs="'+k+'" class="'+(k===capSpeed?'on':'')+'">'+CAP_SPEEDS[k].n+'</button>').join('')+'</div></div></div>'+
+    '<div class="item"><div class="ic">🏹</div><div class="tx"><b>Hero in Groundwater Adventure</b><div class="fx">Your hero practices archery, then runs over to dig the wells and drop the water.</div></div><button class="ibtn'+(gwHeroOn?'':' gray')+'" id="gHero">'+(gwHeroOn?'ON':'OFF')+'</button></div>'+
     '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
     '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
   $('modal').style.display='flex'; tapUp($('gVoice'),()=>{ setVoice(!voiceOn()); if(voiceOn())testVoice(); openSettings(); }); tapUp($('gTest'),()=>{ if(!voiceOn())setVoice(true); testVoice(); openSettings(); });
   if($('gVoiceSel'))$('gVoiceSel').addEventListener('change',e=>{ setVoiceName(e.target.value); testVoice(); });
   $('mbox').querySelectorAll('[data-cs]').forEach(b=>tap(b,()=>{ capSpeed=b.dataset.cs; try{ localStorage.setItem(CAP_KEY,capSpeed); }catch(e){} openSettings(); })); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
-  tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); }
+  tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); tap($('gHero'),()=>{ setGwHero(!gwHeroOn); openSettings(); }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
@@ -3531,7 +3532,7 @@ function toTitle(){ saveNow(); hadSave=true; showTitle(); }
 // u runs from the hilltop (u=0) down to the lake side, v runs south→north (z). The cutaway removes rows v<GW_CUT, so the cut face sits at z=GW_FZ.
 const GW_X0=16, GW_Z0=28, GW_U=64, GW_V=40, GW_CUT=20, GW_FZ=GW_Z0+GW_CUT;
 const GW_LAKE={u:52,v:20,ru:9,rv:13}, GW_RIV=26, GW_W1=41, GW_W2=26, GW_RECH=10, GW_HEAD=34, GW_RU=5;
-const GW_TREES=[[30,34],[36,31],[47,37],[60,37],[18,33],[24,36],[40,38]];
+const GW_TREES=[[30,34],[36,31],[47,37],[60,37],[18,33],[24,36],[62,30],[54,38],[44,39]];
 let gw=null; const gwRoot=new THREE.Group(); scene.add(gwRoot);
 const gwX=u=>GW_X0+GW_U-1-u, gwU=x=>GW_X0+GW_U-1-x; // u runs east→west so the hill is on the left as you look at the cut face
 const gwLake=(u,v)=>((u-GW_LAKE.u)/GW_LAKE.ru)**2+((v-GW_LAKE.v)/GW_LAKE.rv)**2;
@@ -3587,7 +3588,7 @@ async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=fa
   gwCapDone=null; await gwWait(skip?0.15:capSpd().p); }
 function gwButton(label){ const run=gw, b=$('gwBtn'), t0=gw.clock; b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
   b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
-  return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5)).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
+  return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5&&gwHeroReady())).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
 // --- camera: flies itself, either circling a point or easing to a fixed view
 function gwF(){ return camera.aspect<1?Math.min(2.3,1.02/Math.max(0.42,camera.aspect)):1; } // back off on tall phone screens
 function gwOrbit(c,r,h,w,a){ gw.shot={t:'orbit',c,r,h,w,a:a===undefined?(gw.shot&&gw.shot.a!==undefined?gw.shot.a:0):a}; }
@@ -3668,23 +3669,89 @@ function gwDropsTick(dt){ for(let g=gw.drops.length-1;g>=0;g--){ const G=gw.drop
       d.m.visible=true; d.m.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]); }
     if(!alive){ for(const d of G.list)gwRoot.remove(d.m); gw.drops.splice(g,1); G.done=true; } } }
 // --- recharge: a water block drops on the hilltop and soaks in
-function gwRecharge(x,y,z){ const run=gw, m=new THREE.Mesh(gwBoxGeo,gwMat(ID.water)); m.position.set(x+0.5,y+12,z+0.5); gwRoot.add(m); sfx('whoosh');
-  const st={m,t:0,y,phase:'fall'}; run.rech=st; const u=Math.max(0,Math.min(GW_U-1,gwU(x)));
+function gwRecharge(x,y,z,from){ const run=gw, m=new THREE.Mesh(gwBoxGeo,gwMat(ID.water)); m.position.set(x+0.5,y+12,z+0.5); gwRoot.add(m); sfx('whoosh');
+  const st={m,t:0,y,phase:'fall',from,to:[x+0.5,y+1.5,z+0.5]}; run.rech=st; const u=Math.max(0,Math.min(GW_U-1,gwU(x)));
   return gwUntil(()=>st.phase==='soaked').then(()=>{ const w=run.wells[0]; const g=gwDrops(gwDropPath(u,w?Math.max(0,Math.min(GW_U-1,gwU(w.x))):GW_U-1,w?w.top:0),16);
     return gwUntil(()=>g.first).then(()=>{ run.boost=2.8; if(!w)toast('💧 The confined aquifer is filling up!'); return g; }); }); }
 function gwRechTick(dt){ const st=gw.rech; if(!st)return; st.t+=dt;
-  if(st.phase==='fall'){ const u=Math.min(1,st.t/0.7); st.m.position.y=st.y+12-10.5*u*u; if(u>=1){ st.phase='sink'; st.t=0; sfx('thunk'); puff(st.m.position.x,st.y+1.2,st.m.position.z,[0x5aa0ff,0x8cc4ff,0xcfe8ff],18,6,4,12,0.8); } }
+  if(st.phase==='fall'){ const u=Math.min(1,st.t/(st.from?0.55:0.7)); if(st.from){ const f=st.from, t2=st.to; st.m.position.set(f[0]+(t2[0]-f[0])*u,f[1]+(t2[1]-f[1])*u+Math.sin(u*Math.PI)*1.2,f[2]+(t2[2]-f[2])*u); } else st.m.position.y=st.y+12-10.5*u*u; if(u>=1){ st.phase='sink'; st.t=0; sfx('thunk'); puff(st.m.position.x,st.y+1.2,st.m.position.z,[0x5aa0ff,0x8cc4ff,0xcfe8ff],18,6,4,12,0.8); } }
   else if(st.phase==='sink'){ const u=Math.min(1,st.t/1.3); st.m.scale.set(1-u*0.6,1-u,1-u*0.6); st.m.position.y=st.y+1.5-u*1.1; if(u>=1){ gwRoot.remove(st.m); st.phase='soaked'; gw.rech=null; } } }
 // --- the river: little flecks show the water flowing downhill
 const gwFlowMat=new THREE.MeshBasicMaterial({color:0xdff0ff}), gwFlowGeo=new THREE.BoxGeometry(0.34,0.06,0.22);
 function gwFlowOn(){ for(let k=0;k<34;k++){ const m=new THREE.Mesh(gwFlowGeo,gwFlowMat); gwRoot.add(m); gw.flow.push({m,u:13+rand()*30,dz:(rand()-0.5)*1.4}); } }
 function gwFlowTick(dt){ for(const f of gw.flow){ f.u+=dt*(3.2+(f.u<38?1.6:0)); if(f.u>44.5)f.u=13; const u0=Math.floor(f.u), k=f.u-u0;
     const y=gwSurf(u0)+(gwSurf(Math.min(63,u0+1))-gwSurf(u0))*Math.max(0,(k-0.6)/0.4)+0.9; f.m.position.set(GW_X0+GW_U-f.u,y,GW_Z0+GW_RIV+1+f.dz); } }
+// --- life in the landscape: the hero practising archery (and running over to do the jobs), eagles building a nest, deer grazing
+const HERO_KEY='stratacraft_gwhero'; let gwHeroOn=true; try{ gwHeroOn=localStorage.getItem(HERO_KEY)!=='0'; }catch(e){}
+function setGwHero(on){ gwHeroOn=!!on; try{ localStorage.setItem(HERO_KEY,on?'1':'0'); }catch(e){} if(gw&&gw.life&&gw.life.hero)gw.life.hero.g.visible=gwHeroOn; }
+const gwAt=(u,v)=>[gwX(u)+0.5,GW_Z0+v+0.5];
+const GW_HOME=[41,29], GW_TARGET=[41,38], GW_DEER=[[46,35],[52,35],[58,34]], GW_NEST_TREE=[30,34];
+function gwGround(x,z){ const X=Math.floor(x), Z=Math.floor(z); if(!inB(X,0,Z))return 1; // the top of the ground, not counting trees or water
+  for(let y=H-2;y>=0;y--){ const id=world[idx(X,y,Z)]; if(!id||id===ID.leaves||id===ID.log||id===ID.water)continue; return y+1; } return 1; }
+function gwMakeHero(){ const g=new THREE.Group();
+  const lL=limbOn(g,-0.125,0.72,0.24,0.72,pants,shoe), lR=limbOn(g,0.125,0.72,0.24,0.72,pants,shoe); const bd=box(0.5,0.72,0.26,shirt); bd.position.y=1.08; g.add(bd);
+  const aL=limbOn(g,-0.37,1.42,0.22,0.7,shirt,skin), aR=limbOn(g,0.37,1.42,0.22,0.7,shirt,skin);
+  const hd=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.46,0.46),[hairSideR,hairSideL,hairM,skin,hairM,faceM]); hd.position.y=1.67; g.add(hd);
+  const bow=weaponMesh('bow',false); bow.position.set(0,-0.62,-0.08); bow.rotation.x=-Math.PI/2; aL.add(bow);
+  const jug=new THREE.Mesh(gwBoxGeo,gwMat(ID.water)); jug.scale.setScalar(0.8); jug.position.set(0,2.55,-0.1); jug.visible=false; g.add(jug); // a water block held over his head
+  g.visible=gwHeroOn; gwRoot.add(g); return {g,lL,lR,aL,aR,bow,jug}; }
+function gwLifeStart(){ if(!gw||gw.life)return; const L=gw.life={t:0,arrows:[],eagles:[],deer:[],nest:null,twigs:0};
+  const h=gwMakeHero(), home=gwAt(...GW_HOME); h.g.position.set(home[0],gwGround(...home),home[1]);
+  L.hero={...h,state:'practice',st:0,to:null,arrived:true,phase:0,cool:1.5};
+  const tg=gwAt(...GW_TARGET), ty=gwGround(...tg); const post=box(0.18,2.2,0.18,lm(0x6b4a2a)); post.position.set(tg[0],ty+1.1,tg[1]); gwRoot.add(post);
+  const disc=discMesh(1.0); disc.position.set(tg[0],ty+2.5,tg[1]); disc.lookAt(home[0],ty+2.5,home[1]); gwRoot.add(disc); L.target={x:tg[0],y:ty+2.5,z:tg[1],post,disc};
+  for(const [u,v] of GW_DEER){ const a=makeAnimal('deer'); gwRoot.add(a.g); for(const d of a.discs)d.visible=false; const p=gwAt(u,v); a.p=[p[0],0,p[1]]; a.home=p; a.goal=null; a.wait=rand()*4; L.deer.push(a); }
+  for(let k=0;k<3;k++){ const r=mobModel('eagle'); r.bar.visible=false; r.root.scale.setScalar(1.3); gwRoot.add(r.root);
+    L.eagles.push({r,a:k*2.1,rad:22+k*7,h:40+k*3,spd:0.22+k*0.05,state:'circle',t:6+k*7,p:new THREE.Vector3(48,44,48),fl:k}); } }
+function gwNestSetup(){ const L=gw&&gw.life; if(!L||L.nest)return; const [x,z]=gwAt(...GW_NEST_TREE), X=Math.floor(x), Z=Math.floor(z);
+  let y=H-2; while(y>0&&!world[idx(X,y,Z)])y--; if(world[idx(X,y,Z)]!==ID.leaves)return; // the top of the nest tree
+  const g=new THREE.Group(); g.position.set(x,y+1,z); g.scale.setScalar(1.7); gwRoot.add(g); L.nest={g,x,y:y+1.25,z}; }
+function gwNestAdd(){ const N=gw.life.nest; if(!N)return; const k=gw.life.twigs++; if(!k){ const base=box(0.8,0.06,0.8,lm(0x5a3c22)); base.position.y=0.03; N.g.add(base); } if(k<10){ const a=k*2.4, r=0.32+(k%3)*0.08, t=box(0.55,0.08,0.09,lm(k%2?0x6b4a2a:0x8a6a3a));
+    t.position.set(Math.cos(a)*r,0.05+Math.floor(k/4)*0.07,Math.sin(a)*r); t.rotation.y=-a+Math.PI/2; N.g.add(t); }
+  else if(k<12){ const e=box(0.14,0.18,0.14,lm(0xf4f0e6)); e.position.set((k-10.5)*0.18,0.12,0); N.g.add(e); } } // and after ten twigs, two eggs
+// the hero's jobs: run to a spot, then dig or pour; the lesson waits for him to get there
+function gwHeroGo(x,z,face){ const H2=gw&&gw.life&&gw.life.hero; if(!H2)return; H2.to=[x,z]; H2.face=face; H2.arrived=false; H2.state='run'; }
+function gwHeroReady(){ const H2=gw&&gw.life&&gw.life.hero; return !gwHeroOn||!H2||H2.arrived; }
+function gwHeroDo(s){ const H2=gw&&gw.life&&gw.life.hero; if(H2&&H2.arrived){ H2.state=s; H2.st=0; } }
+function gwHeroHome(){ if(!gw||!gw.life)return; const h=gwAt(...GW_HOME); gwHeroGo(h[0],h[1]); gw.life.hero.face=undefined; gw.life.hero.after='practice'; }
+function gwLifeTick(dt){ const L=gw.life; if(!L)return; L.t+=dt; const T=L.t;
+  // the hero
+  const h=L.hero, g=h.g; g.visible=gwHeroOn; let walk=0;
+  if(h.state==='run'&&h.to){ const dx=h.to[0]-g.position.x, dz=h.to[1]-g.position.z, d=Math.hypot(dx,dz), sp=gwHeroOn?5.5:40;
+    if(d<0.15){ g.position.x=h.to[0]; g.position.z=h.to[1]; if(h.face!==undefined)g.rotation.y=h.face; h.arrived=true; h.state=h.after||'stand'; h.after=null; h.st=0; }
+    else { const k=Math.min(d,sp*dt)/d; g.position.x+=dx*k; g.position.z+=dz*k; let r=Math.atan2(-dx,-dz)-g.rotation.y; while(r>Math.PI)r-=2*Math.PI; while(r<-Math.PI)r+=2*Math.PI; g.rotation.y+=r*Math.min(1,dt*10); walk=1; } }
+  g.position.y+=(gwGround(g.position.x,g.position.z)-g.position.y)*Math.min(1,dt*12);
+  h.phase+=dt*(walk?11:0); const sw=Math.sin(h.phase)*0.9*walk; h.lL.rotation.x=sw; h.lR.rotation.x=-sw;
+  h.bow.visible=h.state!=='dig'&&h.state!=='pour'; h.jug.visible=h.state==='pour'; h.st+=dt;
+  if(walk){ h.aL.rotation.x=-sw*0.8; h.aR.rotation.x=sw*0.8; }
+  else if(h.state==='practice'){ const tx=L.target.x-g.position.x, tz=L.target.z-g.position.z; let dr=Math.atan2(-tx,-tz)-g.rotation.y; while(dr>Math.PI)dr-=2*Math.PI; while(dr<-Math.PI)dr+=2*Math.PI; g.rotation.y+=dr*Math.min(1,dt*6);
+    h.cool-=dt; const aiming=h.cool<1.2; h.aL.rotation.x=aiming?1.5:0.2; h.aR.rotation.x=aiming?1.25:-0.1;
+    if(h.cool<=0){ h.cool=2.6+rand()*1.4; const a=arrowMesh(false); const f=new THREE.Vector3(g.position.x-Math.sin(g.rotation.y)*0.6,g.position.y+1.45,g.position.z-Math.cos(g.rotation.y)*0.6);
+      const to=new THREE.Vector3(L.target.x+(rand()-0.5)*0.5,L.target.y+(rand()-0.5)*0.5,L.target.z-0.05*Math.sign(tz||1)); a.position.copy(f); gwRoot.add(a); L.arrows.push({m:a,f,to,t:0,stuck:0}); } }
+  else if(h.state==='dig'){ const k=Math.sin(h.st*9); h.aL.rotation.x=h.aR.rotation.x=0.9+k*0.7; g.position.y-=Math.max(0,k)*0.05; } // shovelling
+  else if(h.state==='pour'){ h.aL.rotation.x=h.aR.rotation.x=Math.PI-0.2; }
+  else { h.aL.rotation.x=0.05; h.aR.rotation.x=-0.05; }
+  for(let i=L.arrows.length-1;i>=0;i--){ const A=L.arrows[i]; if(A.stuck){ A.stuck-=dt; if(A.stuck<=0){ gwRoot.remove(A.m); L.arrows.splice(i,1); } continue; }
+    A.t+=dt/0.5; const u=Math.min(1,A.t), p=new THREE.Vector3().lerpVectors(A.f,A.to,u); p.y+=Math.sin(u*Math.PI)*0.6; const back=A.m.position.clone(); A.m.position.copy(p); A.m.lookAt(back);
+    if(u>=1){ A.stuck=2.2; puff(p.x,p.y,p.z,[0xffffff,0xd8232a],4,1.5,1,6,0.4); } }
+  // eagles circle, and every so often one carries a twig to the nest
+  for(const E of L.eagles){ const r=E.r.root, prev=E.p.clone(); E.t-=dt; let want;
+    if(E.state==='circle'){ E.a+=E.spd*dt; want=new THREE.Vector3(48+Math.sin(E.a)*E.rad,E.h+Math.sin(T*0.7+E.fl)*1.5,50-Math.cos(E.a)*E.rad); if(E.t<=0&&L.nest&&L.eagles.every(o=>o===E||o.state==='circle')){ E.state='in'; } }
+    else if(E.state==='in'){ want=new THREE.Vector3(L.nest.x,L.nest.y+0.15,L.nest.z); if(E.p.distanceTo(want)<0.6){ E.state='perch'; E.t=2.5; gwNestAdd(); } }
+    else if(E.state==='perch'){ want=new THREE.Vector3(L.nest.x,L.nest.y+0.15,L.nest.z); if(E.t<=0){ E.state='circle'; E.t=10+rand()*8; } }
+    const sp=E.state==='circle'?1.2:0; if(E.state==='circle')E.p.lerp(want,Math.min(1,dt*sp)); else { const d=want.clone().sub(E.p), l=d.length(), s=Math.min(l,9*dt); if(l>0.001)E.p.addScaledVector(d,s/l); }
+    r.position.copy(E.p); const v=E.p.clone().sub(prev); if(v.lengthSq()>1e-6)r.rotation.y=Math.atan2(-v.x,-v.z);
+    for(const w of E.r.wings||[])w.rotation.z=E.state==='perch'?0.9*w.userData.sd:Math.sin(T*(E.state==='circle'?3:7)+E.fl)*0.55*w.userData.sd; }
+  // deer wander the flat ground behind the lake, stopping to graze
+  for(const a of L.deer){ if(!a.goal){ a.wait-=dt; a.body.rotation.x=a.wait>0?0.35:0; if(a.wait<=0){ const u=44+rand()*18, v=33.5+rand()*3; const p=gwAt(u,v); a.goal=[p[0],p[1]]; } }
+    else { const dx=a.goal[0]-a.p[0], dz=a.goal[1]-a.p[2], d=Math.hypot(dx,dz); if(d<0.2){ a.goal=null; a.wait=2+rand()*5; } else { const s=Math.min(d,1.3*dt); a.p[0]+=dx/d*s; a.p[2]+=dz/d*s; a.g.rotation.y=Math.atan2(-dx,-dz); a.phase+=dt*8; } }
+    const mv=a.goal?1:0; a.legs.forEach((l,i)=>l.rotation.x=Math.sin(a.phase+(i%2)*Math.PI)*0.5*mv);
+    a.g.position.set(a.p[0],gwGround(a.p[0],a.p[2]),a.p[2]); } }
 // --- the main tick
 function updateAqua(dt){ if(mode!=='aqua'||!gw)return; const G=gw; G.clock+=dt;
   for(let i=G.waits.length-1;i>=0;i--){ const w=G.waits[i]; if(w.fn()){ G.waits.splice(i,1); w.res(); } }
   if(gw!==G)return;
-  gwMorphTick(dt); gwDrillTick(dt); gwDropsTick(dt); gwRechTick(dt); gwFlowTick(dt);
+  gwMorphTick(dt); gwDrillTick(dt); gwDropsTick(dt); gwRechTick(dt); gwFlowTick(dt); gwLifeTick(dt);
   if(G.cine){ gwCamTick(dt); if(scene.fog.far!==320){ scene.fog.near=130; scene.fog.far=320; camera.far=500; camera.updateProjectionMatrix(); } }
   if(G.marker){ const s=1+Math.sin(G.clock*5)*0.18; G.marker.ring.scale.set(s,s,s); gwBeamMat.opacity=0.3+Math.sin(G.clock*5)*0.15; }
   for(const sp of G.labels){ sp.userData.t+=dt; const k=Math.min(1,sp.userData.t/0.25); sp.scale.copy(sp.userData.s).multiplyScalar(0.3+0.7*k); }
@@ -3705,7 +3772,7 @@ async function gwScript(){ const run=gw; const live=()=>gw===run;
   // PART 1: flat land and a lake
   gwOrbit([48,10,48],58,34,0.12,-0.5);
   const b1=gwMorph(gwTarget(1,false),'build',9);
-  await gwSay('💧 Welcome to Groundwater Adventure! Let\'s build some land, brick by brick…'); await b1; if(!live())return;
+  await gwSay('💧 Welcome to Groundwater Adventure! Let\'s build some land, brick by brick…'); await b1; if(!live())return; gwLifeStart();
   await gwSay('A nice, flat piece of land with a lake. Pretty boring, right?');
   await gwSay('But here\'s something interesting: <b>water is held here.</b> Why doesn\'t it just soak into the ground and disappear?');
   await gwSay('Let\'s strip away half of the land and look inside!');
@@ -3722,7 +3789,7 @@ async function gwScript(){ const run=gw; const live=()=>gw===run;
   gwCaption('⛰️ <b>Topography</b> is the shape of the land: its hills, valleys and slopes. Push the button to add some!');
   await gwButton('⛰️ Add Topography'); if(!live())return;
   gwCaption('Building a hill, a slope and a river…'); gwOrbit([48,16,52],62,40,0.16);
-  await gwMorph(gwTarget(2,false),'build',8); if(!live())return; gwFlowOn();
+  await gwMorph(gwTarget(2,false),'build',8); if(!live())return; gwFlowOn(); gwNestSetup();
   gwView([22,34,68],[62,24,55]);
   await gwSay('Now there\'s a <b>hill</b>, a <b>slope</b> and a small <b>river</b>. Water always flows downhill, so the river runs down the slope into the lake at the bottom.');
   gwView([50,50,36],[74,33,58]); run.rainT=9;
@@ -3747,15 +3814,17 @@ async function gwScript(){ const run=gw; const live=()=>gw===run;
   const x1=gwX(GW_W1), x2=gwX(GW_W2), s1=gwSurf(GW_W1), s2=gwSurf(GW_W2);
   gwView([x1-3,s1+6,FZ-19],[x1,s1-3,FZ+2]); gwMarker(x1+0.5,s1+1,FZ+0.5);
   gwCaption('⛏ Let\'s dig a well near the lake. <b>Tap the glowing spot!</b>'); gwSpeak('Let\'s dig a well near the lake. Tap the glowing spot!',()=>{});
-  await gwButton('⛏ Dig a well here'); if(!live())return; gwCaption('Digging…');
-  await gwDrill(x1,FZ,s1); if(!live())return; gwLabel('Water table','#7fe3ff',x1+4.5,s1-1.6,FZ-0.7,1.3);
+  gwHeroGo(x1+1.5,FZ+0.5,Math.PI/2);
+  await gwButton('⛏ Dig a well here'); if(!live())return; await gwUntil(gwHeroReady); gwHeroDo('dig'); gwCaption('Digging…');
+  await gwDrill(x1,FZ,s1); if(!live())return; gwHeroDo('stand'); gwLabel('Water table','#7fe3ff',x1+4.5,s1-1.6,FZ-0.7,1.3);
   await gwSay('No water shoots out! This well only reaches the <b>open aquifer</b>. The water fills the hole up to the water table, the same level as the lake, and stops.');
   await gwSay('Nothing is pushing the water up, so to get it out you\'d need a pump or a bucket.');
   gwClearLabels();
   gwView([x2+3,s2+6,FZ-20],[x2,s2-4,FZ+2]); await gwWait(1); if(!live())return; gwMarker(x2+0.5,s2+1,FZ+0.5);
   gwCaption('⛏ Now dig a well on the side of the hill, down through the clay. <b>Tap the glowing spot!</b>'); gwSpeak('Now dig a well on the side of the hill, down through the clay. Tap the glowing spot!',()=>{});
-  await gwButton('⛏ Dig a well here'); if(!live())return; gwCaption('Digging through the clay…');
-  await gwDrill(x2,FZ,s2); if(!live())return; run.P=1;
+  gwHeroGo(x2+1.5,FZ+0.5,Math.PI/2);
+  await gwButton('⛏ Dig a well here'); if(!live())return; await gwUntil(gwHeroReady); gwHeroDo('dig'); gwCaption('Digging through the clay…');
+  await gwDrill(x2,FZ,s2); if(!live())return; gwHeroDo('stand'); run.P=1;
   gwView([x2+4,s2+7,FZ-22],[x2,s2,FZ+2]);
   await gwSay('Whoa! The water comes out all by itself! This is an <b>artesian well</b>.');
   gwLabel('Recharge area','#7fe38a',...ON(gwX(5)+0.5,37.5)); gwLabel('Higher up','#7fe38a',...ON(gwX(5)+0.5,40),1.2);
@@ -3767,12 +3836,14 @@ async function gwScript(){ const run=gw; const live=()=>gw===run;
   await gwSay('Uh oh… the spring is slowing down. Water is leaving the aquifer faster than it is being refilled.');
   const ry=gwSurf(GW_RU); gwMarker(gwX(GW_RU)+0.5,ry+1,FZ+0.5);
   gwCaption('💧 Drop a water block on the <b>recharge area</b> to keep the water flowing. <b>Tap the glowing spot!</b>'); gwSpeak('Drop a water block on the recharge area to keep the water flowing. Tap the glowing spot!',()=>{});
-  await gwButton('💧 Drop a water block'); if(!live())return; gwCaption('');
-  await gwRecharge(gwX(GW_RU),ry,FZ); if(!live())return; run.leak=0.012;
+  gwHeroGo(gwX(GW_RU)+1.5,FZ+0.5,Math.PI/2);
+  await gwButton('💧 Drop a water block'); if(!live())return; gwCaption(''); await gwUntil(gwHeroReady);
+  let from=null; const hh=run.life&&run.life.hero; if(gwHeroOn&&hh){ gwHeroDo('pour'); await gwWait(0.8); if(!live())return; from=[hh.g.position.x,hh.g.position.y+2.55,hh.g.position.z]; gwHeroDo('stand'); }
+  await gwRecharge(gwX(GW_RU),ry,FZ,from); if(!live())return; run.leak=0.012;
   await gwWait(1.5);
   await gwSay('It\'s flowing again! The new water soaked into the recharge area, moved through the sand between the clay layers, and pushed the spring back up.');
   await gwSay('That\'s why recharge areas matter: they keep aquifers, wells and springs full of water.');
-  if(!live())return; gwCaption(''); run.phase='done'; gwDone(); }
+  if(!live())return; gwCaption(''); gwHeroHome(); run.phase='done'; gwDone(); }
 function gwDone(){ if(demoOn())return; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
   $('mbox').innerHTML='<h2>🎉 Lesson complete!</h2><div class="say">Great job, groundwater explorer! You learned about:</div>'+
     '<ul><li>⛰️ <b>Topography</b>: the shape of the land</li><li>💧 <b>Aquifers</b>: places underground that store water</li><li>🔓 <b>Open (unconfined)</b> and 🔒 <b>confined</b> aquifers</li><li>🏖️ Sand is <b>permeable</b>, 🧱 clay is <b>impermeable</b></li><li>📏 The <b>water table</b> and the <b>recharge area</b></li><li>⛲ <b>Artesian wells and springs</b></li></ul>'+
@@ -4430,7 +4501,7 @@ $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.tog
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 showTitle();
-window.__sc={demoGo,get demo(){return demo;},startAqua,gwHit,gwPlace,aquaJump(){ world=gwTarget(2,true); rebuildAll(); gw.phase="done"; closeMenu(); gwFree(); },get target(){return target;},get gw(){return gw;},get cam(){return camera;},gwFree,get shirtHex(){return shirt.color.getHex();},get gameShirt(){return gameShirt;},get paused(){return paused;},pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
+window.__sc={gwLifeStart,gwNestSetup,gwHeroHome,setGwHero,demoGo,get demo(){return demo;},startAqua,gwHit,gwPlace,aquaJump(){ world=gwTarget(2,true); rebuildAll(); gw.phase="done"; closeMenu(); gwFree(); },get target(){return target;},get gw(){return gw;},get cam(){return camera;},gwFree,get shirtHex(){return shirt.color.getHex();},get gameShirt(){return gameShirt;},get paused(){return paused;},pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
   look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, startEarth, get ea(){return ea;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
