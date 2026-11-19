@@ -105,6 +105,7 @@
   #title{inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:calc(6vh + env(safe-area-inset-top)) 16px calc(7vh + env(safe-area-inset-bottom));z-index:10;pointer-events:none;box-sizing:border-box;display:none}
   body.title #title{display:flex} body.title .ui:not(#title):not(#modal):not(#toast){display:none!important}
   #title .tbox{text-align:center}
+  #title #tGear{position:absolute;top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));pointer-events:auto;font-size:22px;padding:0;width:48px;height:48px;border-radius:12px;border:2px solid rgba(255,255,255,.4);background:rgba(20,24,32,.6);box-shadow:none;animation:none}
   #title .tname{font:900 clamp(46px,11vw,96px)/1 'Trebuchet MS',Verdana,sans-serif;letter-spacing:2px;color:#f4f0e6;-webkit-text-stroke:2px #3a2a1a;
     text-shadow:0 4px 0 #6aa83a,0 8px 0 #86603f,0 12px 0 #5a4030,0 18px 24px rgba(0,0,0,.6)}
   #title .tsub{margin-top:18px;font:800 clamp(17px,4vw,26px) sans-serif;color:#fff;text-shadow:0 2px 6px #000;letter-spacing:3px}
@@ -112,6 +113,32 @@
   #title button{font:900 clamp(20px,5vw,28px) sans-serif;padding:14px 34px;border-radius:14px;border:3px solid #fff;background:#3fa34d;color:#fff;box-shadow:0 6px 0 #22662c,0 10px 20px rgba(0,0,0,.4);cursor:pointer;animation:tpulse 1.6s ease-in-out infinite}
   #title #tCont{font-size:clamp(15px,3.6vw,18px);padding:9px 20px;background:rgba(20,24,32,.75);box-shadow:none;animation:none;border-width:2px}
   @keyframes tpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  .dmOver{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;font-family:sans-serif;color:#fff}
+  #dmQuiz{background:rgba(6,10,24,.8);backdrop-filter:blur(3px)}
+  .dmGear{position:absolute;top:calc(8px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));width:46px;height:46px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(20,24,32,.7);font-size:22px;cursor:pointer;z-index:2}
+  .dmCard{width:min(820px,calc(100% - 32px));background:#141a2c;border:3px solid #7fe3cf;border-radius:20px;padding:22px 24px;box-shadow:0 20px 50px rgba(0,0,0,.5);box-sizing:border-box;max-height:calc(100% - 80px);overflow:auto}
+  .dmHead{font-weight:800;font-size:15px;color:#7fe3cf;letter-spacing:1px;text-transform:uppercase}
+  .dmQ{font:900 clamp(22px,3.6vw,34px)/1.25 sans-serif;margin:10px 0 16px}
+  .dmAs{display:grid;grid-template-columns:1fr 1fr;gap:10px} @media (max-width:640px){.dmAs{grid-template-columns:1fr}}
+  .dmA{display:flex;gap:12px;align-items:center;background:#232a39;border:2px solid rgba(255,255,255,.18);border-radius:14px;padding:12px 14px;font:700 clamp(16px,2.3vw,21px)/1.3 sans-serif;transition:all .4s}
+  .dmA .L{flex:none;width:34px;height:34px;border-radius:50%;background:#ffcf4a;color:#111;display:flex;align-items:center;justify-content:center;font-weight:900}
+  .dmA.ok{background:#1f7a3a;border-color:#7fe38a;transform:scale(1.03)} .dmA.ok .L{background:#7fe38a} .dmA.no{opacity:.35}
+  .dmWhy{margin-top:12px;font:700 clamp(16px,2.2vw,20px)/1.35 sans-serif;color:#ffe9a8}
+  .dmBar{margin-top:14px;height:10px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden} .dmFill{height:100%;width:100%;background:linear-gradient(90deg,#7fe3cf,#4aa8ff);transition:width .2s linear}
+  .dmCard.shown .dmFill{background:linear-gradient(90deg,#7fe38a,#c8f06a)} .dmT{margin-top:6px;font-weight:800;opacity:.8;text-align:right}
+  #dmSplash{background:#05061a} #dmSky{position:absolute;inset:0;width:100%;height:100%}
+  .dmS{position:relative;text-align:center;display:flex;flex-direction:column;align-items:center;padding:16px;max-height:100%;box-sizing:border-box}
+  .dmTake{font:900 clamp(22px,4vw,36px) sans-serif;text-shadow:0 3px 10px #000;letter-spacing:2px}
+  .dmESS{font:900 clamp(38px,8vw,88px)/1.05 'Trebuchet MS',Verdana,sans-serif;background:linear-gradient(90deg,#4aa8ff,#7fe38a,#ffd84a,#ff8a5a,#c8a8ff,#4aa8ff);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dmGrad 6s linear infinite,dmBob 3s ease-in-out infinite;filter:drop-shadow(0 4px 10px rgba(0,0,0,.7))}
+  @keyframes dmGrad{to{background-position:300% 0}} @keyframes dmBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .dmWith{font:800 clamp(22px,4vw,38px) sans-serif;margin-top:6px;text-shadow:0 3px 10px #000} .dmWith b{color:#ffd84a}
+  .dmPic{margin-top:14px;height:min(38vh,340px);display:flex;align-items:center;justify-content:center}
+  .dmPic img{max-height:100%;max-width:80vw;border-radius:18px;display:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.6))}
+  #dmPh{display:none;width:min(38vh,300px);height:min(38vh,300px);border-radius:50%;background:radial-gradient(circle,#2a3a8a,#141a4a);align-items:center;justify-content:center;font-size:min(20vh,150px);animation:dmBob 2s ease-in-out infinite}
+  .dmNext{margin-top:16px;display:flex;align-items:center;gap:12px;background:rgba(10,12,30,.6);padding:8px 18px 8px 8px;border-radius:40px;position:relative}
+  .dmNext svg{width:52px;height:52px;transform:rotate(-90deg)} .dmNext circle{fill:none;stroke-width:5} .dmNext .bg{stroke:rgba(255,255,255,.15)} .dmNext .fg{stroke:#ffd84a;stroke-dasharray:119.4;stroke-dashoffset:0;stroke-linecap:round}
+  #dmCount{position:absolute;left:8px;width:52px;text-align:center;font:900 20px sans-serif} .dmNext .lbl{font-weight:800;font-size:17px}
+  body.demo #act,body.demo #hotwrap,body.demo #joyHint,body.demo #bWeapon,body.demo #bFly,body.demo #bCam,body.demo #bInfo,body.demo #bArrow,body.demo #bMenu,body.demo #gwCap .nx{display:none!important}
   #gwDock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(760px,calc(100% - 32px));z-index:6;display:none;flex-direction:column;align-items:center;gap:12px;pointer-events:none}
   #gwDock.on{display:flex}
   #gwCap{pointer-events:auto;background:rgba(12,16,24,.88);border:2px solid rgba(127,227,207,.55);border-radius:14px;padding:10px 12px 10px 16px;color:#fff;font:700 clamp(15px,2.4vw,19px)/1.4 sans-serif;display:none;gap:10px;align-items:center;width:100%;box-sizing:border-box;text-shadow:0 1px 2px #000}
@@ -163,7 +190,7 @@
   <div class="tbtn" id="bCam">👁 1st</div>
   <div class="tbtn" id="bFly">🪽</div>
   <div class="tbtn" id="bInfo">ℹ️</div>
-  <div class="tbtn" id="bGear" style="display:none">⚙️</div>
+  <div class="tbtn" id="bGear">⚙️</div>
   <div class="tbtn" id="bMenu">☰</div>
 </div>
 <div id="card" class="ui"></div>
@@ -639,7 +666,7 @@ function snapshot(){ return {v:3,mode,seed,shirt:gameShirt,w:rleEncode(world),m:
   cg:cg?{sp:cg.sp,bedHP:cg.bedHP,inv:cg.inv,wings:cg.wings,over:cg.over,placed:[...placed],lay:cg.lay||1}:null,
   apples:appleTrees.map(t=>({x:t.x,ty:t.ty,z:t.z,c:t.cand,g:Math.round(t.grow),s:t.slots.map(sl=>[sl.c,sl.st,Math.round(sl.t)])})),
   tgm:tgm?{round:tgm.round,time:tgm.time,len:tgm.len,diff:tgm.diff,score:tgm.score,rs:tgm.rs,wins:tgm.wins,boost:tgm.boost,out:tgm.out,last:tgm.last,rvhp:rv.hp,phase:tgm.phase,rv:rv.p.slice()}:null}; }
-function saveNow(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon,arrows})); }catch(e){} }
+function saveNow(){ if(demo)return; try{ localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot())); if(mode==='survival')localStorage.setItem(KIT_KEY,JSON.stringify({coins,owned,weapon,arrows})); }catch(e){} }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1000); }
 function validSave(s){ return !!s&&(s.v===2||s.v===3)&&Array.isArray(s.w)&&Array.isArray(s.m)&&Array.isArray(s.p); }
 function cleanArrows(a){ const o={explode:0,fire:0,split:0,seek:0}; if(a&&typeof a==='object') for(const k of ARROW_KEYS)o[k]=Math.max(0,a[k]|0); return o; }
@@ -1360,7 +1387,7 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{ keys[e.code]=false; });
 if(!IS_TOUCH){
-  touchEl.addEventListener('click',e=>{ audioInit(); if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
+  touchEl.addEventListener('click',e=>{ audioInit(); if(demo)return; if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement!==touchEl||paused)return;
     yaw-=e.movementX*SENS_M; pitch-=e.movementY*SENS_M; pitch=Math.max(-1.55,Math.min(1.55,pitch)); });
   touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)placeAction(); });
@@ -1403,8 +1430,10 @@ function voiceOn(){ return voicePref; }
 function setVoice(on){ voicePref=!!on; try{ localStorage.setItem(VOICE_KEY,on?'1':'0'); }catch(e){} if(!on)try{ if(window.speechSynthesis)speechSynthesis.cancel(); }catch(e){} }
 function openSettings(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; const on=voiceOn();
   $('mbox').innerHTML='<h2>⚙️ Settings</h2><div class="item"><div class="ic">'+(on?'🔊':'🔇')+'</div><div class="tx"><b>Narrator voice</b><div class="fx">Reads the explanations out loud. The captions always stay on screen.</div></div><button class="ibtn'+(on?'':' gray')+'" id="gVoice">'+(on?'ON':'OFF')+'</button></div>'+
-    '<div class="row"><button class="mbtn" id="gBack">Back to the game</button></div>';
-  $('modal').style.display='flex'; tap($('gVoice'),()=>{ setVoice(!voiceOn()); openSettings(); }); tap($('gBack'),closeMenu); }
+    '<div class="item"><div class="ic">🎬</div><div class="tx"><b>Demo mode</b><div class="fx">For a classroom screen: plays Groundwater Adventure and Moon Landing by itself, with quizzes in between, over and over. Turn it off here. Your saved game is kept safe.</div></div><button class="ibtn'+(demoOn()?'':' gray')+'" id="gDemo">'+(demoOn()?'ON':'OFF')+'</button></div>'+
+    '<div class="row"><button class="mbtn" id="gBack">'+(demoOn()?'Back to the demo':titleOn?'Back':'Back to the game')+'</button></div>';
+  $('modal').style.display='flex'; tap($('gVoice'),()=>{ setVoice(!voiceOn()); openSettings(); }); tap($('gBack'),()=>{ if(titleOn)$('modal').style.display='none'; else closeMenu(); });
+  tap($('gDemo'),()=>{ if(demoOn())demoStop(); else demoStart(); }); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',2200); }
 function toggleCam(){ camMode=camMode===1?3:1; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
 function setFly(on,msg){ fly=on; pl.v[1]=0; $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly); if(msg)toast(fly?'Flying ON: use Jump/Down to go up and down':'Flying OFF'); queueSave(); }
@@ -1589,7 +1618,7 @@ function applyMode(){ const fc=mode==='corners'; merchant.g.visible=mode==='surv
   lastOffer=Math.floor(coins/5); lastCoins=-1; updateHUD(); refreshArrowBtn();
   rv.g.visible=mode==='targets'; tgShields(); updateTGHud();
   document.body.classList.toggle('fc',fc); viewF=-1; updateViewRange(0); updateFCHud();
-  const aq=mode==='aqua'; document.body.classList.toggle('aqua',aq); if(!aq)document.body.classList.remove('gwc'); $('bGear').style.display=aq||mode==='moon'||mode==='earth'?'':'none';
+  const aq=mode==='aqua'; document.body.classList.toggle('aqua',aq); if(!aq)document.body.classList.remove('gwc'); $('bGear').style.display='';
   $('bBreak').innerHTML=aq?'<span>⛏</span>Dig':'<span>⛏</span>Hit'; $('bPlace').innerHTML=aq?'<span>💧</span>Water':'<span>🧱</span>Place'; }
 function loadKit(){ try{ const k=JSON.parse(localStorage.getItem(KIT_KEY)||'null'); if(k){ const o=cleanOwned(k.owned); return {coins:k.coins|0,owned:o,weapon:o.includes(k.weapon)?k.weapon:'fists',arrows:cleanArrows(k.arrows)}; } }catch(e){}
   return {coins:0,owned:['fists'],weapon:'fists',arrows:cleanArrows()}; }
@@ -3450,7 +3479,7 @@ function g2(m){ titleRoot.add(m); }
 const titleBitGeo=new THREE.BoxGeometry(0.16,0.16,0.16);
 function titleBit(c,x,y,z){ const m=new THREE.Mesh(titleBitGeo,cfxMat(c)); m.position.set(x,y,z); titleRoot.add(m); return m; }
 const titleEl=document.createElement('div'); titleEl.id='title'; titleEl.className='ui';
-titleEl.innerHTML='<div class="tbox"><div class="tname">StrataCraft</div><div class="tsub">A Game from Earth</div></div><div class="tbtns"><button id="tStart">▶ Start New Game</button><button id="tCont"></button></div>';
+titleEl.innerHTML='<div class="tbox"><div class="tname">StrataCraft</div><div class="tsub">A Game from Earth</div></div><div class="tbtns"><button id="tStart">▶ Start New Game</button><button id="tCont"></button></div><button id="tGear" title="Settings">⚙️</button>';
 document.body.appendChild(titleEl);
 function showTitle(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; $('modal').style.display='none'; rdBan.style.display='none'; mlPola.style.display='none';
   titleShirt=randomShirt(); shirt.color.setHex(titleShirt);
@@ -3458,7 +3487,7 @@ function showTitle(){ if(document.pointerLockElement)document.exitPointerLock();
   scene.background.setHex(SKY); scene.fog.color.setHex(SKY); scene.fog.near=60; scene.fog.far=150; moonSky.visible=false; for(const c of clouds)c.visible=false;
   const c=$('tCont'); c.style.display=hadSave?'':'none'; c.textContent='Continue: '+(MODE_NAME[mode]||'my game'); }
 function hideTitle(){ shirt.color.setHex(gameShirt); titleOn=false; titleRoot.visible=false; document.body.classList.remove('title'); viewF=-1; }
-tap($('tStart'),()=>{ audioInit(); openNewGame(true); });
+tap($('tStart'),()=>{ audioInit(); openNewGame(true); }); tap($('tGear'),()=>{ audioInit(); openSettings(); });
 tap($('tCont'),()=>{ audioInit(); hideTitle(); applyMode(); closeMenu(); afterLoad(); });
 function toTitle(){ saveNow(); hadSave=true; showTitle(); }
 
@@ -3509,13 +3538,13 @@ function gwPauseSync(){ const p=paused&&mode==='aqua'&&!!gw; if(p===gwWasP)retur
 // --- the lesson script runs on game time, so it pauses with the menu and stops if a new game starts
 function gwUntil(fn){ const run=gw; return new Promise(res=>run.waits.push({fn,res})); }
 function gwWait(s){ const run=gw, t0=run.clock; return gwUntil(()=>run.clock-t0>=s); }
-async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064);
+async function gwSay(t){ const run=gw; if(!run)return; gwCaption(t); let done=false, skip=false; const t0=run.clock, est=Math.max(2.6,t.replace(/<[^>]+>/g,'').length*0.064)*(demoOn()?1.6:1);
   gwCapDone=()=>{ skip=true; gwStopVoice(); }; const spoke=gwSpeak(t,()=>{ done=true; });
   await gwUntil(()=>{ const e=run.clock-t0; if(skip)return true; if(spoke&&voiceOn())return done?e>=1:e>=est*2+4; return e>=est; });
-  gwCapDone=null; await gwWait(0.35); }
-function gwButton(label){ const run=gw, b=$('gwBtn'); b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
+  gwCapDone=null; await gwWait(demoOn()?1.3:0.35); }
+function gwButton(label){ const run=gw, b=$('gwBtn'), t0=gw.clock; b.textContent=label; b.style.display='block'; gwDock.classList.add('on'); let hit=false;
   b.onclick=e=>{ e.preventDefault(); audioInit(); hit=true; }; b.ontouchstart=e=>{ e.preventDefault(); e.stopPropagation(); audioInit(); hit=true; };
-  return gwUntil(()=>hit).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
+  return gwUntil(()=>hit||(demoOn()&&run.clock-t0>4.5)).then(()=>{ if(gw===run){ b.style.display='none'; gwMarkerOff(); sfx('buy'); } }); }
 // --- camera: flies itself, either circling a point or easing to a fixed view
 function gwF(){ return camera.aspect<1?Math.min(2.3,1.02/Math.max(0.42,camera.aspect)):1; } // back off on tall phone screens
 function gwOrbit(c,r,h,w,a){ gw.shot={t:'orbit',c,r,h,w,a:a===undefined?(gw.shot&&gw.shot.a!==undefined?gw.shot.a:0):a}; }
@@ -3699,7 +3728,7 @@ async function gwScript(){ const run=gw; const live=()=>gw===run;
   await gwSay('It\'s flowing again! The new water soaked into the recharge area, moved through the sand between the clay layers, and pushed the spring back up.');
   await gwSay('That\'s why recharge areas matter: they keep aquifers, wells and springs full of water.');
   if(!live())return; gwCaption(''); run.phase='done'; gwDone(); }
-function gwDone(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true;
+function gwDone(){ if(demoOn())return; if(document.pointerLockElement)document.exitPointerLock(); paused=true;
   $('mbox').innerHTML='<h2>🎉 Lesson complete!</h2><div class="say">Great job, groundwater explorer! You learned about:</div>'+
     '<ul><li>⛰️ <b>Topography</b>: the shape of the land</li><li>💧 <b>Aquifers</b>: places underground that store water</li><li>🔓 <b>Open (unconfined)</b> and 🔒 <b>confined</b> aquifers</li><li>🏖️ Sand is <b>permeable</b>, 🧱 clay is <b>impermeable</b></li><li>📏 The <b>water table</b> and the <b>recharge area</b></li><li>⛲ <b>Artesian wells and springs</b></li></ul>'+
     '<div class="say">Now explore! Fly around, tap ⛏ to dig more wells anywhere, and tap 💧 to drop water. Drop it on the sandy hilltop to recharge the aquifer.</div>'+
@@ -3739,6 +3768,104 @@ function aquaHelp(){ return '<h2>💧 Groundwater Adventure</h2><div class="say"
   '<h3>Words to know</h3><ul><li>⛰️ <b>Topography</b>: the shape of the land\'s surface</li><li>💧 <b>Aquifer</b>: a layer underground that stores water</li><li>🔓 <b>Open (unconfined) aquifer</b>: not sealed on top; its wet part ends at the <b>water table</b></li><li>🔒 <b>Confined aquifer</b>: trapped between layers of clay</li><li>🏖️ <b>Permeable</b> sand lets water through · 🧱 <b>impermeable</b> clay doesn\'t</li><li>🌧️ <b>Recharge area</b>: where water soaks in to refill an aquifer</li><li>⛲ <b>Artesian well / spring</b>: water pushed up and out by pressure</li></ul>'+
   '<h3>Exploring</h3><ul><li>⛏ digs a well where you aim · 💧 drops a water block</li><li>Drop water on the sandy hilltop to recharge the aquifer</li><li>⚙️ turns the narrator voice on or off</li></ul>'; }
 tap($('bGear'),openSettings);
+
+// ================= DEMO MODE =================
+// Started from ⚙️ for a classroom screen: Groundwater → quiz → Mr. Tyler → Moon Landing (autopilot, up to "Houston, we have a problem") → quiz → Mr. Tyler → again.
+// Nobody has to touch anything. It only stops from ⚙️, and it never overwrites the saved game.
+const DEMO_IMG='mr-tyler.gif', DEMO_Q_READ=15, DEMO_Q_SHOW=5, DEMO_SPLASH=30;
+const DEMO_QS={
+  aqua:[
+    {q:'What is topography?',a:['The shape of the land: its hills, valleys and slopes','The study of tiny bugs','A kind of rock','The weather on a mountain'],why:'Topography is the shape of the land\'s surface. Maps show it with contour lines.'},
+    {q:'What is an aquifer?',a:['A layer underground that stores water','A cloud full of rain','A river on top of a mountain','A pool of melted rock'],why:'Water fills the tiny spaces between grains of sand and gravel, or cracks in rock.'},
+    {q:'Which layer is impermeable and traps groundwater?',a:['Clay','Sand','Gravel','Topsoil'],why:'Clay\'s tiny, tightly packed particles barely let water through. Sand lets it flow easily.'},
+    {q:'What is a recharge area?',a:['Where rain soaks into the ground and refills an aquifer','The bottom of a lake','A place to charge a phone','A dry desert with no water'],why:'Water soaks in at the recharge area, often up high, and refills the aquifer below.'},
+    {q:'Why did water flow out of the well on the hill all by itself?',a:['It was an artesian well: pressure from the higher recharge area pushed it up','Someone was pumping it','It was raining into the well','The river poured into it'],why:'Water trapped between clay layers is under pressure, so it rises up and out on its own.'}],
+  moon:[
+    {q:'In what year did people first land on the Moon?',a:['1969','1959','1979','1989'],why:'Apollo 11 landed on the Moon on July 20, 1969.'},
+    {q:'Who was the first person to walk on the Moon?',a:['Neil Armstrong','Buzz Aldrin','Yuri Gagarin','John Glenn'],why:'Neil Armstrong stepped out first. Buzz Aldrin followed him about 20 minutes later.'},
+    {q:'What did Neil Armstrong say as he took his first step?',a:['"That\'s one small step for man, one giant leap for mankind."','"Houston, we have a problem."','"To infinity and beyond!"','"The Eagle has crashed."'],why:'He said it as his boot touched the Moon\'s dusty surface.'},
+    {q:'Why can astronauts jump so high on the Moon?',a:['The Moon\'s gravity is only about 1/6 of Earth\'s','The Moon has no air','Their spacesuits have springs','The Moon spins faster than Earth'],why:'Weaker gravity pulls them down less, so they can jump about 6 times higher.'},
+    {q:'What was the name of the Apollo 11 lunar lander?',a:['Eagle','Falcon','Discovery','Rocket One'],why:'"The Eagle has landed!" Columbia, the command module, stayed in orbit around the Moon.'}]};
+let demo=null, demoUp=false;
+const demoOn=()=>!!demo;
+// --- the quiz screen
+const dmQuiz=document.createElement('div'); dmQuiz.id='dmQuiz'; dmQuiz.className='dmOver'; document.body.appendChild(dmQuiz);
+const dmSplash=document.createElement('div'); dmSplash.id='dmSplash'; dmSplash.className='dmOver';
+dmSplash.innerHTML='<canvas id="dmSky"></canvas><div class="dmS"><div class="dmTake">Take</div><div class="dmESS">Earth &amp; Space Science</div><div class="dmWith">with <b>Mr. Tyler</b></div>'+
+  '<div class="dmPic"><img id="dmImg" alt="Mr. Tyler giving a thumbs up"><div id="dmPh">👍</div></div>'+
+  '<div class="dmNext"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" class="bg"/><circle cx="22" cy="22" r="19" class="fg" id="dmRing"/></svg><span id="dmCount">30</span><span class="lbl">Next demo starts soon…</span></div></div>';
+document.body.appendChild(dmSplash);
+for(const o of [dmQuiz,dmSplash]){ const g=document.createElement('button'); g.className='dmGear'; g.textContent='⚙️'; g.title='Settings'; o.appendChild(g); tap(g,openSettings); }
+{ const im=$('dmImg'); im.onerror=()=>{ im.style.display='none'; $('dmPh').style.display='flex'; }; im.onload=()=>{ im.style.display='block'; $('dmPh').style.display='none'; }; im.src=DEMO_IMG; }
+function dmQuizStart(set){ const qs=DEMO_QS[set].map(o=>{ const order=[0,1,2,3].sort(()=>Math.random()-0.5); return {q:o.q,why:o.why,a:order.map(i=>o.a[i]),right:order.indexOf(0)}; });
+  demo.quiz={set,qs,i:0,t:0,shown:false}; dmQuizDraw(); dmQuiz.style.display='flex'; }
+function dmQuizDraw(){ const Z=demo.quiz, Q=Z.qs[Z.i];
+  dmQuiz.querySelector('.dmCard')?.remove();
+  const c=document.createElement('div'); c.className='dmCard';
+  c.innerHTML='<div class="dmHead">'+(Z.set==='aqua'?'💧 Groundwater':'🌕 Moon Landing')+' quiz · Question '+(Z.i+1)+' of '+Z.qs.length+'</div><div class="dmQ">'+Q.q+'</div>'+
+    '<div class="dmAs">'+Q.a.map((a,k)=>'<div class="dmA" data-k="'+k+'"><span class="L">'+'ABCD'[k]+'</span><span>'+a+'</span></div>').join('')+'</div>'+
+    '<div class="dmWhy"></div><div class="dmBar"><div class="dmFill"></div></div><div class="dmT"></div>';
+  dmQuiz.insertBefore(c,dmQuiz.firstChild); }
+function dmQuizTick(dt){ const Z=demo.quiz, Q=Z.qs[Z.i], c=dmQuiz.querySelector('.dmCard'); Z.t+=dt;
+  if(!Z.shown){ const left=Math.max(0,DEMO_Q_READ-Z.t); c.querySelector('.dmFill').style.width=(100*left/DEMO_Q_READ)+'%'; c.querySelector('.dmT').textContent='⏱ '+Math.ceil(left)+'s to think…';
+    if(Z.t>=DEMO_Q_READ){ Z.shown=true; Z.t=0; sfx('buy'); c.classList.add('shown'); c.querySelectorAll('.dmA').forEach(e=>e.classList.add(+e.dataset.k===Q.right?'ok':'no'));
+      c.querySelector('.dmA.ok span:last-child').insertAdjacentHTML('beforeend',' ✅'); c.querySelector('.dmWhy').textContent='💡 '+Q.why; } return; }
+  c.querySelector('.dmFill').style.width=(100*Math.max(0,DEMO_Q_SHOW-Z.t)/DEMO_Q_SHOW)+'%'; c.querySelector('.dmT').textContent='The answer is '+'ABCD'[Q.right]+'!';
+  if(Z.t>=DEMO_Q_SHOW){ Z.i++; Z.t=0; Z.shown=false; if(Z.i>=Z.qs.length){ dmQuiz.style.display='none'; demo.quiz=null; return true; } dmQuizDraw(); sfx('place'); } return false; }
+// --- the Mr. Tyler screen: an animated Earth & space sky
+const dmSky=$('dmSky'); let dmSkyT=0; const dmStars=[]; for(let i=0;i<220;i++)dmStars.push([Math.random(),Math.random(),Math.random()*1.6+0.3,Math.random()*6]);
+const DM_ICONS=['🌋','🪐','☄️','🌙','🛰️','🔭','⛈️','🌊','⛰️','💎','🌪️','🚀','🌞','🧭','🦕','❄️','🌈','🌏'], dmFloat=[];
+for(let i=0;i<16;i++)dmFloat.push({e:DM_ICONS[i%DM_ICONS.length],x:Math.random(),y:Math.random(),vx:(Math.random()-0.5)*0.02,vy:-0.012-Math.random()*0.02,s:26+Math.random()*26,r:Math.random()*6,vr:(Math.random()-0.5)*0.6});
+function dmDrawSky(dt){ dmSkyT+=dt; const c=dmSky, W2=c.clientWidth, H2=c.clientHeight, dpr=Math.min(2,window.devicePixelRatio||1); if(c.width!==Math.round(W2*dpr)||c.height!==Math.round(H2*dpr)){ c.width=Math.round(W2*dpr); c.height=Math.round(H2*dpr); }
+  const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); const T=dmSkyT;
+  const bg=g.createLinearGradient(0,0,0,H2); bg.addColorStop(0,'#05061a'); bg.addColorStop(0.6,'#141a4a'); bg.addColorStop(1,'#2a1a4a'); g.fillStyle=bg; g.fillRect(0,0,W2,H2);
+  for(const [x,y,r,p] of dmStars){ g.globalAlpha=0.45+0.45*Math.sin(T*2+p); g.fillStyle='#fff'; g.fillRect(x*W2,y*H2,r,r); } g.globalAlpha=1;
+  // the Sun, Earth spinning with its Moon in orbit, Saturn, and a comet
+  const S=Math.min(W2,H2), ex=W2*0.84, ey=H2*0.78, er=S*0.13;
+  let gr=g.createRadialGradient(W2*0.08,H2*0.12,0,W2*0.08,H2*0.12,S*0.22); gr.addColorStop(0,'rgba(255,230,140,1)'); gr.addColorStop(0.25,'rgba(255,180,60,.9)'); gr.addColorStop(1,'rgba(255,140,40,0)'); g.fillStyle=gr; g.beginPath(); g.arc(W2*0.08,H2*0.12,S*0.22,0,7); g.fill();
+  g.save(); g.beginPath(); g.arc(ex,ey,er,0,7); g.clip(); g.fillStyle='#1f5fbf'; g.fillRect(ex-er,ey-er,er*2,er*2); g.fillStyle='#3fae4a';
+  for(const [lx,ly,lw,lh] of [[0,-0.3,0.55,0.35],[0.9,0.1,0.4,0.55],[1.6,-0.4,0.35,0.3],[1.25,0.45,0.3,0.2],[0.4,0.35,0.25,0.3]]){ const xx=((lx-T*0.08)%2+2)%2-1; g.beginPath(); g.ellipse(ex+xx*er*1.6,ey+ly*er,lw*er,lh*er,0.3,0,7); g.fill(); }
+  g.fillStyle='rgba(255,255,255,.75)'; g.fillRect(ex-er,ey-er,er*2,er*0.16); g.fillRect(ex-er,ey+er*0.86,er*2,er*0.16);
+  gr=g.createRadialGradient(ex-er*0.4,ey-er*0.4,er*0.2,ex,ey,er); gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(1,'rgba(0,0,30,.55)'); g.fillStyle=gr; g.fillRect(ex-er,ey-er,er*2,er*2); g.restore();
+  g.strokeStyle='rgba(120,180,255,.5)'; g.lineWidth=3; g.beginPath(); g.arc(ex,ey,er+2,0,7); g.stroke();
+  const ma=T*0.5, mx=ex+Math.cos(ma)*er*2.1, my=ey+Math.sin(ma)*er*0.7; if(Math.sin(ma)<0||Math.hypot(mx-ex,my-ey)>er){ g.fillStyle='#d8d6cf'; g.beginPath(); g.arc(mx,my,er*0.27,0,7); g.fill(); g.fillStyle='#b5b2aa'; g.beginPath(); g.arc(mx-er*0.07,my-er*0.05,er*0.07,0,7); g.fill(); }
+  const sx=W2*0.13, sy=H2*0.74+Math.sin(T*0.6)*6, sr=S*0.06; g.save(); g.translate(sx,sy); g.rotate(-0.35); g.strokeStyle='#e8d29a'; g.lineWidth=sr*0.22; g.beginPath(); g.ellipse(0,0,sr*2.1,sr*0.6,0,Math.PI,2*Math.PI); g.stroke();
+  g.fillStyle='#e0b870'; g.beginPath(); g.arc(0,0,sr,0,7); g.fill(); g.beginPath(); g.ellipse(0,0,sr*2.1,sr*0.6,0,0,Math.PI); g.stroke(); g.restore();
+  const ck=(T*0.12)%1.4, cx=W2*(1.1-ck), cy=H2*(0.05+ck*0.35); gr=g.createLinearGradient(cx,cy,cx+120,cy-40); gr.addColorStop(0,'rgba(200,240,255,.9)'); gr.addColorStop(1,'rgba(200,240,255,0)');
+  g.strokeStyle=gr; g.lineWidth=4; g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+120,cy-40); g.stroke(); g.fillStyle='#e8fbff'; g.beginPath(); g.arc(cx,cy,4,0,7); g.fill();
+  g.textAlign='center'; g.textBaseline='middle';
+  for(const f of dmFloat){ f.x+=f.vx*dt; f.y+=f.vy*dt; f.r+=f.vr*dt; if(f.y<-0.1){ f.y=1.1; f.x=Math.random(); } if(f.x<-0.1)f.x=1.1; if(f.x>1.1)f.x=-0.1;
+    g.save(); g.translate(f.x*W2,f.y*H2); g.rotate(Math.sin(f.r)*0.4); g.globalAlpha=0.85; g.font=f.s+'px sans-serif'; g.fillText(f.e,0,0); g.restore(); } g.globalAlpha=1; }
+function dmSplashStart(){ demo.splash=DEMO_SPLASH; dmSplash.style.display='flex'; sfx('buy'); }
+function dmSplashTick(dt){ demo.splash-=dt; dmDrawSky(dt); const left=Math.max(0,demo.splash); $('dmCount').textContent=Math.ceil(left);
+  $('dmRing').style.strokeDashoffset=(119.4*(1-left/DEMO_SPLASH)).toFixed(1); if(left<=0){ dmSplash.style.display='none'; return true; } return false; }
+// --- the Moon autopilot: walk to the samples, plant the flag, then head for the crash site
+function demoPilot(dt){ if(!demo||mode!=='moon'||!ml)return null; invuln=Math.max(invuln,1); let tgt=null;
+  if(ml.phase==='explore'){ let best=1e9; for(const s of ml.samples)if(!s.got){ const d=Math.hypot(s.x-pl.p[0],s.z-pl.p[2]); if(d<best){ best=d; tgt=[s.x,s.z]; } } }
+  else if(ml.phase==='flag')tgt=ML_FLAG; else if(ml.phase==='scout')tgt=[ML_CRATER[0],ML_CRATER[1]];
+  const look=tgt||(ml.phase==='fight'?[ML_CRATER[0],ML_CRATER[1]]:null); if(!look)return {ix:0,iz:0};
+  let d=Math.atan2(-(look[0]-pl.p[0]),-(look[1]-pl.p[2]))-yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+  yaw+=Math.max(-2.4*dt,Math.min(2.4*dt,d)); pitch+=(-0.12-pitch)*Math.min(1,dt*2);
+  if(!tgt)return {ix:0,iz:0};
+  const P=demo.pil, dist=Math.hypot(tgt[0]-pl.p[0],tgt[1]-pl.p[2]); P.t+=dt; P.up=Math.max(0,P.up-dt); demoUp=P.up>0;
+  if(P.t>1.2){ if(P.d-dist<0.4){ P.up=0.45; P.n=(P.n||0)+1; if(P.n>=2){ P.side=1.0; P.dir=Math.random()<0.5?-1:1; } } else P.n=0; P.t=0; P.d=dist; } // stuck on a rock? hop, then sidestep
+  P.side=Math.max(0,(P.side||0)-dt); if(P.side>0)return {ix:P.dir,iz:-0.4};
+  return {ix:0,iz:Math.abs(d)<1.1?-1:-0.25}; }
+// --- the loop
+function demoStart(){ if(document.pointerLockElement)document.exitPointerLock(); saveNow(); demo={stage:'',t:0,quiz:null,splash:0,pil:{t:0,d:1e9,up:0}}; document.body.classList.add('demo'); demoGo('aqua'); }
+function demoStop(){ if(!demo)return; demo=null; demoUp=false; dmQuiz.style.display='none'; dmSplash.style.display='none'; document.body.classList.remove('demo'); gwStopVoice();
+  closeMenu(); hadSave=loadCurrent(); if(!hadSave)startSurvival(); showTitle(); }
+function demoGo(stage){ demo.stage=stage; demo.t=0; dmQuiz.style.display='none'; dmSplash.style.display='none'; mlPola.style.display='none'; rdBan.style.display='none';
+  if(stage==='aqua'){ closeMenu(); startAqua(true); }
+  else if(stage==='moon'){ closeMenu(); startMoon(); closeMenu(); hp=MAXHP; updateHUD(); ml.phase='landing'; ml.t=0; camMode=3; sfx('rock'); demo.pil={t:0,d:1e9,up:0}; demo.picT=0; }
+  else { gwStopVoice(); paused=true; if(document.pointerLockElement)document.exitPointerLock();
+    if(stage==='quizA')dmQuizStart('aqua'); else if(stage==='quizM')dmQuizStart('moon'); else dmSplashStart(); } }
+const DEMO_NEXT={aqua:'quizA',quizA:'splashA',splashA:'moon',moon:'quizM',quizM:'splashM',splashM:'aqua'};
+function demoTick(dt){ if(!demo||$('modal').style.display==='flex')return; demo.t+=dt; const S=demo.stage;
+  if(S==='aqua'){ if(!gw||gw.phase==='done'||demo.t>600)demoGo(DEMO_NEXT[S]); }
+  else if(S==='moon'){ if(ml&&ml.problemPic)demo.picT+=dt; if(!ml||demo.picT>5.5||demo.t>240||['failcam','failed','done'].includes(ml.phase))demoGo(DEMO_NEXT[S]); }
+  else if(S==='quizA'||S==='quizM'){ paused=true; if(dmQuizTick(dt))demoGo(DEMO_NEXT[S]); }
+  else { paused=true; if(dmSplashTick(dt))demoGo(DEMO_NEXT[S]); } }
 
 // ================= TARGETS MODE =================
 const TG_ROUNDS=[null,{name:'🚶 On foot',tip:'Walk around and shoot the bullseye targets the monsters carry.'},
@@ -3991,12 +4118,13 @@ function updatePlayer(dt){
   if(mode==='aqua'&&gw&&gw.cine){ pl.v=[0,0,0]; return {hs:0}; }
   let ix=joy.x, iz=joy.y;
   if(keys.KeyW||keys.ArrowUp)iz-=1; if(keys.KeyS||keys.ArrowDown)iz+=1; if(keys.KeyA||keys.ArrowLeft)ix-=1; if(keys.KeyD||keys.ArrowRight)ix+=1;
+  if(demo&&mode==='moon'){ const a=demoPilot(dt); if(a){ ix=a.ix; iz=a.iz; } }
   const m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   const fwd=-iz, str=ix, s=Math.sin(yaw), c=Math.cos(yaw);
   const env=envAt(pl);
   const speed=(fly?(outsideDist()>0?13:9):4.6)*(webbed?Math.max(0.55,1-webbed*0.12):1)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
   pl.v[0]=(-s*fwd+c*str)*speed; pl.v[2]=(-c*fwd-s*str)*speed;
-  const up=upHeld||keys.Space, down=downHeld||keys.ShiftLeft||keys.ShiftRight;
+  const up=upHeld||keys.Space||(!!demo&&demoUp), down=downHeld||keys.ShiftLeft||keys.ShiftRight;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
   else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30;
@@ -4238,7 +4366,7 @@ function animate(dt){
 let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
-  update(dt); if(titleOn)updateTitle(dt); animate(dt);
+  update(dt); demoTick(dt); if(titleOn)updateTitle(dt); animate(dt);
   let n=0; for(const k of dirty){ buildChunk(k%NCX,Math.floor(k/NCX)); dirty.delete(k); if(++n>=4)break; }
   renderer.render(scene,camera); if(moonSnap){ const f=moonSnap; moonSnap=null; try{ f(renderer.domElement.toDataURL('image/jpeg',0.8)); }catch(e){} } requestAnimationFrame(frame);
 }
@@ -4253,7 +4381,7 @@ $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.tog
 $('bFly').classList.toggle('on',fly); document.body.classList.toggle('fly',fly);
 let seen=false; try{ seen=!!localStorage.getItem('stratacraft_seen2'); localStorage.setItem('stratacraft_seen2','1'); }catch(e){}
 showTitle();
-window.__sc={startAqua,gwHit,gwPlace,aquaJump(){ world=gwTarget(2,true); rebuildAll(); gw.phase="done"; closeMenu(); gwFree(); },get target(){return target;},get gw(){return gw;},get cam(){return camera;},gwFree,get shirtHex(){return shirt.color.getHex();},get gameShirt(){return gameShirt;},get paused(){return paused;},pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
+window.__sc={demoGo,get demo(){return demo;},startAqua,gwHit,gwPlace,aquaJump(){ world=gwTarget(2,true); rebuildAll(); gw.phase="done"; closeMenu(); gwFree(); },get target(){return target;},get gw(){return gw;},get cam(){return camera;},gwFree,get shirtHex(){return shirt.color.getHex();},get gameShirt(){return gameShirt;},get paused(){return paused;},pl,mobs,spawnMob,setBlock,get,ID,get coins(){return coins;},set coins(v){coins=v;updateHUD();},get hp(){return hp;},fires,lavaSet,surfaceAt,
   look(y,p){yaw=y;pitch=p;}, ride:(dt)=>ridePlayer(dt), grant:(k)=>grantPower(k), step:(dt)=>{ ridePlayer(dt); updateCart(dt); }, get yaw(){return yaw;}, startCart, tick:(dt)=>update(dt), startRaid, startTour, twLoad, startMoon, get ml(){return ml;}, startEarth, get ea(){return ea;}, moonCutscene, get tw(){return tw;}, twS, TW, get rd(){return rd;}, rdS, raidBlast, get arrows2(){return arrows;}, get mode2(){return mode;}, get crt(){return crt;}, cartObjs:()=>cartObjs, TRK:()=>TRK, get arrows(){return arrows;}, get arrowSel(){return arrowSel;}, openArrows, glassTargets, spawnGlass, appleTrees, get aimFruit(){return aimFruit;}, startCorners, startTargets, rv, get tgm(){return tgm;}, get shots(){return shots;}, get mode(){return mode;}, get cg(){return cg;}, FCC, FC, hit:hitAction, place:placeAction, select, openShop};
 requestAnimationFrame(frame);
 })();
