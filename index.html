@@ -1526,7 +1526,7 @@ function openNewGame(){
     '<div class="item"><div class="ic">💣</div><div class="tx"><b>Rail Rampage</b><div class="fx">Ride a cart to 6 stations. Shoot zombies and other monsters as they march at you, then grab bomb arrows and blow up buildings, cars and statues. Go for a high score!</div></div><button class="ibtn" data-new="raid">Start</button></div>'+
     '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Wrecking World Tour</b><div class="fx">Watch 5 famous wonders of the world build themselves, from the Eiffel Tower to the Great Pyramid, then blast them with unlimited bomb arrows and run up the biggest damage bill you can!</div></div><button class="ibtn" data-new="tour">Start</button></div>'+
     '<div class="item"><div class="ic">🌕</div><div class="tx"><b>Moon Landing</b><div class="fx">Land on the Moon, bounce around in 1/6 gravity collecting rock samples and plant the flag. Then a meteorite crashes… and the aliens come out. Grab your laser!</div></div><button class="ibtn" data-new="moon">Start</button></div>'+
-    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon through a purple ripple in space and splash down in the year 3026. Earth is an AI wasteland full of robots… and the super giant robot Claude!</div></div><button class="ibtn" data-new="earth">Start</button></div>'+
+    '<div class="item"><div class="ic">🌍</div><div class="tx"><b>Return to Earth (Chapter 2)</b><div class="fx">Fly home from the Moon to a big welcome! It\'s '+EA_YEAR()+', and the whole planet is throwing a celebration for Earth\'s hero astronaut: you!</div></div><button class="ibtn" data-new="earth">Start</button></div>'+
     '<div class="row"><button class="mbtn gold" id="nSave">💾 Save current game first</button><button class="mbtn gray" id="nBack">Back</button></div>';
   $('mbox').innerHTML=h; $('modal').style.display='flex';
   $('mbox').querySelectorAll('[data-new]').forEach(b=>onClick(b,()=>{ const md=b.dataset.new;
@@ -3113,6 +3113,7 @@ function moonHelp(){
 // ================= RETURN TO EARTH (Chapter 2) =================
 // On the way home the capsule flies through a purple ripple in space. It splashes down under a parachute in the year 3026:
 // Earth is an AI wasteland full of robots. Beat them all, then the super giant robot Claude turns around and comes for you.
+const EA_YEAR=()=>new Date().getFullYear(); // the descriptions say it's this year… the reveal is a thousand years later
 const EA_SKY=0x24202a, EA_SEA=8, EA_SPLASH=[48,84], EA_SHORE=[48,10.2,62], EA_CAP=[48,73], EA_C=[124,-8,48], EA_BEST='stratacraft_earth_best', EA_PAR=600;
 const EA_SPACE=new THREE.Vector3(48,260,48);
 const earthRoot=new THREE.Group(); scene.add(earthRoot);
@@ -3303,7 +3304,7 @@ function updateEarth(dt){ if(mode!=='earth'||!ea){ eaPurple.style.opacity=0; ret
   const C=ea.cap.g; if(ea.phase!=='chute'){ C.position.z+=(EA_CAP[1]-C.position.z)*Math.min(1,dt*0.15); C.position.x+=(EA_CAP[0]-C.position.x)*Math.min(1,dt*0.15); C.position.y=EA_SEA+0.2+Math.sin(ea.ct*1.4)*0.15; C.rotation.z=Math.sin(ea.ct)*0.06; }
   if(Math.hypot(pl.p[0]-C.position.x,pl.p[2]-C.position.z)<4.5&&hp<MAXHP){ ea.healT-=dt; if(ea.healT<=0){ ea.healT=0.8; hp++; updateHUD(); sfx('coin'); if(hp===MAXHP)toast('🔧 The capsule fixed you up: full hearts!'); } } // the capsule heals you
   if(ea.phase==='swim'&&pl.onGround&&pl.p[2]<69&&pl.p[1]>=EA_SEA+0.5){ ea.phase='reveal'; ea.t=0; ea.shake=0.6; sfx('screech'); // every robot turns to look at you
-    raidBanner('<span style="font-size:52px;color:#ff3030">Earth 3026!!!</span>','Every robot turns its red eyes on you…',3.5); }
+    raidBanner('<span style="font-size:52px;color:#ff3030">Earth '+(EA_YEAR()+1000)+'!!!</span>','Every robot turns its red eyes on you…',3.5); }
   if(ea.phase==='reveal'){ ea.t+=dt; if(ea.t>3){ ea.phase='fight'; ea.todo=['ti80','trashbot','3v3','ti80','trashbot','3v3','trashbot','ti80','3v3','trashbot']; ea.spawnT=6; mlSay('🤖 ATTACK MODE','Fight back with your laser! Heal at the capsule on the beach',3.5); sfx('boom'); } }
   if(ea.phase==='fight'){ ea.spawnT-=dt; if(ea.todo.length&&ea.spawnT<=0){ ea.spawnT=2.6; eaSpawn(ea.todo.shift(),false); }
     if(!ea.todo.length&&!mobs.length){ ea.phase='bossIntro'; ea.t=0; mlSay('…','Something huge is moving at the edge of the world…',3.5); sfx('rock'); ea.shake=1.4; } }
@@ -3316,7 +3317,7 @@ function updateEarthHud(){ const el=$('cartHud'); el.style.display='inline-block
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 function earthBest(){ try{ return +localStorage.getItem(EA_BEST)||0; }catch(e){ return 0; } }
 function earthIntro(){ if(!ea)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const mid=!['intro','won'].includes(ea.phase);
-  $('mbox').innerHTML='<h2>🌍 Chapter 2: Return to Earth</h2><div class="say">Your capsule is heading home from the Moon… but something strange is waiting in space. Your <b>laser</b> and <b>jetpack</b> are still with you, and the capsule fixes you up when you\'re hurt.</div>'+
+  $('mbox').innerHTML='<h2>🌍 Chapter 2: Return to Earth</h2><div class="say">Mission accomplished! Your capsule is heading home from the Moon, and it\'s '+EA_YEAR()+'. Everyone on Earth is waiting to celebrate their hero astronaut. Your <b>laser</b> and <b>jetpack</b> are still with you, just in case, and the capsule fixes you up when you\'re hurt.</div>'+
     '<div class="board"><div>🏆 High score<div class="n" style="color:#ffd84a">'+earthBest()+'</div></div></div>'+
     '<div class="row"><button class="mbtn" id="eGo">'+(mid?'Keep going':'Head home!')+'</button><button class="mbtn gray" id="eMenu">Menu</button></div>';
   $('modal').style.display='flex';
@@ -3331,7 +3332,10 @@ function earthFinish(won){ if(document.pointerLockElement)document.exitPointerLo
   $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
   tap($('eAgain'),()=>{ closeMenu(); eaSetup(0); hp=MAXHP; updateHUD(); ea.phase='space'; ea.t=0; }); tap($('eMenu'),openMenu); }
 function earthHelp(){
-  return '<h2>🌍 Chapter 2: Return to Earth</h2>Fly home from the Moon… straight through a purple ripple in space. Splash down in the year 3026, where Earth has become an AI wasteland.'+
+  if(!ea||!['reveal','fight','bossIntro','boss','bossDown','won'].includes(ea.phase)) // no spoilers before the reveal
+    return '<h2>🌍 Chapter 2: Return to Earth</h2>Fly home from the Moon to a hero\'s welcome! It\'s '+EA_YEAR()+', and all of Earth is celebrating its hero astronaut.'+
+    '<h3>Your gear</h3><ul><li>🔫 Laser (it can overheat) and 🎒 jetpack: press jump again in the air for a boost</li><li>🔧 Stand near your capsule to heal</li><li>🌊 After splashdown, swim to shore (hold jump to swim up)</li></ul>';
+  return '<h2>🌍 Chapter 2: Return to Earth</h2>Fly home from the Moon… straight through a purple ripple in space. Splash down in the year '+(EA_YEAR()+1000)+', where Earth has become an AI wasteland.'+
   '<h3>The robots</h3><ul><li>🤖 <b>TI-80s</b>: metal robot skeletons with a calculator in their chest. They fire orange lasers (3 hits)</li><li>📦 <b>Trashbots</b>: little boxy robots on treads that rush at you (2 hits)</li><li>🥚 <b>3V3s</b>: white flying robots that circle you and shoot plasma (3 hits)</li></ul>'+
   '<h3>The boss</h3><ul><li>Once every robot is down, the super giant robot <b>Claude</b> turns around from the edge of the world. It slams its fists (get out of the red circle!), fires eye lasers and throws scrap at you</li><li>Shoot its 4 glowing cores: chest, head and both hands. The hands are easiest to hit right after a slam</li></ul>'+
   '<h3>Your gear</h3><ul><li>🔫 Laser (it can overheat) and 🎒 jetpack: press jump again in the air for a boost</li><li>🔧 Stand near your capsule on the beach to heal. Get knocked out and you reboot at the beach (−500 points)</li></ul>';
