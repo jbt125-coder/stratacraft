@@ -1395,7 +1395,7 @@ $('card').addEventListener('click',()=>$('card').style.display='none');
 $('card').addEventListener('touchstart',e=>{e.preventDefault();$('card').style.display='none';},{passive:false});
 
 // Laptop controls: arrows (or WASD) move · Space hits/fires · Shift or Enter places a block · Ctrl or right-click jumps · C goes down while flying
-// 1 / 3 first / third person · Tab (or Q) changes weapon · E inventory · T talk · F fly · R arrows · I block info · M menu
+// 1–9 pick a block · V first/third person · Tab (or Q) changes weapon · E inventory · T talk · F fly · R arrows · I block info · M menu
 const cutscene=()=>!!(demo&&(demo.quiz||demo.splash>0))||(mode==='aqua'&&!!gw&&!!gw.cine); // Space and Enter skip captions there instead
 let rmbHeld=false;
 window.addEventListener('keydown',e=>{ const c=e.code;
@@ -1405,7 +1405,7 @@ window.addEventListener('keydown',e=>{ const c=e.code;
   if(e.repeat)return;
   if(c==='Space'&&!cutscene()){ hitAction(); hitHeld=true; repeatT=0.3; }
   if((c==='ShiftLeft'||c==='ShiftRight'||c==='Enter'||c==='NumpadEnter')&&!cutscene())placeAction();
-  if(c==='Digit1'||c==='Numpad1')setCam(1); if(c==='Digit3'||c==='Numpad3')setCam(3); if(c==='KeyV')toggleCam();
+  if(c.startsWith('Digit')){ const n=parseInt(c.slice(5)), list=order(); if(n>=1&&n<=9&&list[n-1])select(list[n-1]); } if(c==='KeyV')toggleCam(); // 1–9 pick a block, V switches 1st/3rd person
   if(c==='Tab'||c==='KeyQ')cycleWeapon(); if(c==='KeyF')toggleFly(); if(c==='KeyI')showCard(sel,true);
   if(c==='KeyR'&&arrowsAllowed())openArrows(false); if(c==='KeyT'&&nearMerchant())openShop(); if(c==='KeyE')openInventory(); if(c==='KeyM')openMenu();
 });
@@ -1547,7 +1547,7 @@ function helpHTML(){
   '<h3>iPhone controls</h3><ul><li><b>Left side:</b> drag to walk (you hop up single blocks on your own)</li><li><b>Right side:</b> drag to look around</li>'+
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
-  '<h3>Keyboard + mouse</h3><ul><li>Click the game, then move the mouse to aim · <b>Arrow keys</b> (or WASD) move · <b>Ctrl</b> or <b>right click</b> jumps or swims up · <b>C</b> goes down while flying</li><li><b>Space</b> or <b>left click</b> hits or fires · <b>Shift</b> or <b>Enter</b> places a block · <b>E</b> opens your blocks (or use the mouse wheel)</li><li><b>Tab</b> changes weapon · <b>1</b> first person · <b>3</b> third person · <b>F</b> fly · <b>T</b> talks to Flint · <b>R</b> arrows · <b>I</b> block info · <b>M</b> menu</li></ul>'+
+  '<h3>Keyboard + mouse</h3><ul><li>Click the game, then move the mouse to aim · <b>Arrow keys</b> (or WASD) move · <b>Ctrl</b> or <b>right click</b> jumps or swims up · <b>C</b> goes down while flying</li><li><b>Space</b> or <b>left click</b> hits or fires · <b>Shift</b> or <b>Enter</b> places a block · <b>E</b> opens your blocks · <b>1–9</b> or the mouse wheel pick a block</li><li><b>Tab</b> changes weapon · <b>V</b> first or third person · <b>F</b> fly · <b>T</b> talks to Flint · <b>R</b> arrows · <b>I</b> block info · <b>M</b> menu</li></ul>'+
   '<h3>🏹 Special arrows</h3><ul><li>With the Bow & Arrow you can buy special arrows from Flint, or tap the 🏹 button any time: 💥 Exploding (25 coins for 1), 🔥 Fire (10 for 3), 🔱 Splitting (5 for 5), 🎯 Auto-aim (5 for 3)</li><li>Every time you pass another 5 coins, you get offered arrows</li></ul>'+
   '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +1 heart</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
