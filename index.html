@@ -161,6 +161,8 @@
   #gwBtn{pointer-events:auto;display:none;font:900 clamp(19px,4vw,26px) sans-serif;padding:12px 28px;border-radius:14px;border:3px solid #fff;background:#2f8fd8;color:#fff;box-shadow:0 5px 0 #1a5a8e,0 8px 18px rgba(0,0,0,.4);cursor:pointer;animation:tpulse 1.6s ease-in-out infinite}
   body.gwc #act,body.gwc #hotwrap,body.gwc #cross,body.gwc #joyHint,body.gwc #looking,body.gwc #bWeapon,body.gwc #bFly,body.gwc #bCam,body.gwc #bArrow,body.gwc #bInfo,body.gwc #joyBase,body.gwc #joyKnob{display:none!important}
   body.aqua #hearts,body.aqua #coins,body.aqua #hotwrap,body.aqua #bWeapon,body.aqua #bArrow{display:none!important}
+  .invb{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 4px;border-radius:9px;border:2px solid rgba(255,255,255,.2);background:#232a39;color:#fff;font:700 13px sans-serif;cursor:pointer}
+  .invb.on{border-color:#ffcf4a;background:#3a3420} .invb canvas{width:30px;height:30px;display:block}
   #modal{inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
   #modal .box{width:min(560px,calc(100vw - 30px));max-height:calc(100vh - 30px);overflow:auto;background:#1a1f2b;border-radius:16px;
     padding:16px 18px;border:2px solid rgba(255,255,255,.2);font-size:14px;line-height:1.45;-webkit-overflow-scrolling:touch;touch-action:pan-y}
@@ -1392,21 +1394,42 @@ tap($('bInfo'),()=>showCard(sel,true)); tap($('bMenu'),openMenu); tap($('bTalk')
 $('card').addEventListener('click',()=>$('card').style.display='none');
 $('card').addEventListener('touchstart',e=>{e.preventDefault();$('card').style.display='none';},{passive:false});
 
-window.addEventListener('keydown',e=>{
-  if(paused)return; keys[e.code]=true;
-  if(e.code==='KeyV')toggleCam(); if(e.code==='KeyF')toggleFly(); if(e.code==='KeyI')showCard(sel,true);
-  if(e.code==='KeyQ')cycleWeapon(); if(e.code==='KeyR'&&arrowsAllowed())openArrows(false); if(e.code==='KeyE'&&nearMerchant())openShop();
-  if(e.code.startsWith('Digit')){ const n=parseInt(e.code.slice(5)); const list=order(); if(n>=1&&n<=9&&list[n-1])select(list[n-1]); }
-  if(e.code==='Space')e.preventDefault();
+// Laptop controls: arrows (or WASD) move · Space hits/fires · Shift or Enter places a block · Ctrl or right-click jumps · C goes down while flying
+// 1 / 3 first / third person · Tab (or Q) changes weapon · E inventory · T talk · F fly · R arrows · I block info · M menu
+const cutscene=()=>!!(demo&&(demo.quiz||demo.splash>0))||(mode==='aqua'&&!!gw&&!!gw.cine); // Space and Enter skip captions there instead
+let rmbHeld=false;
+window.addEventListener('keydown',e=>{ const c=e.code;
+  if(c==='KeyE'&&invOpen){ e.preventDefault(); closeMenu(); invOpen=false; return; } // E again closes the inventory
+  if(paused)return; keys[c]=true;
+  if(['Space','Tab','ControlLeft','ControlRight','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(c))e.preventDefault();
+  if(e.repeat)return;
+  if(c==='Space'&&!cutscene()){ hitAction(); hitHeld=true; repeatT=0.3; }
+  if((c==='ShiftLeft'||c==='ShiftRight'||c==='Enter'||c==='NumpadEnter')&&!cutscene())placeAction();
+  if(c==='Digit1'||c==='Numpad1')setCam(1); if(c==='Digit3'||c==='Numpad3')setCam(3); if(c==='KeyV')toggleCam();
+  if(c==='Tab'||c==='KeyQ')cycleWeapon(); if(c==='KeyF')toggleFly(); if(c==='KeyI')showCard(sel,true);
+  if(c==='KeyR'&&arrowsAllowed())openArrows(false); if(c==='KeyT'&&nearMerchant())openShop(); if(c==='KeyE')openInventory(); if(c==='KeyM')openMenu();
 });
-window.addEventListener('keyup',e=>{ keys[e.code]=false; });
+window.addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='Space')hitHeld=false; });
+window.addEventListener('blur',()=>{ for(const k in keys)keys[k]=false; hitHeld=false; rmbHeld=false; });
+function setCam(n){ if(camMode===n)return; camMode=n; $('bCam').textContent=camMode===1?'👁 1st':'👁 3rd'; $('bCam').classList.toggle('on',camMode===3); queueSave(); }
+// E: pick any block to place
+let invOpen=false;
+function openInventory(){ if(document.pointerLockElement)document.exitPointerLock(); paused=true; invOpen=true; const fc=mode==='corners'&&!!cg;
+  let h='<h2>🎒 Blocks</h2><div class="say">Pick a block to place (Shift or Enter places it). Press E again to close.</div>';
+  for(const cat of Object.keys(CAT)){ const ids=order().filter(id=>B[id].cat===cat); if(!ids.length)continue;
+    h+='<h3 style="color:'+CAT[cat].c+'">'+cat+'</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+ids.map(id=>'<button class="invb'+(id===sel?' on':'')+'" data-inv="'+id+'" title="'+esc(B[id].name)+'"><span class="ic"></span><span>'+esc(B[id].name)+(fc?' ('+(cg.inv[id]||0)+')':'')+'</span></button>').join('')+'</div>'; }
+  h+='<div class="row"><button class="mbtn" id="invClose">Back to the game</button></div>';
+  $('mbox').innerHTML=h; $('modal').style.display='flex';
+  $('mbox').querySelectorAll('[data-inv]').forEach(b=>{ const id=+b.dataset.inv; b.querySelector('.ic').appendChild(iconFor(B[id])); tap(b,()=>{ select(id,false); invOpen=false; closeMenu(); toast('🧱 '+B[id].name); }); });
+  tap($('invClose'),()=>{ invOpen=false; closeMenu(); }); }
 window.addEventListener('keydown',e=>{ if(!['Space','Enter','ArrowRight','NumpadEnter'].includes(e.code)||$('modal').style.display==='flex')return;
   if(demo&&(demo.quiz||demo.splash>0)){ e.preventDefault(); dmSkip(); } else if(mode==='aqua'&&gw&&gw.cine){ e.preventDefault(); gwSkip(); } });
 if(!IS_TOUCH){
   touchEl.addEventListener('click',e=>{ audioInit(); if(mode==='aqua'&&gw&&gw.cine){ gwTap(e.clientX,e.clientY); return; } if(demo)return; if(document.pointerLockElement!==touchEl){ try{ const r=touchEl.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } });
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement!==touchEl||paused)return;
     yaw-=e.movementX*SENS_M; pitch-=e.movementY*SENS_M; pitch=Math.max(-1.55,Math.min(1.55,pitch)); });
-  touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)placeAction(); });
+  touchEl.addEventListener('mousedown',e=>{ if(document.pointerLockElement!==touchEl||paused)return; if(e.button===0)hitAction(); if(e.button===2)rmbHeld=true; }); // right click jumps
+  window.addEventListener('mouseup',e=>{ if(e.button===2)rmbHeld=false; });
   touchEl.addEventListener('contextmenu',e=>e.preventDefault());
   window.addEventListener('wheel',e=>{ if(document.pointerLockElement!==touchEl)return; const l=order(); let i=l.indexOf(sel); i=(i+(e.deltaY>0?1:-1)+l.length)%l.length; select(l[i]); },{passive:true});
 }
@@ -1524,7 +1547,7 @@ function helpHTML(){
   '<h3>iPhone controls</h3><ul><li><b>Left side:</b> drag to walk (you hop up single blocks on your own)</li><li><b>Right side:</b> drag to look around</li>'+
   '<li><b>⛏ Hit</b> attacks a monster in the crosshair (it turns red), or breaks a block. Throw the 🪃 boomerang (it comes back to you!) or shoot the 🏹 bow at monsters far away</li><li><b>🧱 Place</b> puts down a block, or talks to Flint</li>'+
   '<li><b>👁</b> switches between first and third person · <b>🪽</b> toggles flying · the weapon button swaps weapons</li></ul>'+
-  '<h3>Keyboard + mouse</h3><ul><li>Click to look · WASD to move · Space to jump or swim · Shift to go down while flying</li><li>Left click hits · right click places · 1–9 or the wheel picks a block · Q swaps weapons · E talks to Flint · V camera · F fly</li></ul>'+
+  '<h3>Keyboard + mouse</h3><ul><li>Click the game, then move the mouse to aim · <b>Arrow keys</b> (or WASD) move · <b>Ctrl</b> or <b>right click</b> jumps or swims up · <b>C</b> goes down while flying</li><li><b>Space</b> or <b>left click</b> hits or fires · <b>Shift</b> or <b>Enter</b> places a block · <b>E</b> opens your blocks (or use the mouse wheel)</li><li><b>Tab</b> changes weapon · <b>1</b> first person · <b>3</b> third person · <b>F</b> fly · <b>T</b> talks to Flint · <b>R</b> arrows · <b>I</b> block info · <b>M</b> menu</li></ul>'+
   '<h3>🏹 Special arrows</h3><ul><li>With the Bow & Arrow you can buy special arrows from Flint, or tap the 🏹 button any time: 💥 Exploding (25 coins for 1), 🔥 Fire (10 for 3), 🔱 Splitting (5 for 5), 🎯 Auto-aim (5 for 3)</li><li>Every time you pass another 5 coins, you get offered arrows</li></ul>'+
   '<h3>🍎 Apple trees</h3><ul><li>Some trees grow apples. First a 🌸 blossom appears (one every 30 seconds, up to 5), then it ripens into an apple. Aim at an apple and tap ⛏ or 🧱 to eat it: +1 heart</li></ul>'+
   '<h3>🔭 Side view</h3><ul><li>Walk or fly past the edge of the world and you start flying. Turn around to see the whole landscape cut open, with topsoil on top and rock layers underneath, all the way down to the basalt bedrock</li></ul>'+
@@ -1541,7 +1564,7 @@ function cornersHelp(){
   '<h3>Coins and special arrows</h3><ul><li>Defeat monsters for coins: 🦅 eagle 2 · 💀 skeleton 2 · 👹 orc 3 · 🧌 troll 5 · 🦁 griffin 5</li><li>Every time you pass another 5 coins, you get offered special arrows. Or tap the 🏹 button any time: 💥 Exploding (25 coins for 1), 🔥 Fire (10 for 3), 🔱 Splitting (5 for 5), 🎯 Auto-aim (5 for 3)</li><li>An exploding arrow on a spawn block counts as 2 hits</li></ul>'+
   '<h3>Around the valley</h3><ul><li>Black obsidian trails wind across the lava (lava that cooled fast). You can walk on them, but none of them reaches all the way to another corner</li><li>Every corner is a little different. Look for 🍎 apple trees: aim at an apple and tap ⛏ or 🧱 to eat it and heal</li></ul>'+
   '<h3>The sky</h3><ul><li>Defeat a 🦁 griffin to get <b>wings for 90 seconds</b>. Fly over and attack a cave! When the wings wear off, you fall</li><li>Hit an 🦅 eagle and it comes after you</li></ul>'+
-  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit shoots or mines · 🧱 Place builds · the weapon button swaps bow and fists</li><li>Keyboard: WASD, Space, left click hits, right click places, Q swaps weapons</li></ul>';
+  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit shoots or mines · 🧱 Place builds · the weapon button swaps bow and fists</li><li>Keyboard: arrow keys move, Ctrl or right click jumps, Space or left click hits or fires, Shift or Enter places a block, E picks blocks, Tab swaps weapons</li></ul>';
 }
 function openMenu(){
   if(document.pointerLockElement)document.exitPointerLock();
@@ -1556,7 +1579,7 @@ function openMenu(){
   tap($('mPlay'),()=>{ closeMenu(); if(mode==='targets'&&tgm&&tgm.phase!=='play')tgIntro(); if(mode==='cart'&&crt&&crt.phase!=='ride'&&crt.phase!=='count')cartIntro(); if(mode==='raid'&&rd&&(rd.phase==='intro'||rd.phase==='done'))raidIntro(); if(mode==='tour'&&tw&&(tw.phase==='intro'||tw.phase==='done'))tourIntro(); if(mode==='moon'&&ml&&['intro','done','failed'].includes(ml.phase))moonIntro(); if(mode==='earth'&&ea&&['intro','won'].includes(ea.phase))earthIntro(); if(mode==='aqua'&&gw&&gw.phase==='intro')gwIntro(); }); tap($('mSave'),()=>openSaves(mode)); tap($('mNew'),openNewGame);
   if(mode==='survival') tap($('mMobs'),()=>{ mobsOn=!mobsOn; if(!mobsOn) for(const m of mobs.slice())removeMob(m); queueSave(); openMenu(); });
 }
-function closeMenu(){ $('modal').style.display='none'; paused=false; }
+function closeMenu(){ invOpen=false; $('modal').style.display='none'; paused=false; }
 
 // ================= SHOP =================
 const LINES=[
@@ -3242,7 +3265,7 @@ function moonHelp(){
   '<h3>The mission</h3><ul><li>🪨 Walk over '+ML_NEED+' rock samples to collect them (100 points each, glowing crystals 300). Every one is a different color. The mini-map in the corner shows where they are</li><li>🇺🇸 Plant the flag next to the lander (red beam): +500, then pose for a photo…</li><li>☄️ Something crashes nearby. Go check it out (green beam)</li>'+
   '<li>👾 Fight 3 waves: moon crawlers (1 hit), aliens that shoot green plasma (3 hits), and robot aliens with red lasers (5 hits), plus a giant robot (30 hits!)</li><li>🚀 Get back to the lander (blue beam) to fly home. The faster you finish, the bigger your time bonus</li></ul>'+
   '<h3>Your suit</h3><ul><li>When your hearts run out, your suit cracks and your oxygen starts leaking (30 seconds). Get back to the lander to patch it up. If your oxygen runs out, the mission fails</li><li>🫧 Your oxygen tank slowly runs down. The lander refills it</li><li>🔫 Your laser never runs out, but fire too fast and it overheats for 2 seconds</li><li>⛏ Aim at the ground right in front of you to dig. Digging tires you out and uses extra oxygen, and sometimes you find a moon gem</li><li>🎒 Your jetpack: press jump again in the air for a double jump</li></ul>'+
-  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit (or click) fires the laser · jump with the jump button or Space</li></ul>';
+  '<h3>Controls</h3><ul><li>Left side walks, right side looks · ⛏ Hit (or click) fires the laser · jump with the jump button (on a laptop: Space or click fires, Ctrl or right click jumps, press jump again in the air for the jetpack)</li></ul>';
 }
 
 
@@ -4317,7 +4340,7 @@ function updatePlayer(dt){
   const env=envAt(pl);
   const speed=(fly?(outsideDist()>0?13:9):4.6)*(webbed?Math.max(0.55,1-webbed*0.12):1)*(env.water&&!fly?0.6:1)*(env.lava?0.4:1);
   pl.v[0]=(-s*fwd+c*str)*speed; pl.v[2]=(-c*fwd-s*str)*speed;
-  const up=upHeld||keys.Space||(!!demo&&demoUp), down=downHeld||keys.ShiftLeft||keys.ShiftRight;
+  const up=upHeld||keys.ControlLeft||keys.ControlRight||rmbHeld||(!!demo&&demoUp), down=downHeld||keys.KeyC;
   if(fly){ pl.v[1]=((up?1:0)-(down?1:0))*7; }
   else if(env.water||env.lava){ pl.v[1]-=9*dt; if(up)pl.v[1]=3.4; if(pl.v[1]<-3.5)pl.v[1]=-3.5; }
   else { const mo=mode==='moon'; pl.v[1]-=(mo?4.8:28)*dt; if(up&&pl.onGround)pl.v[1]=mo?4.6:8.6; if(pl.v[1]<-30)pl.v[1]=-30;
@@ -4537,7 +4560,7 @@ function update(dt){
   // merchant faces player
   const mdx=pl.p[0]-merchant.p[0], mdz=pl.p[2]-merchant.p[2]; if(Math.hypot(mdx,mdz)<12) merchant.g.rotation.y=Math.atan2(-mdx,-mdz);
   const near=nearMerchant(); $('bTalk').style.display=near&&IS_TOUCH?'flex':'none';
-  const pr=$('prompt'); if(near&&!IS_TOUCH){ pr.textContent='Press E to talk to Flint'; pr.style.display='block'; } else pr.style.display='none';
+  const pr=$('prompt'); if(near&&!IS_TOUCH){ pr.textContent='Press T to talk to Flint'; pr.style.display='block'; } else pr.style.display='none';
 
   updateMobs(dt); updateShots(dt); updateBoomerang(dt); updateDrops(dt); updateTarget();
 
