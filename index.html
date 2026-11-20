@@ -2400,7 +2400,7 @@ function generateRaid(s){
   const SED=[ID.limestone,ID.limestone,ID.shale,ID.sandstone,ID.sandstone,ID.limestone,ID.conglomerate,ID.shale];
   const arenaAt=(x,z,m)=>{ for(let k=0;k<6;k++){ const st=RD_ST[k], d=(z-st.tz)*st.side; if(Math.abs(x+0.5-st.x)<=15+m&&d>=1-m&&d<=38+m)return k; } return -1; };
   const HM=rdHM=new Int16Array(W*D), AR=new Int8Array(W*D);
-  const hilly=RD_ST.map(()=>rnd()<0.5); if(hilly.every(v=>v===hilly[0]))hilly[Math.floor(rnd()*6)]=!hilly[0]; // each stage is randomly hilly or flat, never all the same
+  const tr=raidTerrain(); rdBuiltTerrain=tr; const hilly=RD_ST.map(()=>tr==='hills'?true:tr==='flat'?false:rnd()<0.5); if(tr==='mixed'&&hilly.every(v=>v===hilly[0]))hilly[Math.floor(rnd()*6)]=!hilly[0]; // each stage is randomly hilly or flat, never all the same
   for(let z=0;z<D;z++)for(let x=0;x<W;x++){
     let h=RD_GY; if(z>=43&&z<=52) h=RD_GY+Math.round(Math.sin((z-42.5)/10*Math.PI)*(3+n1(x/8,z/8)*4)); // a wooded ridge splits the two rows
     const k=arenaAt(x,z,0); AR[x+z*W]=k;
@@ -2466,13 +2466,14 @@ function rideRaid(dt){ if(!rd)return;
     let lim=Math.sqrt(2*3*Math.max(0,d))+0.15; for(const c of RTRK.corners){ const dc=c-rd.dist; if(dc>-6)lim=Math.min(lim,Math.sqrt(49+2*4*Math.max(0,dc-5))); } // slow down for corners and stations
     rd.v+=Math.max(-6,Math.min(3,(13-rd.v)*1.2))*dt; rd.v=Math.max(0,Math.min(rd.v,lim)); rd.dist+=rd.v*dt;
     if(d<=0.05||rd.dist>=target){ rd.dist=target; rd.v=0; raidArrive(); } }
-  else if(rd.phase==='ready'){ if(!rd.floats.length){ rd.t-=dt; if(rd.t<=0)raidStartRound(); } } // starts once every warm-up bullseye is down
+  else if(rd.phase==='ready'){ rd.warmIdle=(rd.warmIdle||0)+dt; if(rd.floats.length&&rd.warmIdle>=15){ rdFloatsClear(); toast('⏱ Warm-up over! Here we go…'); } // some may be hidden behind buildings
+    if(!rd.floats.length){ rd.t-=dt; if(rd.t<=0)raidStartRound(); } } // starts once every warm-up bullseye is down
   else if(rd.phase==='round'){ rd.time-=dt; if(rd.time<=0){ rd.time=0; raidEndRound(false); } }
   else if(rd.phase==='post'){ rd.t-=dt; if(rd.t<=0){ if(rd.r>=5)raidFinish(); else { rd.r++; rd.phase='ride'; toast('🚂 Next stop: '+RD_ROUNDS[rd.r].name); } } }
   raidPlace(dt);
   if(rd.turn){ const T=rd.turn; T.t+=dt; const u=Math.min(1,T.t/T.dur), e=u*u*(3-2*u); yaw=T.from+(T.to-T.from)*e; pitch=T.pf+(T.pt-T.pf)*e; if(u>=1)rd.turn=null; }
   invuln-=dt; hurtFlash=Math.max(0,hurtFlash-dt); $('hurt').style.opacity=(hurtFlash/0.35).toFixed(2); }
-function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; rd.t=0.8;
+function raidArrive(){ const R=RD_ROUNDS[rd.r], A=rdArena(); rd.phase='ready'; rd.t=0.8; rd.warmIdle=0;
   rdWarmup(); sfx('place'); setTimeout(()=>{ if(rd&&rd.phase==='ready')raidBanner('🎯 Warm up!','Shoot all the floating bullseyes to start the round',3.5); },3200);
   raidBanner('Round '+(rd.r+1)+' of 6: '+R.name, R.type==='bomb'?'You get '+RD_BOMBS+' bomb arrows. Blow up as much as you can!':R.style==='lines'?'Monsters march at you in lines. 🍎 Shoot an apple to heal!':R.style==='mixed'?'Everything at once, and eagles too! 🍎 Shoot an apple to heal!':'Monsters are coming! 🍎 Shoot an apple to heal!',3); }
 function raidStartRound(){ const R=RD_ROUNDS[rd.r]; rd.phase='round'; rd.time=RD_LEN; rd.rk=0; rd.rb=0; rd.rt=0; rd.idle=0; rd.spawnT=0.5; rd.lineT=0.5; rd.eagleT=8; rd.lineN=0; rd.ko=false;
@@ -2499,15 +2500,20 @@ function raidFinish(){ rd.phase='done'; const best=raidBest(), rec=rd.score>best
     '<div class="row"><button class="mbtn" id="rAgain">Play again</button><button class="mbtn gray" id="rMenu">Menu</button></div>';
   $('modal').style.display='flex'; if(rec)sfx('buy'); saveNow();
   tap($('rAgain'),()=>{ closeMenu(); raidGo(true); }); tap($('rMenu'),openMenu); }
+const RD_TERRAIN='stratacraft_raid_terrain'; let rdBuiltTerrain=null;
+function raidTerrain(){ try{ const t=localStorage.getItem(RD_TERRAIN); if(t==='hills'||t==='flat')return t; }catch(e){} return 'mixed'; }
 function raidGo(fresh){ if(fresh)raidSetup(); arrows=cleanArrows(); arrowSel='normal'; hp=MAXHP; invuln=0; updateHUD(); rd.phase='count'; rd.t=3.99; }
 function raidIntro(){ if(!rd)return; if(document.pointerLockElement)document.exitPointerLock(); paused=true; const best=raidBest(), mid=rd.phase!=='intro'&&rd.phase!=='done';
   $('mbox').innerHTML='<h2>💣 Rail Rampage</h2><div class="say">Ride the cart to 6 stations and look out the side. At 🧟 monster stations, shoot the monsters before they reach your cart. At 💣 town stations you get '+RD_BOMBS+' bomb arrows: blow up buildings, cars and statues. Every block you blow up scores, and a building that takes enough damage comes crashing down!</div>'+
     '<div class="board"><div>🏆 High score<div class="n" style="color:#ffd84a">'+best+'</div></div></div>'+
+    (mid?'':'<div style="margin-top:10px;font-weight:800">Ground</div><div class="seg" id="rTer">'+[['mixed','🎲 Mixed'],['hills','⛰️ Hills'],['flat','🟩 Flat']].map(([k,n])=>'<button data-ter="'+k+'"'+(raidTerrain()===k?' class="on"':'')+'>'+n+'</button>').join('')+'</div>'+
+      '<div style="font-size:12px;opacity:.75;margin-top:4px">Mixed: each stop is randomly hilly or flat. Hills: every stop has hills. Flat: every stop is flat.</div>')+
     '<div class="row"><button class="mbtn" id="rGo">'+(mid?'Keep going':'Start!')+'</button><button class="mbtn gray" id="rMenu">Menu</button></div>';
   $('modal').style.display='flex';
-  tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'); }); tap($('rMenu'),openMenu); }
+  $('mbox').querySelectorAll('[data-ter]').forEach(b=>tap(b,()=>{ try{ localStorage.setItem(RD_TERRAIN,b.dataset.ter); }catch(e){} $('mbox').querySelectorAll('[data-ter]').forEach(x=>x.classList.toggle('on',x===b)); }));
+  tap($('rGo'),()=>{ closeMenu(); if(!mid)raidGo(rd.phase==='done'||rdBuiltTerrain!==raidTerrain()); }); tap($('rMenu'),openMenu); } // rebuild the world if the ground choice changed
 function updateRaidHud(){ const el=$('cartHud'); el.style.display='inline-block'; const R=RD_ROUNDS[Math.min(5,rd.r)];
-  let h=rd.phase==='ride'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name+' &nbsp;🎯 Warm up!':rd.phase==='ready'?'🚂 Round '+(rd.r+1)+'/6 · '+R.name+' &nbsp;<span style="color:#ffd84a">🎯 Shoot '+rd.floats.length+' more to start</span>':rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
+  let h=rd.phase==='ride'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name+' &nbsp;🎯 Warm up!':rd.phase==='ready'?'🚂 Round '+(rd.r+1)+'/6 · '+R.name+' &nbsp;<span style="color:#ffd84a">🎯 Shoot '+rd.floats.length+' more to start'+((rd.warmIdle||0)>8?' (or wait '+Math.max(0,Math.ceil(15-rd.warmIdle))+'s)':'')+'</span>':rd.phase==='count'||rd.phase==='intro'?'🚂 Next: Round '+(rd.r+1)+'/6 · '+R.name:'🚂 Round '+(rd.r+1)+'/6 · '+R.name;
   if(rd.phase==='round'){ h+=' &nbsp;<span style="color:#ffd84a">⏱ '+Math.ceil(rd.time)+'s</span>'; if(R.type==='bomb')h+=' &nbsp;<span style="color:#ff8a5a">💣×'+arrows.explode+'</span>'; else { if(arrows.explode>0)h+=' &nbsp;<span style="color:#ff8a5a">💥×'+arrows.explode+'</span>'; if(arrows.split>0)h+=' &nbsp;<span style="color:#ffc81a">🔱×'+arrows.split+'</span>'; } }
   h+='<br><span style="color:#7fe3cf">⭐ '+rd.score+'</span> &nbsp;·&nbsp; <span style="color:#ffd84a">🏆 Best '+Math.max(raidBest(),rd.score)+'</span>';
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
@@ -2624,7 +2630,7 @@ function raidFloatHit(s,x0,y0,z0){ const c=new THREE.Vector3(), n=new THREE.Vect
     const a=(x0-c.x)*n.x+(y0-c.y)*n.y+(z0-c.z)*n.z, b=(s.p[0]-c.x)*n.x+(s.p[1]-c.y)*n.y+(s.p[2]-c.z)*n.z; if((a>0)===(b>0)||a===b)continue;
     const t=a/(a-b), hx=x0+(s.p[0]-x0)*t, hy=y0+(s.p[1]-y0)*t, hz=z0+(s.p[2]-z0)*t, r=Math.hypot(hx-c.x,hy-c.y,hz-c.z)/d.userData.R; if(r>1)continue;
     const ring=ringPoints(r); if(!ring)continue; tgPopup(ring===25?'Bullseye!':'Hit!',ring===25?'#ff5a4a':'#7fe3cf',[hx,hy+0.5,hz]); sfx(ring===25?'buy':'coin'); rdFloatFree(f,true);
-    if(rd.phase==='ready'){ if(rd.floats.length)toast('🎯 '+rd.floats.length+' to go!'); else toast('✅ Warmed up! Get ready…'); } return true; }
+    if(rd.phase==='ready'){ rd.warmIdle=0; if(rd.floats.length)toast('🎯 '+rd.floats.length+' to go!'); else toast('✅ Warmed up! Get ready…'); } return true; }
   return false; }
 function raidKill(m){ const p=(m.rdi&&m.rdi.pts)||50; rdAdd(p); rd.kills[m.type]=(rd.kills[m.type]||0)+1; rd.rk++; tgPopup('+'+p,'#7fe3cf',[m.p[0],m.p[1]+m.h+0.6,m.p[2]]); }
 function rdThrow(m,sh){ const o=new THREE.Vector3(m.p[0],m.p[1]+m.h*0.8,m.p[2]), tg=new THREE.Vector3(pl.p[0]+(rand()-.5)*1.6,pl.p[1]+1.0+(rand()-.5)*0.8,pl.p[2]+(rand()-.5)*1.6);
